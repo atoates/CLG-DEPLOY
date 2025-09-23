@@ -444,3 +444,25 @@ function renderAll() {
   renderAlerts();
   renderSummary();
 }
+// --- Topbar dropdown (account) ----------------------------------------------
+(function(){
+  const btn = document.getElementById('user-menu-btn');
+  const menu = document.getElementById('user-menu');
+  if (!btn || !menu) return;
+
+  const close = () => { menu.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); };
+  const open  = () => { menu.removeAttribute('hidden'); btn.setAttribute('aria-expanded','true'); };
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (menu.hasAttribute('hidden')) open(); else close();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (menu.hasAttribute('hidden')) return;
+    if (menu.contains(e.target) || btn.contains(e.target)) return;
+    close();
+  });
+
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+})();
