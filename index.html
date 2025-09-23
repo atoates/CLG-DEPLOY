@@ -65,12 +65,20 @@
       <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
     </section>
 
-    <!-- Tabs -->
-    <nav class="tabs" role="tablist" aria-label="Main tabs">
-      <button class="tab active" data-tab="alerts" aria-selected="true" role="tab">Alerts</button>
-      <button class="tab" data-tab="summary" aria-selected="false" role="tab">Weekly summary</button>
-      <button class="tab" data-tab="market" aria-selected="false" role="tab">Market</button>
-    </nav>
+    <!-- Tabs + Show-all toggle -->
+    <div class="tabsbar" role="navigation" aria-label="Main tabs and filters">
+      <nav class="tabs" role="tablist" aria-label="Main tabs">
+        <button class="tab active" data-tab="alerts" aria-selected="true" role="tab">Alerts</button>
+        <button class="tab" data-tab="summary" aria-selected="false" role="tab">Weekly summary</button>
+        <button class="tab" data-tab="market" aria-selected="false" role="tab">Market</button>
+      </nav>
+
+      <label class="switch" id="showall-wrap" title="Show all alerts">
+        <input type="checkbox" id="toggle-show-all" />
+        <span class="slider" aria-hidden="true"></span>
+        <span class="switch-label">Show all</span>
+      </label>
+    </div>
 
     <!-- Alerts Panel -->
     <section id="panel-alerts" class="card" role="tabpanel">

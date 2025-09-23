@@ -1,19 +1,8 @@
 // --- Config ------------------------------------------------------------------
-const ALL_TOKENS = [
-  'BTC',
-  'ETH',
-  'USDC',
-  'MATIC',
-  'DOGE',
-  'ADA',
-  'SOL',
-  'POL',
-  'UNI',
-  'LINK',
-];
+const ALL_TOKENS = ['BTC','ETH','USDC','MATIC','DOGE','ADA','SOL','POL','UNI','LINK'];
 
 // --- Utilities ---------------------------------------------------------------
-function fmtTimeLeft(msLeft) {
+function fmtTimeLeft(msLeft){
   if (msLeft <= 0) return 'Expired';
   const totalSeconds = Math.floor(msLeft / 1000);
   const d = Math.floor(totalSeconds / 86400);
@@ -24,22 +13,19 @@ function fmtTimeLeft(msLeft) {
   if (h > 0) return `${h}h ${m}m left`;
   return `${m}m ${s}s left`;
 }
-function pctFmt(n) {
+function pctFmt(n){
   if (n === null || n === undefined || isNaN(n)) return '—';
   const s = n >= 0 ? '+' : '';
   return `${s}${n.toFixed(2)}%`;
 }
-function moneyFmt(n) {
+function moneyFmt(n){
   if (n === null || n === undefined || isNaN(n)) return '—';
-  return (
-    '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })
-  );
+  return '$' + Number(n).toLocaleString(undefined, {maximumFractionDigits: 2});
 }
 
 // --- State -------------------------------------------------------------------
-let selectedTokens = JSON.parse(
-  localStorage.getItem('cl_selectedTokens') || '[]'
-);
+let selectedTokens = JSON.parse(localStorage.getItem('cl_selectedTokens') || '[]');
+let showAll = localStorage.getItem('cl_showAll') === '1';  // NEW
 let serverAlerts = [];
 let autoAlerts = [];
 let marketItems = [];
@@ -63,6 +49,18 @@ const marketGridEl = document.getElementById('market-grid');
 const marketEmptyEl = document.getElementById('market-empty');
 const marketNoteEl = document.getElementById('market-note');
 
+// NEW: Show-all toggle
+const showAllToggle = document.getElementById('toggle-show-all');
+if (showAllToggle) {
+  showAllToggle.checked = showAll;
+  showAllToggle.addEventListener('change', async () => {
+    showAll = showAllToggle.checked;
+    localStorage.setItem('cl_showAll', showAll ? '1' : '0');
+    await loadAutoAlerts();
+    renderAlerts();
+  });
+}
+
 // --- Init --------------------------------------------------------------------
 renderDatalist();
 renderAll();
@@ -70,9 +68,9 @@ loadAlertsFromServer();
 loadMarket(); // prefetch so Market tab is instant
 
 // --- Datalist ----------------------------------------------------------------
-function renderDatalist() {
+function renderDatalist(){
   tokenDatalist.innerHTML = '';
-  ALL_TOKENS.forEach((t) => {
+  ALL_TOKENS.forEach(t => {
     const opt = document.createElement('option');
     opt.value = t;
     tokenDatalist.appendChild(opt);
@@ -80,9 +78,9 @@ function renderDatalist() {
 }
 
 // --- Pills -------------------------------------------------------------------
-function renderPills() {
+function renderPills(){
   pillsRow.innerHTML = '';
-  selectedTokens.forEach((t) => {
+  selectedTokens.forEach(t => {
     const pill = document.createElement('div');
     pill.className = 'pill';
     pill.textContent = t;
@@ -92,11 +90,10 @@ function renderPills() {
     btn.setAttribute('aria-label', `Remove ${t}`);
     btn.textContent = '×';
     btn.addEventListener('click', () => {
-      selectedTokens = selectedTokens.filter((x) => x !== t);
+      selectedTokens = selectedTokens.filter(x => x !== t);
       persistState();
       renderAll();
       loadMarket();
-      // refresh auto alerts for the new selection
       loadAutoAlerts().then(renderAlerts);
     });
 
@@ -106,9 +103,9 @@ function renderPills() {
 }
 
 // --- Tabs --------------------------------------------------------------------
-tabs.forEach((btn) => {
+tabs.forEach(btn => {
   btn.addEventListener('click', () => {
-    tabs.forEach((b) => b.classList.remove('active'));
+    tabs.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
 
     const tab = btn.getAttribute('data-tab');
@@ -130,39 +127,33 @@ addTokenBtn.addEventListener('click', tryAddTokenFromInput);
 tokenInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') tryAddTokenFromInput();
 });
-function tryAddTokenFromInput() {
+function tryAddTokenFromInput(){
   const val = (tokenInput.value || '').toUpperCase().trim();
   if (!val) return;
-  if (!ALL_TOKENS.includes(val)) {
-    if (/^[A-Z0-9]{2,10}$/.test(val)) {
-      ALL_TOKENS.push(val);
-      renderDatalist();
-    } else {
-      tokenInput.value = '';
-      return;
-    }
+  if (!ALL_TOKENS.includes(val)){
+    if (/^[A-Z0-9]{2,10}$/.test(val)) { ALL_TOKENS.push(val); renderDatalist(); }
+    else { tokenInput.value = ''; return; }
   }
-  if (!selectedTokens.includes(val)) {
+  if (!selectedTokens.includes(val)){
     selectedTokens.push(val);
     persistState();
     renderAll();
     loadMarket();
-    // refresh auto alerts for the new selection
     loadAutoAlerts().then(renderAlerts);
   }
   tokenInput.value = '';
   tokenInput.focus();
 }
-function persistState() {
+function persistState(){
   localStorage.setItem('cl_selectedTokens', JSON.stringify(selectedTokens));
 }
 
 // --- Alerts (Saved + Auto) ---------------------------------------------------
-async function loadAlertsFromServer() {
-  try {
+async function loadAlertsFromServer(){
+  try{
     const res = await fetch('/api/alerts');
     serverAlerts = await res.json();
-  } catch (e) {
+  }catch(e){
     console.error('Failed to fetch /api/alerts', e);
     serverAlerts = [];
   }
@@ -171,56 +162,49 @@ async function loadAlertsFromServer() {
   startTicking();
 }
 
-async function loadAutoAlerts() {
-  // Only fetch auto alerts when there are selected tokens
-  if (!selectedTokens.length) {
+async function loadAutoAlerts(){
+  // If Show All is on, fetch for ALL_TOKENS; otherwise only for selected tokens (if any).
+  if (!showAll && selectedTokens.length === 0){
     autoAlerts = [];
     return;
   }
-  const symbols = selectedTokens.join(',');
-  try {
-    const res = await fetch(
-      `/api/market/auto-alerts?symbols=${encodeURIComponent(symbols)}`
-    );
+  const symbols = (showAll ? ALL_TOKENS : selectedTokens).join(',');
+  try{
+    const res = await fetch(`/api/market/auto-alerts?symbols=${encodeURIComponent(symbols)}`);
     autoAlerts = await res.json();
-  } catch (e) {
+  }catch(e){
     console.error('Failed to fetch /api/market/auto-alerts', e);
     autoAlerts = [];
   }
 }
 
-function getRelevantAlerts() {
-  if (!selectedTokens.length) return []; // show nothing until user selects tokens
+function getRelevantAlerts(){
   const base = [...serverAlerts, ...autoAlerts];
-  return base.filter((a) =>
-    selectedTokens.includes((a.token || '').toUpperCase())
-  );
+  if (showAll) return base;
+  if (selectedTokens.length === 0) return [];
+  return base.filter(a => selectedTokens.includes((a.token || '').toUpperCase()));
 }
 
 // SORT: nearest deadline first
-function sortAlertsByDeadline(list) {
+function sortAlertsByDeadline(list){
   const now = Date.now();
-  const toTs = (a) => new Date(a.deadline).getTime();
-  const upcoming = list
-    .filter((a) => toTs(a) >= now)
-    .sort((a, b) => toTs(a) - toTs(b));
-  const expired = list
-    .filter((a) => toTs(a) < now)
-    .sort((a, b) => toTs(a) - toTs(b));
+  const toTs = a => new Date(a.deadline).getTime();
+  const upcoming = list.filter(a => toTs(a) >= now).sort((a,b) => toTs(a) - toTs(b));
+  const expired  = list.filter(a => toTs(a) <  now).sort((a,b) => toTs(a) - toTs(b));
   return upcoming.concat(expired);
 }
 
-function renderAlerts() {
+function renderAlerts(){
   const list = sortAlertsByDeadline(getRelevantAlerts());
   alertsListEl.innerHTML = '';
-  if (list.length === 0) {
+  if (list.length === 0){
     noAlertsEl.hidden = false;
     return;
   } else {
     noAlertsEl.hidden = true;
   }
 
-  list.forEach((a) => {
+  list.forEach(a => {
     const wrap = document.createElement('div');
     wrap.className = 'alert-item severity-' + (a.severity || 'info');
 
@@ -229,8 +213,7 @@ function renderAlerts() {
 
     const icon = document.createElement('span');
     icon.className = 'alert-icon';
-    icon.textContent =
-      a.severity === 'critical' ? '🚨' : a.severity === 'warning' ? '⚠️' : '🛟';
+    icon.textContent = a.severity === 'critical' ? '🚨' : (a.severity === 'warning' ? '⚠️' : '🛟');
 
     const text = document.createElement('div');
     const title = document.createElement('div');
@@ -266,105 +249,59 @@ function renderAlerts() {
 
 // live ticking
 let tickTimer = null;
-function startTicking() {
+function startTicking(){
   if (tickTimer) clearInterval(tickTimer);
   tickTimer = setInterval(() => {
-    [...alertsListEl.children].forEach((el) => {
+    [...alertsListEl.children].forEach(el => {
       if (typeof el._tick === 'function') el._tick();
     });
   }, 1000);
 }
 
 // --- Weekly Summary (mock) ---------------------------------------------------
-function renderSummary() {
+function renderSummary(){
   const tokens = selectedTokens;
   const out = [];
-  if (tokens.includes('BTC'))
-    out.push(
-      '- BTC: Network activity ticked up; devs debated a future fork proposal. No immediate action required.'
-    );
-  if (tokens.includes('ETH'))
-    out.push(
-      '- ETH: Staking withdrawals increased; core devs signalled steady upgrade progress.'
-    );
-  if (tokens.includes('MATIC'))
-    out.push(
-      '- MATIC: Transition to POL remains on track; migration tooling improving.'
-    );
-  if (tokens.includes('UNI'))
-    out.push(
-      '- UNI: Large holder flows spotted; monitor governance/treasury chatter.'
-    );
-  if (tokens.includes('SOL'))
-    out.push(
-      '- SOL: Validator upgrade window scheduled; ecosystem projects testing compatibility.'
-    );
-  if (tokens.includes('USDC'))
-    out.push(
-      '- USDC: Issuer posted routine compliance updates; peg remains stable.'
-    );
-  if (tokens.includes('LINK'))
-    out.push('- LINK: Oracle performance optimisations rolling out.');
-  if (tokens.includes('ADA'))
-    out.push(
-      '- ADA: Community proposals discussed throughput; research teams shared progress.'
-    );
-  if (tokens.includes('DOGE'))
-    out.push(
-      '- DOGE: Client updates recommended for improved security and reliability.'
-    );
-  if (tokens.includes('POL'))
-    out.push(
-      '- POL: Ecosystem integrations expanding; bridging UX under refinement.'
-    );
+  if (tokens.includes('BTC')) out.push('- BTC: Network activity ticked up; devs debated a future fork proposal. No immediate action required.');
+  if (tokens.includes('ETH')) out.push('- ETH: Staking withdrawals increased; core devs signalled steady upgrade progress.');
+  if (tokens.includes('MATIC')) out.push('- MATIC: Transition to POL remains on track; migration tooling improving.');
+  if (tokens.includes('UNI')) out.push('- UNI: Large holder flows spotted; monitor governance/treasury chatter.');
+  if (tokens.includes('SOL')) out.push('- SOL: Validator upgrade window scheduled; ecosystem projects testing compatibility.');
+  if (tokens.includes('USDC')) out.push('- USDC: Issuer posted routine compliance updates; peg remains stable.');
+  if (tokens.includes('LINK')) out.push('- LINK: Oracle performance optimisations rolling out.');
+  if (tokens.includes('ADA')) out.push('- ADA: Community proposals discussed throughput; research teams shared progress.');
+  if (tokens.includes('DOGE')) out.push('- DOGE: Client updates recommended for improved security and reliability.');
+  if (tokens.includes('POL')) out.push('- POL: Ecosystem integrations expanding; bridging UX under refinement.');
   const sc = document.getElementById('summary-content');
   sc.innerHTML = '';
-  if (out.length === 0) {
-    sc.innerHTML =
-      '<p class="muted">Select some tokens to see a weekly summary.</p>';
+  if (out.length === 0){
+    sc.innerHTML = '<p class="muted">Select some tokens to see a weekly summary.</p>';
   } else {
-    const h = document.createElement('h2');
-    h.className = 'section-title';
-    h.textContent = 'AI-Generated Weekly Summary (mock)';
+    const h = document.createElement('h2'); h.className='section-title'; h.textContent='AI-Generated Weekly Summary (mock)';
     sc.appendChild(h);
-    out.forEach((line) => {
-      const p = document.createElement('p');
-      p.textContent = line;
-      sc.appendChild(p);
-    });
-    const note = document.createElement('p');
-    note.className = 'muted';
-    note.textContent =
-      '(This summary is auto-generated based on trending news for your selected tokens.)';
-    sc.appendChild(note);
+    out.forEach(line => { const p=document.createElement('p'); p.textContent=line; sc.appendChild(p); });
+    const note=document.createElement('p'); note.className='muted'; note.textContent='(This summary is auto-generated based on trending news for your selected tokens.)'; sc.appendChild(note);
   }
 }
 
 // --- Market snapshot (FREE TIER: EOD only) -----------------------------------
-async function loadMarket() {
-  if (!selectedTokens.length) {
+async function loadMarket(){
+  if (!selectedTokens.length){
     marketItems = [];
-    if (marketNoteEl)
-      marketNoteEl.textContent =
-        'Add tokens to your watchlist to see market data.';
+    if (marketNoteEl) marketNoteEl.textContent = 'Add tokens to your watchlist to see market data.';
     renderMarket();
     return;
   }
   const symbols = selectedTokens.join(',');
-  try {
-    const res = await fetch(
-      `/api/market/snapshot?symbols=${encodeURIComponent(symbols)}`
-    );
+  try{
+    const res = await fetch(`/api/market/snapshot?symbols=${encodeURIComponent(symbols)}`);
     const json = await res.json();
     marketItems = json.items || [];
-    if (marketNoteEl)
-      marketNoteEl.textContent =
-        json.note || 'End-of-day aggregates (free tier).';
-  } catch (e) {
+    if (marketNoteEl) marketNoteEl.textContent = json.note || 'End-of-day aggregates (free tier).';
+  }catch(e){
     console.error('snapshot error', e);
     marketItems = [];
-    if (marketNoteEl)
-      marketNoteEl.textContent = 'Data unavailable (free plan limits).';
+    if (marketNoteEl) marketNoteEl.textContent = 'Data unavailable (free plan limits).';
   }
   renderMarket();
 }
@@ -378,14 +315,12 @@ function renderMarket(){
     marketEmptyEl.hidden = true;
   }
 
-  // stable order
   const list = [...marketItems].sort((a,b) => a.token.localeCompare(b.token));
 
   list.forEach(it => {
     const card = document.createElement('div');
     card.className = 'market-card';
 
-    // header row: token + tiny badge
     const header = document.createElement('div');
     header.className = 'mk-header';
 
@@ -400,12 +335,10 @@ function renderMarket(){
     header.appendChild(badge);
     header.appendChild(name);
 
-    // big price
     const price = document.createElement('div');
     price.className = 'mk-price';
     price.textContent = moneyFmt(it.lastPrice);
 
-    // chips row
     const chips = document.createElement('div');
     chips.className = 'mk-row';
 
@@ -437,13 +370,13 @@ function renderMarket(){
   });
 }
 
-
 // --- Render all ---------------------------------------------------------------
-function renderAll() {
+function renderAll(){
   renderPills();
   renderAlerts();
   renderSummary();
 }
+
 // --- Topbar dropdown (account) ----------------------------------------------
 (function(){
   const btn = document.getElementById('user-menu-btn');
