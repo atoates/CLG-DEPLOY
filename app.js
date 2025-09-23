@@ -25,7 +25,9 @@ function moneyFmt(n){
 
 // --- State -------------------------------------------------------------------
 let selectedTokens = JSON.parse(localStorage.getItem('cl_selectedTokens') || '[]');
-let showAll = localStorage.getItem('cl_showAll') === '1';  // NEW
+let showAll = localStorage.getItem('cl_showAll') === '1';
+let sevFilter = JSON.parse(localStorage.getItem('cl_sevFilter') || '["critical","warning","info"]');
+
 let serverAlerts = [];
 let autoAlerts = [];
 let marketItems = [];
@@ -40,7 +42,6 @@ const tabs = document.querySelectorAll('.tab');
 const panelAlerts = document.getElementById('panel-alerts');
 const panelSummary = document.getElementById('panel-summary');
 const panelMarket = document.getElementById('panel-market');
-const summaryContent = document.getElementById('summary-content');
 
 const alertsListEl = document.getElementById('alerts-list');
 const noAlertsEl = document.getElementById('no-alerts');
@@ -60,6 +61,29 @@ if (showAllToggle) {
     renderAlerts();
   });
 }
+
+// NEW: Severity selector buttons
+const sevButtons = document.querySelectorAll('.sev-btn');
+function syncSevUi(){
+  sevButtons.forEach(btn => {
+    const sev = btn.dataset.sev;
+    const on = sevFilter.includes(sev);
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
+}
+sevButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const sev = btn.dataset.sev;
+    const idx = sevFilter.indexOf(sev);
+    if (idx >= 0) sevFilter.splice(idx, 1);
+    else sevFilter.push(sev);
+    localStorage.setItem('cl_sevFilter', JSON.stringify(sevFilter));
+    syncSevUi();
+    renderAlerts();
+  });
+});
+syncSevUi();
 
 // --- Init --------------------------------------------------------------------
 renderDatalist();
@@ -178,11 +202,22 @@ async function loadAutoAlerts(){
   }
 }
 
+function applySeverityFilter(list){
+  // If none selected, show nothing; if all selected, pass-through
+  if (!sevFilter || sevFilter.length === 0) return [];
+  return list.filter(a => sevFilter.includes((a.severity || 'info')));
+}
+
 function getRelevantAlerts(){
   const base = [...serverAlerts, ...autoAlerts];
-  if (showAll) return base;
-  if (selectedTokens.length === 0) return [];
-  return base.filter(a => selectedTokens.includes((a.token || '').toUpperCase()));
+  let list;
+  if (showAll) {
+    list = base;
+  } else {
+    if (selectedTokens.length === 0) return [];
+    list = base.filter(a => selectedTokens.includes((a.token || '').toUpperCase()));
+  }
+  return applySeverityFilter(list);
 }
 
 // SORT: nearest deadline first
@@ -275,9 +310,9 @@ function renderSummary(){
   const sc = document.getElementById('summary-content');
   sc.innerHTML = '';
   if (out.length === 0){
-    sc.innerHTML = '<p class="muted">Select some tokens to see a weekly summary.</p>';
+    sc.innerHTML = '<p class="muted">Select some tokens to see a summary.</p>';
   } else {
-    const h = document.createElement('h2'); h.className='section-title'; h.textContent='AI-Generated Weekly Summary (mock)';
+    const h = document.createElement('h2'); h.className='section-title'; h.textContent='AI-Generated Summary (mock)';
     sc.appendChild(h);
     out.forEach(line => { const p=document.createElement('p'); p.textContent=line; sc.appendChild(p); });
     const note=document.createElement('p'); note.className='muted'; note.textContent='(This summary is auto-generated based on trending news for your selected tokens.)'; sc.appendChild(note);

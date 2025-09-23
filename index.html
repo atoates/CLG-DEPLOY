@@ -65,15 +65,30 @@
       <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
     </section>
 
-    <!-- Tabs + Show-all toggle -->
+    <!-- Tabs + Severity selector + Show-all toggle -->
     <div class="tabsbar" role="navigation" aria-label="Main tabs and filters">
+      <!-- Tabs (left) -->
       <nav class="tabs" role="tablist" aria-label="Main tabs">
         <button class="tab active" data-tab="alerts" aria-selected="true" role="tab">Alerts</button>
-        <button class="tab" data-tab="summary" aria-selected="false" role="tab">Weekly summary</button>
+        <button class="tab" data-tab="summary" aria-selected="false" role="tab">Summary</button>
         <button class="tab" data-tab="market" aria-selected="false" role="tab">Market</button>
       </nav>
 
-      <label class="switch" id="showall-wrap" title="Show all alerts">
+      <!-- Severity selector (middle) -->
+      <div class="sev-filter" role="group" aria-label="Filter by severity">
+        <button class="sev-btn active" data-sev="critical" aria-pressed="true" title="Critical">
+          🚨
+        </button>
+        <button class="sev-btn active" data-sev="warning" aria-pressed="true" title="Warning">
+          ⚠️
+        </button>
+        <button class="sev-btn active" data-sev="info" aria-pressed="true" title="Info">
+          🛟
+        </button>
+      </div>
+
+      <!-- Show all (right) -->
+      <label class="switch small" id="showall-wrap" title="Show all alerts">
         <input type="checkbox" id="toggle-show-all" />
         <span class="slider" aria-hidden="true"></span>
         <span class="switch-label">Show all</span>
@@ -84,7 +99,7 @@
     <section id="panel-alerts" class="card" role="tabpanel">
       <div id="alerts-list" class="alerts-list"></div>
       <p id="no-alerts" class="muted" hidden>
-        No alerts for your selected tokens. Add some tokens to see alerts.
+        No alerts for your selected filters. Adjust severity or watchlist to see alerts.
       </p>
     </section>
 
