@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Create Alert — Crypto Lifeguard</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="logo">🌊🛟</span>
+      <h1>Create Alert</h1>
+    </div>
+    <p class="tagline">Post a new alert to the shared feed.</p>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <div class="token-select-row" style="margin-bottom:8px">
+        <a href="./index.html" class="btn">← Back to alerts</a>
+      </div>
+
+      <form id="alert-form" class="alert-form">
+        <h3 class="section-title" style="margin-bottom:8px">Submit a new alert</h3>
+        <div class="form-grid">
+          <div>
+            <label class="label">Token</label>
+            <input id="form-token" class="input" placeholder="e.g., ETH or BTC" list="token-datalist" required />
+            <datalist id="token-datalist"></datalist>
+          </div>
+          <div>
+            <label class="label">Severity</label>
+            <select id="form-severity" class="input" required>
+              <option value="critical">Critical</option>
+              <option value="warning">Warning</option>
+              <option value="info" selected>Info</option>
+            </select>
+          </div>
+          <div class="col-span-2">
+            <label class="label">Title</label>
+            <input id="form-title" class="input" placeholder="Alert title" required />
+          </div>
+          <div class="col-span-2">
+            <label class="label">Description</label>
+            <textarea id="form-description" class="input" rows="3" placeholder="Details about the alert" required></textarea>
+          </div>
+          <div>
+            <label class="label">Deadline</label>
+            <input id="form-deadline" class="input" type="datetime-local" required />
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-teal" id="submit-btn">Add alert</button>
+          </div>
+        </div>
+        <p id="msg" class="muted" style="margin-top:8px"></p>
+      </form>
+    </section>
+  </main>
+
+  <footer class="footer muted">
+    <span>© 2025 Crypto Lifeguard — demo build</span>
+  </footer>
+
+  <script src="./create.js"></script>
+</body>
+</html>

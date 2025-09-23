@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crypto Lifeguard — Web Demo</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <!-- Floating + button -->
+  <a href="./create.html" class="fab fab-plus" aria-label="New alert" title="New alert">+</a>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="logo">🌊 🛟</span>
+      <h1> Crypto Lifeguard 🛟 🌊</h1>
+    </div>
+    <p class="tagline">Rescue your tokens: personalised alerts without the noise.</p>
+  </header>
+
+  <main class="container">
+    <!-- Token Selector -->
+    <section class="card">
+      <h2 class="section-title">Select tokens to watch</h2>
+      <div class="token-select-row">
+        <input id="token-input" class="input" type="text" placeholder="Type a token symbol (e.g., BTC, ETH, MATIC) and press Enter…" list="token-datalist" aria-label="Add token" />
+        <datalist id="token-datalist"></datalist>
+        <button id="add-token-btn" class="btn">Add to watchlist</button>
+      </div>
+      <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
+    </section>
+
+    <!-- Tabs -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="alerts" aria-selected="true">Alerts</button>
+      <button class="tab" data-tab="summary" aria-selected="false">Weekly summary</button>
+      <button class="tab" data-tab="market" aria-selected="false">Market</button>
+    </nav>
+
+    <!-- Alerts Panel -->
+    <section id="panel-alerts" class="card">
+      <div id="alerts-list" class="alerts-list"></div>
+      <p id="no-alerts" class="muted" hidden>No alerts for your selected tokens. Add some tokens to see alerts.</p>
+    </section>
+
+    <!-- Summary Panel -->
+    <section id="panel-summary" class="card" hidden>
+      <div id="summary-content" class="summary"></div>
+    </section>
+
+    <!-- Market Panel -->
+    <section id="panel-market" class="card" hidden>
+      <div id="market-grid" class="market-grid"></div>
+      <p id="market-empty" class="muted" hidden>No market data. Add tokens to your watchlist.</p>
+      <p id="market-note" class="muted" style="margin-top:8px"></p>
+    </section>
+  </main>
+
+  <footer class="footer muted">
+    <span>© 2025 Crypto Lifeguard — demo build</span>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
