@@ -75,5 +75,19 @@
     "title": "URGENT",
     "description": "Test Alert",
     "deadline": "2025-09-24T21:10:00.000Z"
+  },
+  {
+    "token": "BTC",
+    "severity": "warning",
+    "title": "TEST 2",
+    "description": "Test 3",
+    "deadline": "2025-09-23T16:00:00.000Z"
+  },
+  {
+    "token": "DOGE",
+    "severity": "critical",
+    "title": "TEST",
+    "description": "TEST",
+    "deadline": "2025-09-23T21:10:00.000Z"
   }
 ]

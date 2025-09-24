@@ -7,15 +7,43 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <!-- Floating + button -->
-  <a href="./create.html" class="fab fab-plus" aria-label="New alert" title="New alert">+</a>
+  <!-- Floating + button (bottom-right) -->
+  <a href="./create.html" class="fab" aria-label="New alert" title="New alert">+</a>
 
-  <header class="app-header">
-    <div class="brand">
-      <span class="logo">🌊 🛟</span>
-      <h1> Crypto Lifeguard 🛟 🌊</h1>
+  <!-- Top banner / navbar -->
+  <header class="topbar" role="banner">
+    <div class="topbar-inner">
+      <div class="brand-wrap">
+        <img
+          class="brand-logo"
+          src="https://i.postimg.cc/Fz0xdDzd/Crypto-Lifeguard-Logo-Striking-Impact-background.png"
+          alt="Crypto Lifeguard Logo"
+          decoding="async"
+          fetchpriority="high"
+        />
+        <div class="brand-text">
+          <h1 class="brand-title">Crypto Lifeguard</h1>
+          <p class="brand-tagline">Rescue your tokens — personalised alerts without the noise.</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <div class="dropdown">
+          <button id="user-menu-btn" class="menu-btn" aria-haspopup="true" aria-expanded="false">
+            Account ▾
+          </button>
+          <div id="user-menu" class="menu" hidden>
+            <button class="menu-item" data-action="login">Log in</button>
+            <button class="menu-item" data-action="signup">Sign up</button>
+            <hr />
+            <button class="menu-item" data-action="settings">Settings</button>
+            <button class="menu-item" data-action="help">Help</button>
+            <hr />
+            <button class="menu-item" data-action="logout">Log out</button>
+          </div>
+        </div>
+      </div>
     </div>
-    <p class="tagline">Rescue your tokens: personalised alerts without the noise.</p>
   </header>
 
   <main class="container">
@@ -23,33 +51,59 @@
     <section class="card">
       <h2 class="section-title">Select tokens to watch</h2>
       <div class="token-select-row">
-        <input id="token-input" class="input" type="text" placeholder="Type a token symbol (e.g., BTC, ETH, MATIC) and press Enter…" list="token-datalist" aria-label="Add token" />
+        <input
+          id="token-input"
+          class="input"
+          type="text"
+          placeholder="Type a token symbol (e.g., BTC, ETH, MATIC) and press Enter…"
+          list="token-datalist"
+          aria-label="Add token"
+        />
         <datalist id="token-datalist"></datalist>
         <button id="add-token-btn" class="btn">Add to watchlist</button>
       </div>
       <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
     </section>
 
-    <!-- Tabs -->
-    <nav class="tabs">
-      <button class="tab active" data-tab="alerts" aria-selected="true">Alerts</button>
-      <button class="tab" data-tab="summary" aria-selected="false">Weekly summary</button>
-      <button class="tab" data-tab="market" aria-selected="false">Market</button>
-    </nav>
+    <!-- Tabs + Severity selector + Show-all toggle -->
+    <div class="tabsbar" role="navigation" aria-label="Main tabs and filters">
+      <!-- Tabs (left) -->
+      <nav class="tabs" role="tablist" aria-label="Main tabs">
+        <button class="tab active" data-tab="alerts" aria-selected="true" role="tab">Alerts</button>
+        <button class="tab" data-tab="summary" aria-selected="false" role="tab">Summary</button>
+        <button class="tab" data-tab="market" aria-selected="false" role="tab">Market</button>
+      </nav>
+
+      <!-- Severity selector (middle) -->
+      <div class="sev-filter" role="group" aria-label="Filter by severity">
+        <button class="sev-btn active" data-sev="critical" aria-pressed="true" title="Critical">🚨</button>
+        <button class="sev-btn active" data-sev="warning"  aria-pressed="true" title="Warning">⚠️</button>
+        <button class="sev-btn active" data-sev="info"     aria-pressed="true" title="Info">🛟</button>
+      </div>
+
+      <!-- Show all (right) — caption above toggle -->
+      <label class="switch small" id="showall-wrap" title="Include dismissed alerts">
+        <span class="switch-caption">Show all</span>
+        <input type="checkbox" id="toggle-show-all" />
+        <span class="slider" aria-hidden="true"></span>
+      </label>
+    </div>
 
     <!-- Alerts Panel -->
-    <section id="panel-alerts" class="card">
+    <section id="panel-alerts" class="card" role="tabpanel">
       <div id="alerts-list" class="alerts-list"></div>
-      <p id="no-alerts" class="muted" hidden>No alerts for your selected tokens. Add some tokens to see alerts.</p>
+      <p id="no-alerts" class="muted" hidden>
+        No alerts for your selected filters. Adjust severity or watchlist to see alerts.
+      </p>
     </section>
 
     <!-- Summary Panel -->
-    <section id="panel-summary" class="card" hidden>
+    <section id="panel-summary" class="card" hidden role="tabpanel">
       <div id="summary-content" class="summary"></div>
     </section>
 
     <!-- Market Panel -->
-    <section id="panel-market" class="card" hidden>
+    <section id="panel-market" class="card" hidden role="tabpanel">
       <div id="market-grid" class="market-grid"></div>
       <p id="market-empty" class="muted" hidden>No market data. Add tokens to your watchlist.</p>
       <p id="market-note" class="muted" style="margin-top:8px"></p>
