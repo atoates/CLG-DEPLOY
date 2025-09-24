@@ -1,11 +1,13 @@
-import { defineConfig } from 'vite';
+// vite.config.js
+import { resolve } from 'path';
 
-export default defineConfig({
-  server: {
-    port: 5173,
-    host: true,          // helpful in containers/StackBlitz
-    proxy: {
-      '/api': 'http://localhost:3000'
-    }
-  }
-});
+export default {
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        create: resolve(__dirname, 'create.html'),
+      },
+    },
+  },
+};
