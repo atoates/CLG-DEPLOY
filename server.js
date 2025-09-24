@@ -200,6 +200,54 @@ app.get('/api/market/auto-alerts', async (req, res) => {
   res.json(mk);
 });
 
+// --- CryptoPanic config ------------------------------------------------------
+const CP_PLAN   = process.env.CRYPTOPANIC_PLAN || 'developer';
+const CP_TOKEN  = process.env.CRYPTOPANIC_TOKEN || '';
+const CP_PUBLIC = (process.env.CRYPTOPANIC_PUBLIC || 'true') === 'true';
+
+// 90s in-memory cache to keep under rate limits
+const cpCache = new Map(); // key -> { t:number, data:any }
+const CP_TTL_MS = 90 * 1000;
+
+async function fetchJson(url, opts={}) {
+  const r = await fetch(url, { ...opts, headers: { ...(opts.headers||{}) } });
+  if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`);
+  return r.json();
+}
+function cacheGet(key){
+  const hit = cpCache.get(key);
+  if (hit && Date.now() - hit.t < CP_TTL_MS) return hit.data;
+  return null;
+}
+function cacheSet(key, data){ cpCache.set(key, { t: Date.now(), data }); }
+
+// Map CryptoPanic post -> our alert
+function mapPostToAlert(p){
+  const token = (p.instruments?.[0]?.code || '').toUpperCase() || 'BTC';
+  const title = p.title || 'News';
+  const descBits = [];
+  if (p.source?.title) descBits.push(p.source.title);
+  if (p.source?.domain) descBits.push(p.source.domain);
+  const description = [p.description || '', descBits.join(' • ')].filter(Boolean).join(' — ');
+
+  // severity from panic_score / filter
+  const ps = typeof p.panic_score === 'number' ? p.panic_score : null;
+  let severity = 'info';
+  if (ps !== null && ps >= 70) severity = 'critical';
+  else if (ps !== null && ps >= 40) severity = 'warning';
+  if (p.filter === 'important') severity = 'critical';
+  if (p.filter === 'hot' && severity === 'info') severity = 'warning';
+
+  // deadline: published_at + 24h (news relevance window)
+  const base = new Date(p.published_at || p.created_at || Date.now()).getTime();
+  const deadline = new Date(base + 24*3600*1000).toISOString();
+
+  return {
+    id: `cp_${p.id}`,
+    token, title, description, severity, deadline
+  };
+}
+
 /* ---------------- Health + static SPA ---------------- */
 app.get('/healthz', (_req,res)=>res.json({ ok:true }));
 
@@ -208,3 +256,67 @@ app.use(express.static(distDir));
 app.get('*', (_req,res)=>res.sendFile(path.join(distDir,'index.html')));
 
 app.listen(PORT, ()=>console.log(`Server running on http://localhost:${PORT}`));
+
+// GET /api/news/cryptopanic?symbols=BTC,ETH&size=20&filter=important
+app.get('/api/news/cryptopanic', async (req, res) => {
+  if (!CP_TOKEN) return res.status(501).json({ error: 'CRYPTOPANIC_TOKEN not set' });
+  const symbols = String(req.query.symbols || '').toUpperCase();
+  const params = new URLSearchParams({
+    auth_token: CP_TOKEN,
+    ...(CP_PUBLIC ? { public: 'true' } : {}),
+    ...(symbols ? { currencies: symbols } : {}),
+    ...(req.query.filter ? { filter: String(req.query.filter) } : {}),
+    ...(req.query.kind   ? { kind: String(req.query.kind) } : {}),
+    ...(req.query.size   ? { size: String(req.query.size) } : {})
+  });
+  const url = `https://cryptopanic.com/api/${CP_PLAN}/v2/posts/?` + params.toString();
+
+  const key = 'raw:' + url;
+  const cached = cacheGet(key);
+  if (cached) return res.json(cached);
+
+  try {
+    const json = await fetchJson(url);
+    cacheSet(key, json);
+    res.json(json);
+  } catch (e) {
+    res.status(502).json({ error: 'cryptopanic_fetch_failed', detail: String(e) });
+  }
+});
+
+// GET /api/news/cryptopanic-alerts?symbols=BTC,ETH&size=30
+app.get('/api/news/cryptopanic-alerts', async (req, res) => {
+  if (!CP_TOKEN) return res.json([]); // silently no-op if not configured
+  const symbols = String(req.query.symbols || '').toUpperCase();
+
+  const params = new URLSearchParams({
+    auth_token: CP_TOKEN,
+    ...(CP_PUBLIC ? { public: 'true' } : {}),
+    ...(symbols ? { currencies: symbols } : {}),
+    kind: 'news',           // prefer written news; change to 'all' if you want twitter/reddit too
+    size: String(req.query.size || 50)  // you can tune
+  });
+  const url = `https://cryptopanic.com/api/${CP_PLAN}/v2/posts/?` + params.toString();
+
+  const key = 'alerts:' + url;
+  const cached = cacheGet(key);
+  if (cached) return res.json(cached);
+
+  try {
+    const json = await fetchJson(url);
+    const posts = Array.isArray(json?.results) ? json.results : [];
+    // Only posts that mention a coin (instrument)
+    const withInstruments = posts.filter(p => Array.isArray(p.instruments) && p.instruments.length);
+    // Map to our alert model; also keep only those with a token in the requested symbols if provided
+    let alerts = withInstruments.map(mapPostToAlert);
+    if (symbols) {
+      const set = new Set(symbols.split(',').map(s => s.trim().toUpperCase()));
+      alerts = alerts.filter(a => set.has(a.token));
+    }
+    cacheSet(key, alerts);
+    res.json(alerts);
+  } catch (e) {
+    res.status(502).json({ error: 'cryptopanic_map_failed', detail: String(e) });
+  }
+});
+

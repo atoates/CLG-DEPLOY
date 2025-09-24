@@ -256,17 +256,29 @@ async function loadAlertsFromServer(){
 }
 
 async function loadAutoAlerts(){
-  // Only for selected tokens
-  if (selectedTokens.length === 0){
-    autoAlerts = [];
-    return;
-  }
+  autoAlerts = [];
+  if (selectedTokens.length === 0) return;
+
   const symbols = selectedTokens.join(',');
+
+  const tasks = [
+    // existing market-derived alerts
+    fetch(`/api/market/auto-alerts?symbols=${encodeURIComponent(symbols)}`)
+      .then(r => r.ok ? r.json() : [])
+      .catch(() => []),
+
+    // NEW: CryptoPanic-derived alerts
+    fetch(`/api/news/cryptopanic-alerts?symbols=${encodeURIComponent(symbols)}&size=50`)
+      .then(r => r.ok ? r.json() : [])
+      .catch(() => [])
+  ];
+
   try{
-    const res = await fetch(`/api/market/auto-alerts?symbols=${encodeURIComponent(symbols)}`);
-    autoAlerts = await res.json();
-  }catch(e){
-    console.error('Failed to fetch /api/market/auto-alerts', e);
+    const [mk, cp] = await Promise.all(tasks);
+    autoAlerts = []
+      .concat(Array.isArray(mk) ? mk : [])
+      .concat(Array.isArray(cp) ? cp : []);
+  }catch{
     autoAlerts = [];
   }
 }
