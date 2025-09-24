@@ -33,7 +33,7 @@ function alertKey(a){
 
 // --- State -------------------------------------------------------------------
 let selectedTokens = JSON.parse(localStorage.getItem('cl_selectedTokens') || '[]');
-let showAll       = localStorage.getItem('cl_showAll') === '1'; // now just controls "include dismissed"
+let showAll       = localStorage.getItem('cl_showAll') === '1'; // include dismissed
 let sevFilter     = JSON.parse(localStorage.getItem('cl_sevFilter') || '["critical","warning","info"]');
 let hiddenKeys    = new Set(JSON.parse(localStorage.getItem('cl_hiddenAlerts') || '[]'));
 
@@ -59,14 +59,14 @@ const marketGridEl    = document.getElementById('market-grid');
 const marketEmptyEl   = document.getElementById('market-empty');
 const marketNoteEl    = document.getElementById('market-note');
 
-// --- Show all toggle (now: include dismissed) --------------------------------
+// --- Show all toggle (include dismissed) -------------------------------------
 const showAllToggle = document.getElementById('toggle-show-all');
 if (showAllToggle) {
   showAllToggle.checked = showAll;
   showAllToggle.addEventListener('change', () => {
     showAll = showAllToggle.checked;
     localStorage.setItem('cl_showAll', showAll ? '1' : '0');
-    renderAlerts(); // no need to refetch; just change visibility rules
+    renderAlerts();
   });
 }
 
@@ -211,7 +211,7 @@ async function loadAlertsFromServer(){
 }
 
 async function loadAutoAlerts(){
-  // Always fetch for SELECTED tokens only (Show all no longer means "all tokens")
+  // Always fetch for SELECTED tokens only
   if (selectedTokens.length === 0){
     autoAlerts = [];
     return;
@@ -232,13 +232,11 @@ function applySeverityFilter(list){
 }
 
 function getRelevantAlerts(){
-  // Scope to selected tokens
   if (selectedTokens.length === 0) return [];
   const base = [...serverAlerts, ...autoAlerts].filter(a =>
     selectedTokens.includes((a.token || '').toUpperCase())
   );
 
-  // Apply severity
   let list = applySeverityFilter(base);
 
   // Hide dismissed unless Show all is ON
@@ -291,7 +289,6 @@ function renderAlerts(){
     desc.className = 'alert-desc';
     desc.textContent = a.description || '';
 
-    // META inside body: time-left chip
     const metaWrap = document.createElement('div');
     metaWrap.className = 'alert-meta';
     const metaChip = document.createElement('span');
@@ -307,9 +304,13 @@ function renderAlerts(){
     left.appendChild(icon);
     left.appendChild(text);
 
-    // RIGHT: checkbox dismiss/unhide
+    // RIGHT: divided dismiss column (title + checkbox)
     const right = document.createElement('div');
-    right.className = 'alert-right';
+    right.className = 'dismiss-col';
+
+    const label = document.createElement('div');
+    label.className = 'dismiss-title';
+    label.textContent = 'Dismiss';
 
     const chk = document.createElement('input');
     chk.type = 'checkbox';
@@ -322,6 +323,7 @@ function renderAlerts(){
       if (chk.checked) dismissAlert(a); else unhideAlert(a);
     });
 
+    right.appendChild(label);
     right.appendChild(chk);
 
     wrap.appendChild(left);

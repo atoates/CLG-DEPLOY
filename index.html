@@ -76,22 +76,16 @@
 
       <!-- Severity selector (middle) -->
       <div class="sev-filter" role="group" aria-label="Filter by severity">
-        <button class="sev-btn active" data-sev="critical" aria-pressed="true" title="Critical">
-          🚨
-        </button>
-        <button class="sev-btn active" data-sev="warning" aria-pressed="true" title="Warning">
-          ⚠️
-        </button>
-        <button class="sev-btn active" data-sev="info" aria-pressed="true" title="Info">
-          🛟
-        </button>
+        <button class="sev-btn active" data-sev="critical" aria-pressed="true" title="Critical">🚨</button>
+        <button class="sev-btn active" data-sev="warning"  aria-pressed="true" title="Warning">⚠️</button>
+        <button class="sev-btn active" data-sev="info"     aria-pressed="true" title="Info">🛟</button>
       </div>
 
-      <!-- Show all (right) -->
-      <label class="switch small" id="showall-wrap" title="Show all alerts">
+      <!-- Show all (right) — caption above toggle -->
+      <label class="switch small" id="showall-wrap" title="Include dismissed alerts">
+        <span class="switch-caption">Show all</span>
         <input type="checkbox" id="toggle-show-all" />
         <span class="slider" aria-hidden="true"></span>
-        <span class="switch-label">Show all</span>
       </label>
     </div>
 
@@ -111,9 +105,7 @@
     <!-- Market Panel -->
     <section id="panel-market" class="card" hidden role="tabpanel">
       <div id="market-grid" class="market-grid"></div>
-      <p id="market-empty" class="muted" hidden>
-        No market data. Add tokens to your watchlist.
-      </p>
+      <p id="market-empty" class="muted" hidden>No market data. Add tokens to your watchlist.</p>
       <p id="market-note" class="muted" style="margin-top:8px"></p>
     </section>
   </main>
