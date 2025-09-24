@@ -1,4 +1,6 @@
-// token suggestions
+// create.js (module)
+
+// Token suggestions consistent with the main app
 const ALL_TOKENS = ['BTC','ETH','USDC','MATIC','DOGE','ADA','SOL','POL','UNI','LINK'];
 
 const datalist = document.getElementById('token-datalist');
@@ -18,6 +20,19 @@ const formTitle = document.getElementById('form-title');
 const formDescription = document.getElementById('form-description');
 const formDeadline = document.getElementById('form-deadline');
 
+// UX: focus the token field and set a sensible default deadline (now + 6h)
+(function initForm(){
+  try {
+    formToken.focus();
+  } catch {}
+  const now = new Date();
+  const plus6h = new Date(now.getTime() + 6 * 3600 * 1000);
+  const pad = n => String(n).padStart(2,'0');
+  const localVal = `${plus6h.getFullYear()}-${pad(plus6h.getMonth()+1)}-${pad(plus6h.getDate())}T${pad(plus6h.getHours())}:${pad(plus6h.getMinutes())}`;
+  formDeadline.min = localVal;
+  formDeadline.value = localVal;
+})();
+
 function toISOFromLocal(dtLocalStr){
   if (!dtLocalStr) return null;
   const dt = new Date(dtLocalStr);
@@ -25,7 +40,7 @@ function toISOFromLocal(dtLocalStr){
   return dt.toISOString();
 }
 
-// Add the alert token to the server-side watchlist so it shows after redirect
+// Ensure alert token is in the server-side watchlist so it shows after redirect
 async function addTokenToServerWatchlist(token){
   try{
     const meRes = await fetch('/api/me');
@@ -55,7 +70,10 @@ form.addEventListener('submit', async (e) => {
   const description = (formDescription.value || '').trim();
   const deadlineLocal = formDeadline.value;
 
-  if (!token || !severity || !title || !description || !deadlineLocal) return;
+  if (!token || !severity || !title || !description || !deadlineLocal){
+    msg.textContent = 'Please complete all fields.';
+    return;
+  }
   const deadlineIso = toISOFromLocal(deadlineLocal);
   if (!deadlineIso){
     msg.textContent = 'Invalid deadline.';
@@ -74,15 +92,14 @@ form.addEventListener('submit', async (e) => {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    // Ensure this token is on the user's server-side watchlist
     await addTokenToServerWatchlist(token);
 
-    msg.textContent = 'Alert created. Redirecting…';
-    setTimeout(() => { window.location.href = '/'; }, 600);
+    msg.textContent = 'Alert created ✔ Redirecting…';
+    setTimeout(() => { window.location.href = '/'; }, 700);
   }catch(err){
     console.error(err);
     msg.textContent = 'Failed to save alert. Please try again.';
     submitBtn.disabled = false;
-    submitBtn.textContent = 'Add alert';
+    submitBtn.textContent = 'Create alert';
   }
 });
