@@ -23,34 +23,47 @@ function moneyFmt(n){
   return '$' + Number(n).toLocaleString(undefined, {maximumFractionDigits: 2});
 }
 
+// Generate a stable key for an alert (no server IDs required)
+function alertKey(a){
+  return [
+    (a.token || '').toUpperCase(),
+    a.title || '',
+    a.deadline || '',
+    a.severity || 'info'
+  ].join('|');
+}
+
 // --- State -------------------------------------------------------------------
 let selectedTokens = JSON.parse(localStorage.getItem('cl_selectedTokens') || '[]');
-let showAll = localStorage.getItem('cl_showAll') === '1';
-let sevFilter = JSON.parse(localStorage.getItem('cl_sevFilter') || '["critical","warning","info"]');
+let showAll       = localStorage.getItem('cl_showAll') === '1';
+let sevFilter     = JSON.parse(localStorage.getItem('cl_sevFilter') || '["critical","warning","info"]');
+
+// NEW: hidden alerts (dismissed) — store keys in a Set
+let hiddenKeys = new Set(JSON.parse(localStorage.getItem('cl_hiddenAlerts') || '[]'));
 
 let serverAlerts = [];
-let autoAlerts = [];
-let marketItems = [];
+let autoAlerts   = [];
+let marketItems  = [];
 
 // --- DOM ---------------------------------------------------------------------
-const tokenInput = document.getElementById('token-input');
-const tokenDatalist = document.getElementById('token-datalist');
-const addTokenBtn = document.getElementById('add-token-btn');
-const pillsRow = document.getElementById('selected-tokens');
+const tokenInput      = document.getElementById('token-input');
+const tokenDatalist   = document.getElementById('token-datalist');
+const addTokenBtn     = document.getElementById('add-token-btn');
+const pillsRow        = document.getElementById('selected-tokens');
 
-const tabs = document.querySelectorAll('.tab');
-const panelAlerts = document.getElementById('panel-alerts');
-const panelSummary = document.getElementById('panel-summary');
-const panelMarket = document.getElementById('panel-market');
+const tabs            = document.querySelectorAll('.tab');
+const panelAlerts     = document.getElementById('panel-alerts');
+const panelSummary    = document.getElementById('panel-summary');
+const panelMarket     = document.getElementById('panel-market');
 
-const alertsListEl = document.getElementById('alerts-list');
-const noAlertsEl = document.getElementById('no-alerts');
+const alertsListEl    = document.getElementById('alerts-list');
+const noAlertsEl      = document.getElementById('no-alerts');
 
-const marketGridEl = document.getElementById('market-grid');
-const marketEmptyEl = document.getElementById('market-empty');
-const marketNoteEl = document.getElementById('market-note');
+const marketGridEl    = document.getElementById('market-grid');
+const marketEmptyEl   = document.getElementById('market-empty');
+const marketNoteEl    = document.getElementById('market-note');
 
-// NEW: Show-all toggle
+// --- Show all toggle ---------------------------------------------------------
 const showAllToggle = document.getElementById('toggle-show-all');
 if (showAllToggle) {
   showAllToggle.checked = showAll;
@@ -62,7 +75,7 @@ if (showAllToggle) {
   });
 }
 
-// NEW: Severity selector buttons
+// --- Severity selector buttons ----------------------------------------------
 const sevButtons = document.querySelectorAll('.sev-btn');
 function syncSevUi(){
   sevButtons.forEach(btn => {
@@ -133,16 +146,16 @@ tabs.forEach(btn => {
     btn.classList.add('active');
 
     const tab = btn.getAttribute('data-tab');
-    const isAlerts = tab === 'alerts';
+    const isAlerts  = tab === 'alerts';
     const isSummary = tab === 'summary';
-    const isMarket = tab === 'market';
+    const isMarket  = tab === 'market';
 
-    panelAlerts.hidden = !isAlerts;
+    panelAlerts.hidden  = !isAlerts;
     panelSummary.hidden = !isSummary;
-    panelMarket.hidden = !isMarket;
+    panelMarket.hidden  = !isMarket;
 
     if (isSummary) renderSummary();
-    if (isMarket) loadMarket();
+    if (isMarket)  loadMarket();
   });
 });
 
@@ -170,6 +183,24 @@ function tryAddTokenFromInput(){
 }
 function persistState(){
   localStorage.setItem('cl_selectedTokens', JSON.stringify(selectedTokens));
+}
+
+// --- Hidden alerts helpers ---------------------------------------------------
+function persistHidden(){
+  localStorage.setItem('cl_hiddenAlerts', JSON.stringify([...hiddenKeys]));
+}
+function isHidden(a){
+  return hiddenKeys.has(alertKey(a));
+}
+function dismissAlert(a){
+  hiddenKeys.add(alertKey(a));
+  persistHidden();
+  renderAlerts();
+}
+function unhideAlert(a){
+  hiddenKeys.delete(alertKey(a));
+  persistHidden();
+  renderAlerts();
 }
 
 // --- Alerts (Saved + Auto) ---------------------------------------------------
@@ -203,21 +234,30 @@ async function loadAutoAlerts(){
 }
 
 function applySeverityFilter(list){
-  // If none selected, show nothing; if all selected, pass-through
   if (!sevFilter || sevFilter.length === 0) return [];
   return list.filter(a => sevFilter.includes((a.severity || 'info')));
 }
 
 function getRelevantAlerts(){
   const base = [...serverAlerts, ...autoAlerts];
-  let list;
+
+  // First, token/watchlist scope
+  let scoped;
   if (showAll) {
-    list = base;
+    scoped = base;
   } else {
     if (selectedTokens.length === 0) return [];
-    list = base.filter(a => selectedTokens.includes((a.token || '').toUpperCase()));
+    scoped = base.filter(a => selectedTokens.includes((a.token || '').toUpperCase()));
   }
-  return applySeverityFilter(list);
+
+  // Then, severity
+  scoped = applySeverityFilter(scoped);
+
+  // Finally, hide dismissed unless 'showAll' is active
+  if (!showAll) {
+    scoped = scoped.filter(a => !isHidden(a));
+  }
+  return scoped;
 }
 
 // SORT: nearest deadline first
@@ -243,6 +283,10 @@ function renderAlerts(){
     const wrap = document.createElement('div');
     wrap.className = 'alert-item severity-' + (a.severity || 'info');
 
+    // If we're in Show All and this alert is hidden, fade it
+    const hidden = isHidden(a);
+    if (showAll && hidden) wrap.classList.add('is-hidden');
+
     const left = document.createElement('div');
     left.className = 'content';
 
@@ -265,13 +309,43 @@ function renderAlerts(){
     left.appendChild(icon);
     left.appendChild(text);
 
+    // Right column: deadline + actions stacked
+    const right = document.createElement('div');
+    right.className = 'alert-right';
+
     const meta = document.createElement('div');
     meta.className = 'alert-deadline';
     const msLeft = new Date(a.deadline).getTime() - Date.now();
     meta.textContent = fmtTimeLeft(msLeft);
 
+    const actions = document.createElement('div');
+    actions.className = 'alert-actions';
+
+    if (showAll && hidden){
+      const tag = document.createElement('span');
+      tag.className = 'hidden-tag';
+      tag.textContent = 'Hidden';
+
+      const unhideBtn = document.createElement('button');
+      unhideBtn.className = 'btn-link';
+      unhideBtn.textContent = 'Unhide';
+      unhideBtn.addEventListener('click', () => unhideAlert(a));
+
+      actions.appendChild(tag);
+      actions.appendChild(unhideBtn);
+    } else {
+      const dismissBtn = document.createElement('button');
+      dismissBtn.className = 'btn-link';
+      dismissBtn.textContent = 'Dismiss';
+      dismissBtn.addEventListener('click', () => dismissAlert(a));
+      actions.appendChild(dismissBtn);
+    }
+
+    right.appendChild(meta);
+    right.appendChild(actions);
+
     wrap.appendChild(left);
-    wrap.appendChild(meta);
+    wrap.appendChild(right);
 
     wrap._tick = () => {
       const leftMs = new Date(a.deadline).getTime() - Date.now();
@@ -293,7 +367,7 @@ function startTicking(){
   }, 1000);
 }
 
-// --- Weekly Summary (mock) ---------------------------------------------------
+// --- Summary (mock) ----------------------------------------------------------
 function renderSummary(){
   const tokens = selectedTokens;
   const out = [];

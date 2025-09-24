@@ -183,16 +183,31 @@ body{
   padding:12px 14px; margin:6px 0; border-radius:12px; border:1px solid rgba(2,6,23,0.06);
 }
 .alert-item > .content{ display:flex; align-items:flex-start; gap:10px; }
+.alert-right{ display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+.alert-actions{ display:flex; align-items:center; gap:8px; }
+.btn-link{
+  background:transparent; border:0; color:#0b5bd3; font-weight:800; cursor:pointer;
+  padding:0; text-decoration:underline; text-underline-offset: 3px;
+}
+.btn-link:hover{ color:#084399; }
+.hidden-tag{
+  font-size:12px; color:#475569; background:#f1f5f9; border:1px solid #e2e8f0;
+  padding:4px 8px; border-radius:999px;
+}
+
 .alert-item .alert-icon{ font-size:20px; line-height:1; margin-top:2px; }
 .alert-item .alert-title{ font-weight:700; }
 .alert-item .alert-desc{ font-size:13px; color:var(--ink-2); margin-top:3px; }
 .alert-item .alert-deadline{ font-family: ui-monospace, Menlo, Consolas, monospace; white-space:nowrap; margin-left:12px; font-weight:700; }
 
-/* severity bg & icon tint */
 .severity-critical{ background:#ffe8e8; } .severity-critical .alert-icon{ color:#d90429; }
 .severity-warning{ background:#fff6dd; }  .severity-warning .alert-icon{ color:#8a6a00; }
 .severity-info{ background:#e8fff5; }     .severity-info .alert-icon{ color:#0c6a45; }
 
+/* Fade style when viewing hidden alerts in "Show all" mode */
+.is-hidden{ opacity:.6; }
+
+/* Misc */
 .muted{ color:var(--ink-2); font-size:13px; }
 .footer{ text-align:center; padding:20px; }
 .summary p{ margin:6px 0; }
