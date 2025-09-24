@@ -31,11 +31,11 @@ function alertKey(a){
   ].join('|');
 }
 
-// --- State -------------------------------------------------------------------
-let selectedTokens = JSON.parse(localStorage.getItem('cl_selectedTokens') || '[]');
-let showAll       = localStorage.getItem('cl_showAll') === '1'; // include dismissed
-let sevFilter     = JSON.parse(localStorage.getItem('cl_sevFilter') || '["critical","warning","info"]');
-let hiddenKeys    = new Set(JSON.parse(localStorage.getItem('cl_hiddenAlerts') || '[]'));
+// --- State (will be hydrated from /api/me) -----------------------------------
+let selectedTokens = [];                                 // watchlist
+let showAll       = false;                               // include dismissed
+let sevFilter     = ['critical','warning','info'];       // active severities
+let hiddenKeys    = new Set();                           // dismissed set
 
 let serverAlerts = [];
 let autoAlerts   = [];
@@ -59,45 +59,54 @@ const marketGridEl    = document.getElementById('market-grid');
 const marketEmptyEl   = document.getElementById('market-empty');
 const marketNoteEl    = document.getElementById('market-note');
 
-// --- Show all toggle (include dismissed) -------------------------------------
-const showAllToggle = document.getElementById('toggle-show-all');
-if (showAllToggle) {
-  showAllToggle.checked = showAll;
-  showAllToggle.addEventListener('change', () => {
-    showAll = showAllToggle.checked;
-    localStorage.setItem('cl_showAll', showAll ? '1' : '0');
-    renderAlerts();
-  });
+const sevFilterWrap   = document.getElementById('sev-filter');
+const showAllWrap     = document.getElementById('showall-wrap');
+const showAllToggle   = document.getElementById('toggle-show-all');
+
+const sevButtons      = document.querySelectorAll('.sev-btn');
+
+// --- Server-backed prefs -----------------------------------------------------
+function persistPrefsServerDebounced(){
+  clearTimeout(persistPrefsServerDebounced._t);
+  persistPrefsServerDebounced._t = setTimeout(() => {
+    fetch('/api/me/prefs', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        watchlist: selectedTokens,
+        severity: sevFilter,
+        showAll,
+        dismissed: [...hiddenKeys]
+      })
+    }).catch(()=>{});
+  }, 250);
 }
 
-// --- Severity selector buttons ----------------------------------------------
-const sevButtons = document.querySelectorAll('.sev-btn');
-function syncSevUi(){
-  sevButtons.forEach(btn => {
-    const sev = btn.dataset.sev;
-    const on = sevFilter.includes(sev);
-    btn.classList.toggle('active', on);
-    btn.setAttribute('aria-pressed', String(on));
-  });
-}
-sevButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    const sev = btn.dataset.sev;
-    const idx = sevFilter.indexOf(sev);
-    if (idx >= 0) sevFilter.splice(idx, 1);
-    else sevFilter.push(sev);
-    localStorage.setItem('cl_sevFilter', JSON.stringify(sevFilter));
-    syncSevUi();
-    renderAlerts();
-  });
-});
-syncSevUi();
+// --- Init (boot) -------------------------------------------------------------
+(async function boot(){
+  // Load user preferences from server (cookie-based anon ID)
+  try{
+    const res = await fetch('/api/me');
+    if (res.ok){
+      const me = await res.json();
+      selectedTokens = Array.isArray(me.watchlist) ? me.watchlist : [];
+      sevFilter      = Array.isArray(me.severity) ? me.severity : ['critical','warning','info'];
+      showAll        = !!me.showAll;
+      hiddenKeys     = new Set(Array.isArray(me.dismissed) ? me.dismissed : []);
+    }
+  }catch(e){ console.warn('prefs load failed', e); }
 
-// --- Init --------------------------------------------------------------------
-renderDatalist();
-renderAll();
-loadAlertsFromServer();
-loadMarket(); // prefetch so Market tab is instant
+  // Sync UI controls to prefs
+  if (showAllToggle) showAllToggle.checked = showAll;
+  syncSevUi();
+
+  // Render + load data
+  renderDatalist();
+  renderAll();
+  loadAlertsFromServer();
+  loadMarket();
+  updateFilterVisibility('alerts'); // default tab
+})();
 
 // --- Datalist ----------------------------------------------------------------
 function renderDatalist(){
@@ -123,7 +132,7 @@ function renderPills(){
     btn.textContent = '×';
     btn.addEventListener('click', () => {
       selectedTokens = selectedTokens.filter(x => x !== t);
-      persistState();
+      persistPrefsServerDebounced();
       renderAll();
       loadMarket();
       loadAutoAlerts().then(renderAlerts);
@@ -149,10 +158,18 @@ tabs.forEach(btn => {
     panelSummary.hidden = !isSummary;
     panelMarket.hidden  = !isMarket;
 
+    updateFilterVisibility(tab);
+
     if (isSummary) renderSummary();
     if (isMarket)  loadMarket();
   });
 });
+
+function updateFilterVisibility(tab){
+  const visible = (tab === 'alerts');
+  if (sevFilterWrap) sevFilterWrap.hidden = !visible;
+  if (showAllWrap)   showAllWrap.hidden   = !visible;
+}
 
 // --- Token Add ---------------------------------------------------------------
 addTokenBtn.addEventListener('click', tryAddTokenFromInput);
@@ -168,7 +185,7 @@ function tryAddTokenFromInput(){
   }
   if (!selectedTokens.includes(val)){
     selectedTokens.push(val);
-    persistState();
+    persistPrefsServerDebounced();
     renderAll();
     loadMarket();
     loadAutoAlerts().then(renderAlerts);
@@ -176,13 +193,41 @@ function tryAddTokenFromInput(){
   tokenInput.value = '';
   tokenInput.focus();
 }
-function persistState(){
-  localStorage.setItem('cl_selectedTokens', JSON.stringify(selectedTokens));
+
+// --- Show all toggle ---------------------------------------------------------
+if (showAllToggle) {
+  showAllToggle.addEventListener('change', () => {
+    showAll = showAllToggle.checked;
+    persistPrefsServerDebounced();
+    renderAlerts();
+  });
 }
+
+// --- Severity selector buttons ----------------------------------------------
+function syncSevUi(){
+  sevButtons.forEach(btn => {
+    const sev = btn.dataset.sev;
+    const on = sevFilter.includes(sev);
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
+}
+sevButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const sev = btn.dataset.sev;
+    const idx = sevFilter.indexOf(sev);
+    if (idx >= 0) sevFilter.splice(idx, 1);
+    else sevFilter.push(sev);
+    syncSevUi();
+    persistPrefsServerDebounced();
+    renderAlerts();
+  });
+});
 
 // --- Hidden alerts helpers ---------------------------------------------------
 function persistHidden(){
-  localStorage.setItem('cl_hiddenAlerts', JSON.stringify([...hiddenKeys]));
+  // keep local shadow if you want, but server is the source of truth now
+  persistPrefsServerDebounced();
 }
 function isHidden(a){ return hiddenKeys.has(alertKey(a)); }
 function dismissAlert(a){
@@ -211,7 +256,7 @@ async function loadAlertsFromServer(){
 }
 
 async function loadAutoAlerts(){
-  // Always fetch for SELECTED tokens only
+  // Only for selected tokens
   if (selectedTokens.length === 0){
     autoAlerts = [];
     return;
@@ -408,7 +453,6 @@ function renderMarket(){
   }
 
   const list = [...marketItems].sort((a,b) => a.token.localeCompare(b.token));
-
   list.forEach(it => {
     const card = document.createElement('div');
     card.className = 'market-card';
@@ -468,26 +512,3 @@ function renderAll(){
   renderAlerts();
   renderSummary();
 }
-
-// --- Topbar dropdown (account) ----------------------------------------------
-(function(){
-  const btn = document.getElementById('user-menu-btn');
-  const menu = document.getElementById('user-menu');
-  if (!btn || !menu) return;
-
-  const close = () => { menu.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); };
-  const open  = () => { menu.removeAttribute('hidden'); btn.setAttribute('aria-expanded','true'); };
-
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (menu.hasAttribute('hidden')) open(); else close();
-  });
-
-  document.addEventListener('click', (e) => {
-    if (menu.hasAttribute('hidden')) return;
-    if (menu.contains(e.target) || btn.contains(e.target)) return;
-    close();
-  });
-
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-})();

@@ -2,178 +2,209 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
+const cookieParser = require('cookie-parser');
+const Database = require('better-sqlite3');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, 'data');
-const ALERTS_PATH = path.join(DATA_DIR, 'alerts.json');
+const DB_PATH = path.join(DATA_DIR, 'clg.sqlite');
 const POLYGON_KEY = process.env.POLYGON_API_KEY || '';
-const ADMIN_SEED_KEY = process.env.ADMIN_SEED_KEY || ''; // optional
-const RESEED_ON_BOOT = process.env.RESEED_ON_BOOT === '1';
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
-app.use(express.json());
 
-// ---------- Helpers ----------
-function readJsonSafe(file, fallback = null) {
+/* ---------------- DB setup (SQLite) ---------------- */
+const db = new Database(DB_PATH);
+db.pragma('journal_mode = WAL');
+db.exec(`
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  provider TEXT,
+  provider_user_id TEXT,
+  email TEXT,
+  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+CREATE TABLE IF NOT EXISTS user_prefs (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  watchlist_json TEXT NOT NULL DEFAULT '[]',
+  severity_json  TEXT NOT NULL DEFAULT '["critical","warning","info"]',
+  show_all INTEGER NOT NULL DEFAULT 0,
+  dismissed_json TEXT NOT NULL DEFAULT '[]',
+  updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+`);
+const qUpsertUser   = db.prepare('INSERT OR IGNORE INTO users (id) VALUES (?)');
+const qGetPrefs     = db.prepare('SELECT * FROM user_prefs WHERE user_id = ?');
+const qUpsertPrefs  = db.prepare(`
+INSERT INTO user_prefs (user_id, watchlist_json, severity_json, show_all, dismissed_json, updated_at)
+VALUES (@user_id, @watchlist_json, @severity_json, @show_all, @dismissed_json, strftime('%s','now'))
+ON CONFLICT(user_id) DO UPDATE SET
+  watchlist_json = excluded.watchlist_json,
+  severity_json  = excluded.severity_json,
+  show_all       = excluded.show_all,
+  dismissed_json = excluded.dismissed_json,
+  updated_at     = excluded.updated_at
+`);
+
+/* ---------------- Middleware ---------------- */
+app.use(express.json());
+app.use(cookieParser());
+
+// create anon user if missing cookie
+app.use((req, res, next) => {
+  let uid = req.cookies.uid;
+  if (!uid) {
+    uid = `usr_${Math.random().toString(36).slice(2,10)}`;
+    res.cookie('uid', uid, {
+      httpOnly: true, sameSite: 'lax', maxAge: 365*24*3600*1000
+    });
+  }
+  req.uid = uid;
+  qUpsertUser.run(uid);
+  next();
+});
+
+/* ---------------- Alerts store (file-backed) ---------------- */
+function readJsonSafe(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
   catch { return fallback; }
 }
 function writeJsonSafe(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
-function h(hours)  { return hours * 3600 * 1000; }
-function d(days)   { return days * 24 * 3600 * 1000; }
-function deadline(ms) { return new Date(Date.now() + ms).toISOString(); }
 
-function mapSymbolToPolygon(sym) {
-  const m = {
-    BTC: 'X:BTCUSD', ETH: 'X:ETHUSD', USDC: 'X:USDCUSD', MATIC: 'X:MATICUSD',
-    DOGE: 'X:DOGEUSD', ADA: 'X:ADAUSD', SOL: 'X:SOLUSD', POL: 'X:POLUSD',
-    UNI: 'X:UNIUSD', LINK: 'X:LINKUSD'
-  };
-  return m[sym] || null;
-}
+const ALERTS_PATH = path.join(DATA_DIR, 'alerts.json');
+let alerts = readJsonSafe(ALERTS_PATH, [
+  { id:'seed-1', token:'BTC', title:'Wallet update recommended',
+    description:'Upgrade to the latest client to ensure network compatibility.',
+    severity:'info', deadline:new Date(Date.now()+36*3600*1000).toISOString() },
+  { id:'seed-2', token:'ETH', title:'Validator maintenance window',
+    description:'Possible brief latency. No action required for holders.',
+    severity:'warning', deadline:new Date(Date.now()+12*3600*1000).toISOString() }
+]);
+function persistAlerts(){ writeJsonSafe(ALERTS_PATH, alerts); }
 
-// ---------- Seed data ----------
-function buildSeedAlerts() {
-  return [
-    { token:'BTC',  title:'Wallet update recommended',    description:'Upgrade to the latest client to ensure network compatibility.', severity:'info',     deadline:deadline(h(36)) },
-    { token:'BTC',  title:'Exchange exploit watch',       description:'Monitor positions; review counterparty risk.',                 severity:'critical', deadline:deadline(h(6))  },
-    { token:'ETH',  title:'Validator maintenance window', description:'Possible brief latency. No action required for holders.',     severity:'warning',  deadline:deadline(h(12)) },
-    { token:'ETH',  title:'Contract vuln disclosed',      description:'Dev team preparing patch; avoid interacting with risky dApps.',severity:'critical', deadline:deadline(h(8))  },
-    { token:'USDC', title:'Issuer compliance update',     description:'Routine disclosure posted; peg stable.',                       severity:'info',     deadline:deadline(d(3))  },
-    { token:'MATIC',title:'Migrate to POL (tooling live)',description:'Bridge & swap now for best support.',                          severity:'warning',  deadline:deadline(d(4))  },
-    { token:'POL',  title:'Bridge maintenance',           description:'Expect brief delays on withdrawals.',                          severity:'info',     deadline:deadline(d(2))  },
-    { token:'SOL',  title:'Validator upgrade window',     description:'Operators: schedule upgrades; holders: no action.',            severity:'warning',  deadline:deadline(d(2))  },
-    { token:'DOGE', title:'Client update available',      description:'Security & reliability improvements.',                         severity:'info',     deadline:deadline(d(5))  },
-    { token:'ADA',  title:'Governance vote closing',      description:'Review proposal & cast vote if delegated.',                    severity:'warning',  deadline:deadline(d(1)+h(8)) },
-    { token:'UNI',  title:'Treasury proposal snapshot',   description:'Discussion trending; vote opens soon.',                        severity:'info',     deadline:deadline(d(3))  },
-    { token:'LINK', title:'Oracle upgrade rollout',       description:'Some feeds migrating to new version.',                         severity:'info',     deadline:deadline(d(4))  }
-  ].map((a, i) => ({ id: `seed-${i+1}`, ...a }));
-}
+/* ---------------- User prefs API ---------------- */
+app.get('/api/me', (req, res) => {
+  const row = qGetPrefs.get(req.uid);
+  if (!row) {
+    // first-time defaults
+    const payload = {
+      userId: req.uid,
+      watchlist: [],
+      severity: ['critical','warning','info'],
+      showAll: false,
+      dismissed: []
+    };
+    qUpsertPrefs.run({
+      user_id: req.uid,
+      watchlist_json: JSON.stringify(payload.watchlist),
+      severity_json: JSON.stringify(payload.severity),
+      show_all: payload.showAll ? 1 : 0,
+      dismissed_json: JSON.stringify(payload.dismissed)
+    });
+    return res.json(payload);
+  }
+  res.json({
+    userId: req.uid,
+    watchlist: JSON.parse(row.watchlist_json),
+    severity: JSON.parse(row.severity_json),
+    showAll: !!row.show_all,
+    dismissed: JSON.parse(row.dismissed_json)
+  });
+});
 
-let alerts = readJsonSafe(ALERTS_PATH, null);
-if (RESEED_ON_BOOT || !Array.isArray(alerts) || alerts.length === 0) {
-  alerts = buildSeedAlerts();
-  writeJsonSafe(ALERTS_PATH, alerts);
-}
+app.post('/api/me/prefs', (req, res) => {
+  const { watchlist = [], severity = ['critical','warning','info'], showAll = false, dismissed = [] } = req.body || {};
+  qUpsertPrefs.run({
+    user_id: req.uid,
+    watchlist_json: JSON.stringify([...new Set(watchlist.map(s => String(s).toUpperCase()))]),
+    severity_json: JSON.stringify(severity),
+    show_all: showAll ? 1 : 0,
+    dismissed_json: JSON.stringify(dismissed)
+  });
+  res.json({ ok: true });
+});
 
-// ---------- Alerts API ----------
+/* ---------------- Alerts API ---------------- */
 app.get('/api/alerts', (_req, res) => res.json(alerts));
-
 app.post('/api/alerts', (req, res) => {
   const { token, title, description, severity, deadline } = req.body || {};
-  if (!token || !title || !deadline) {
-    return res.status(400).json({ error: 'token, title, deadline are required' });
-  }
+  if (!token || !title || !deadline) return res.status(400).json({ error:'token, title, deadline are required' });
   const item = {
-    id: `a_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
-    token: String(token).toUpperCase(),
-    title: String(title),
-    description: String(description || ''),
-    severity: ['critical','warning','info'].includes(severity) ? severity : 'info',
-    deadline: new Date(deadline).toISOString(),
+    id:`a_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+    token:String(token).toUpperCase(),
+    title:String(title),
+    description:String(description||''),
+    severity:['critical','warning','info'].includes(severity)?severity:'info',
+    deadline:new Date(deadline).toISOString()
   };
-  alerts.push(item);
-  writeJsonSafe(ALERTS_PATH, alerts);
+  alerts.push(item); persistAlerts();
   res.status(201).json(item);
 });
 
-// --- Admin reseed (replace or append) ---
-app.post('/api/admin/reseed', (req, res) => {
-  // Optional key check
-  const key = req.query.key || req.body?.key;
-  if (ADMIN_SEED_KEY && key !== ADMIN_SEED_KEY) {
-    return res.status(401).json({ error: 'unauthorized' });
-  }
-  const mode = (req.query.mode || 'replace').toLowerCase(); // replace | append
-  const seeds = buildSeedAlerts();
-  alerts = (mode === 'append') ? alerts.concat(seeds) : seeds;
-  writeJsonSafe(ALERTS_PATH, alerts);
-  res.json({ ok: true, mode, count: alerts.length });
-});
-
-// ---------- Market (free-tier friendly) ----------
+/* ---------------- Market (Polygon free EOD) ---------------- */
+function mapSymbolToPolygon(sym){
+  const m={ BTC:'X:BTCUSD', ETH:'X:ETHUSD', USDC:'X:USDCUSD', MATIC:'X:MATICUSD',
+            DOGE:'X:DOGEUSD', ADA:'X:ADAUSD', SOL:'X:SOLUSD', POL:'X:POLUSD',
+            UNI:'X:UNIUSD', LINK:'X:LINKUSD' };
+  return m[sym] || null;
+}
 app.get('/api/market/snapshot', async (req, res) => {
-  const symbols = String(req.query.symbols || '')
-    .split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+  const symbols = String(req.query.symbols||'').split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
+  if (!symbols.length) return res.json({ items:[], note:'No symbols selected.' });
 
-  if (!symbols.length) return res.json({ items: [], note: 'No symbols selected.' });
-
-  const note = POLYGON_KEY
-    ? 'End-of-day aggregates via Polygon (free tier).'
-    : 'No API key set — showing empty EOD snapshot.';
-
+  const note = POLYGON_KEY ? 'End-of-day aggregates via Polygon (free tier).' : 'No API key set — showing empty EOD snapshot.';
   const items = [];
-  for (const sym of symbols) {
+  for (const sym of symbols){
     const ticker = mapSymbolToPolygon(sym);
-    if (!ticker || !POLYGON_KEY) {
-      items.push({ token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, error: 'no-data' });
+    if (!ticker || !POLYGON_KEY){
+      items.push({ token:sym, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-data' });
       continue;
     }
-    try {
+    try{
       const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(ticker)}/prev?adjusted=true&apiKey=${POLYGON_KEY}`;
       const r = await fetch(url);
-      if (!r.ok) {
-        items.push({ token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, error: `http-${r.status}` });
-        continue;
-      }
+      if (!r.ok){ items.push({ token:sym, lastPrice:null, dayChangePct:null, change30mPct:null, error:`http-${r.status}` }); continue; }
       const json = await r.json();
       const rec = (json.results && json.results[0]) || null;
-      if (!rec) {
-        items.push({ token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, error: 'no-results' });
-        continue;
-      }
+      if (!rec){ items.push({ token:sym, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-results' }); continue; }
       const lastPrice = rec.c ?? null;
       const open = rec.o ?? null;
-      const dayChangePct = (lastPrice != null && open != null && open !== 0) ? ((lastPrice - open) / open) * 100 : null;
-      items.push({ token: sym, lastPrice, dayChangePct, change30mPct: null });
-    } catch {
-      items.push({ token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, error: 'fetch-failed' });
+      const dayChangePct = (lastPrice!=null && open!=null && open!==0) ? ((lastPrice-open)/open)*100 : null;
+      items.push({ token:sym, lastPrice, dayChangePct, change30mPct:null });
+    }catch{
+      items.push({ token:sym, lastPrice:null, dayChangePct:null, change30mPct:null, error:'fetch-failed' });
     }
   }
-
   res.json({ items, note });
 });
 
 app.get('/api/market/auto-alerts', async (req, res) => {
-  const symbols = String(req.query.symbols || '')
-    .split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-
-  // Reuse snapshot data to derive alerts
+  const symbols = String(req.query.symbols||'').split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   const snapRes = await fetch(`${baseUrl}/api/market/snapshot?symbols=${encodeURIComponent(symbols.join(','))}`);
-  const { items = [] } = (await snapRes.json()) || {};
-
-  const now = Date.now();
-  const mk = [];
-  items.forEach(it => {
-    const pct = typeof it.dayChangePct === 'number' ? it.dayChangePct : null;
-    if (pct == null) return;
-    let sev = 'info';
-    let title = 'Daily move';
-    if (pct <= -10) { sev = 'critical'; title = 'Sharp drawdown'; }
-    else if (pct <= -5) { sev = 'warning'; title = 'Drawdown'; }
-    else if (pct >= 8) { sev = 'warning'; title = 'Spike up'; }
-    if (sev !== 'info') {
-      mk.push({
-        token: it.token,
-        title,
-        description: `EOD change ${pct.toFixed(2)}%. Review exposure if needed.`,
-        severity: sev,
-        deadline: new Date(now + h(6)).toISOString()
-      });
+  const { items=[] } = (await snapRes.json()) || {};
+  const now = Date.now(), mk = [];
+  items.forEach(it=>{
+    const pct = typeof it.dayChangePct==='number' ? it.dayChangePct : null;
+    if (pct==null) return;
+    let sev='info', title='Daily move';
+    if (pct<=-10){ sev='critical'; title='Sharp drawdown'; }
+    else if (pct<=-5){ sev='warning'; title='Drawdown'; }
+    else if (pct>=8){ sev='warning'; title='Spike up'; }
+    if (sev!=='info'){
+      mk.push({ token:it.token, title, description:`EOD change ${pct.toFixed(2)}%. Review exposure if needed.`, severity:sev, deadline:new Date(now+6*3600*1000).toISOString() });
     }
   });
   res.json(mk);
 });
 
-// ---------- Health & static ----------
-app.get('/healthz', (_req, res) => res.json({ ok: true }));
+/* ---------------- Health + static SPA ---------------- */
+app.get('/healthz', (_req,res)=>res.json({ ok:true }));
 
 const distDir = path.resolve(__dirname, 'dist');
 app.use(express.static(distDir));
-app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')));
+app.get('*', (_req,res)=>res.sendFile(path.join(distDir,'index.html')));
 
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+app.listen(PORT, ()=>console.log(`Server running on http://localhost:${PORT}`));
