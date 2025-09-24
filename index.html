@@ -7,10 +7,8 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <!-- Floating + button (bottom-right) -->
   <a href="./create.html" class="fab" aria-label="New alert" title="New alert">+</a>
 
-  <!-- Top banner / navbar -->
   <header class="topbar" role="banner">
     <div class="topbar-inner">
       <div class="brand-wrap">
@@ -47,41 +45,29 @@
   </header>
 
   <main class="container">
-    <!-- Token Selector -->
     <section class="card">
       <h2 class="section-title">Select tokens to watch</h2>
       <div class="token-select-row">
-        <input
-          id="token-input"
-          class="input"
-          type="text"
-          placeholder="Type a token symbol (e.g., BTC, ETH, MATIC) and press Enter…"
-          list="token-datalist"
-          aria-label="Add token"
-        />
+        <input id="token-input" class="input" type="text" placeholder="Type a token symbol (e.g., BTC, ETH, MATIC) and press Enter…" list="token-datalist" aria-label="Add token" />
         <datalist id="token-datalist"></datalist>
         <button id="add-token-btn" class="btn">Add to watchlist</button>
       </div>
       <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
     </section>
 
-    <!-- Tabs + Severity selector + Show-all toggle -->
     <div class="tabsbar" role="navigation" aria-label="Main tabs and filters">
-      <!-- Tabs (left) -->
       <nav class="tabs" role="tablist" aria-label="Main tabs">
         <button class="tab active" data-tab="alerts" aria-selected="true" role="tab">Alerts</button>
         <button class="tab" data-tab="summary" aria-selected="false" role="tab">Summary</button>
         <button class="tab" data-tab="market" aria-selected="false" role="tab">Market</button>
       </nav>
 
-      <!-- Severity selector (middle) -->
-      <div class="sev-filter" role="group" aria-label="Filter by severity">
+      <div id="sev-filter" class="sev-filter" role="group" aria-label="Filter by severity">
         <button class="sev-btn active" data-sev="critical" aria-pressed="true" title="Critical">🚨</button>
         <button class="sev-btn active" data-sev="warning"  aria-pressed="true" title="Warning">⚠️</button>
         <button class="sev-btn active" data-sev="info"     aria-pressed="true" title="Info">🛟</button>
       </div>
 
-      <!-- Show all (right) — caption above toggle -->
       <label class="switch small" id="showall-wrap" title="Include dismissed alerts">
         <span class="switch-caption">Show all</span>
         <input type="checkbox" id="toggle-show-all" />
@@ -89,20 +75,15 @@
       </label>
     </div>
 
-    <!-- Alerts Panel -->
     <section id="panel-alerts" class="card" role="tabpanel">
       <div id="alerts-list" class="alerts-list"></div>
-      <p id="no-alerts" class="muted" hidden>
-        No alerts for your selected filters. Adjust severity or watchlist to see alerts.
-      </p>
+      <p id="no-alerts" class="muted" hidden>No alerts for your selected filters. Adjust severity or watchlist to see alerts.</p>
     </section>
 
-    <!-- Summary Panel -->
     <section id="panel-summary" class="card" hidden role="tabpanel">
       <div id="summary-content" class="summary"></div>
     </section>
 
-    <!-- Market Panel -->
     <section id="panel-market" class="card" hidden role="tabpanel">
       <div id="market-grid" class="market-grid"></div>
       <p id="market-empty" class="muted" hidden>No market data. Add tokens to your watchlist.</p>
@@ -110,10 +91,9 @@
     </section>
   </main>
 
-  <footer class="footer muted">
-    <span>© 2025 Crypto Lifeguard — demo build</span>
-  </footer>
+  <footer class="footer muted"><span>© 2025 Crypto Lifeguard — demo build</span></footer>
 
-  <script src="./app.js"></script>
+  <!-- IMPORTANT for Vite build -->
+  <script type="module" src="/app.js"></script>
 </body>
 </html>

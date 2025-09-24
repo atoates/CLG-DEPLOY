@@ -1,185 +1,185 @@
-// server.js (free-plan compatible)
-import express from 'express';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// server.js
+const fs = require('fs');
+const path = require('path');
+const express = require('express');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, 'alerts.json');
+const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, 'data');
+const ALERTS_PATH = path.join(DATA_DIR, 'alerts.json');
+const POLYGON_KEY = process.env.POLYGON_API_KEY || ''; // set in Railway Variables
 
-// Use env in prod; demo uses provided key
-const POLYGON_API_KEY = process.env.POLYGON_API_KEY || 'e7Zx66Rf0ltgSTp3PCs6iWvfN9P6Oig5';
+// Ensure data dir exists
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
-// Map tokens -> Polygon crypto tickers
-const SYMBOL_MAP = {
-  BTC: 'X:BTCUSD',
-  ETH: 'X:ETHUSD',
-  USDC: 'X:USDCUSD',
-  MATIC: 'X:MATICUSD',
-  DOGE: 'X:DOGEUSD',
-  ADA: 'X:ADAUSD',
-  SOL: 'X:SOLUSD',
-  POL: 'X:POLUSD', // if missing in response, we’ll mark unavailable
-  UNI: 'X:UNIUSD',
-  LINK: 'X:LINKUSD'
-};
+// --- Helpers -----------------------------------------------------------------
+function readJsonSafe(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch { return fallback; }
+}
+function writeJsonSafe(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+function mapSymbolToPolygon(sym) {
+  const m = {
+    BTC: 'X:BTCUSD',
+    ETH: 'X:ETHUSD',
+    USDC: 'X:USDCUSD',
+    MATIC: 'X:MATICUSD',
+    DOGE: 'X:DOGEUSD',
+    ADA: 'X:ADAUSD',
+    SOL: 'X:SOLUSD',
+    POL: 'X:POLUSD',   // may not exist; we handle errors
+    UNI: 'X:UNIUSD',
+    LINK:'X:LINKUSD',
+  };
+  return m[sym] || null;
+}
 
-// simple cache
-const cache = new Map();
-function getCache(k){ const v = cache.get(k); if(!v) return null; if(Date.now()-v.ts>v.ttl){ cache.delete(k); return null; } return v.data; }
-function setCache(k,data,ttl){ cache.set(k,{data, ts:Date.now(), ttl}); }
+// --- In-memory + file-backed alerts -----------------------------------------
+let alerts = readJsonSafe(ALERTS_PATH, [
+  // seed a couple so first run isn't empty
+  {
+    id: 'seed-1',
+    token: 'BTC',
+    title: 'Wallet update recommended',
+    description: 'Upgrade to the latest client to ensure network compatibility.',
+    severity: 'info',
+    deadline: new Date(Date.now() + 36 * 3600 * 1000).toISOString(),
+  },
+  {
+    id: 'seed-2',
+    token: 'ETH',
+    title: 'Validator maintenance window',
+    description: 'Possible brief latency. No action required for holders.',
+    severity: 'warning',
+    deadline: new Date(Date.now() + 12 * 3600 * 1000).toISOString(),
+  },
+]);
 
+function persistAlerts(){ writeJsonSafe(ALERTS_PATH, alerts); }
+
+// --- Middleware --------------------------------------------------------------
 app.use(express.json());
 
-// ----------------------- Alerts persistence ----------------------------------
-if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]', 'utf-8');
-const loadAlerts = () => { try { return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')||'[]'); } catch { return []; } };
-const saveAlerts = (list) => fs.writeFileSync(DATA_FILE, JSON.stringify(list,null,2), 'utf-8');
-
-app.get('/api/alerts', (_req,res)=> res.json(loadAlerts()));
-app.post('/api/alerts', (req,res)=>{
-  const { token, severity, title, description, deadline } = req.body || {};
-  if (!token || !severity || !title || !description || !deadline) {
-    return res.status(400).json({ error:'Invalid alert payload' });
-  }
-  const alerts = loadAlerts();
-  alerts.push({ token:String(token).toUpperCase(), severity, title, description, deadline });
-  saveAlerts(alerts);
-  res.status(201).json(alerts);
+// --- API: Alerts -------------------------------------------------------------
+app.get('/api/alerts', (_req, res) => {
+  res.json(alerts);
 });
 
-// ----------------------- Polygon helpers (free plan) -------------------------
-// We use grouped daily OHLC for ALL crypto tickers for a given UTC date.
-// That is EOD data and allowed on the free tier.
-async function fetchJson(url){
-  const r = await fetch(url);
-  if (!r.ok){
-    const txt = await r.text().catch(()=> '');
-    throw new Error(`${r.status} ${r.statusText}: ${txt.slice(0,200)}`);
+app.post('/api/alerts', (req, res) => {
+  const { token, title, description, severity, deadline } = req.body || {};
+  if (!token || !title || !deadline) {
+    return res.status(400).json({ error: 'token, title, deadline are required' });
   }
-  return r.json();
-}
-
-// get YYYY-MM-DD for "yesterday" in UTC (latest completed day)
-function yesterUtc(){
-  const d = new Date(Date.now() - 24*60*60*1000);
-  return d.toISOString().slice(0,10);
-}
-
-// Load grouped daily once (cache 5 minutes)
-async function getGroupedDaily(dateStr){
-  const key = `grp:${dateStr}`;
-  const hit = getCache(key);
-  if (hit) return hit;
-
-  const url = `https://api.polygon.io/v2/aggs/grouped/locale/global/market/crypto/${dateStr}?adjusted=true&apiKey=${POLYGON_API_KEY}`;
-  const json = await fetchJson(url);
-  const results = json?.results || [];
-
-  // Map by ticker (e.g., X:BTCUSD)
-  const byTicker = new Map();
-  results.forEach(row => { if (row && row.T) byTicker.set(row.T, row); });
-
-  setCache(key, byTicker, 5*60*1000);
-  return byTicker;
-}
-
-// ----------------------- Market snapshot (EOD) -------------------------------
-app.get('/api/market/snapshot', async (req,res)=>{
-  try{
-    const dateStr = yesterUtc(); // EOD of previous UTC day
-    const byTicker = await getGroupedDaily(dateStr);
-
-    // figure out which tokens to return (we’ll allow many; response uses one API call)
-    const tokens = (req.query.symbols || '')
-      .split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
-    const list = tokens.length ? tokens : Object.keys(SYMBOL_MAP);
-
-    const items = list.map(token=>{
-      const ticker = SYMBOL_MAP[token];
-      if (!ticker) return { token, error:'unsupported' };
-      const row = byTicker.get(ticker);
-      if (!row) return { token, ticker, lastPrice:null, dayChangePct:null, error:'unavailable (EOD only)' };
-
-      const open = Number(row.o ?? 0);
-      const close = Number(row.c ?? 0);
-      const dayChangePct = open>0 ? ((close-open)/open)*100 : null;
-
-      return {
-        token,
-        ticker,
-        lastPrice: close,
-        dayChangePct,
-        change30mPct: null // not available on free plan
-      };
-    });
-
-    res.json({ items, ts: Date.now(), note: `EOD data for ${dateStr} (free plan)` });
-  }catch(e){
-    res.status(502).json({ error:String(e) });
-  }
+  const item = {
+    id: `a_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+    token: String(token).toUpperCase(),
+    title: String(title),
+    description: String(description || ''),
+    severity: ['critical','warning','info'].includes(severity) ? severity : 'info',
+    deadline: new Date(deadline).toISOString(),
+  };
+  alerts.push(item);
+  persistAlerts();
+  res.status(201).json(item);
 });
 
-// ----------------------- Auto alerts (based on DAILY move) -------------------
-// Free plan can’t detect intraday 30m drops. We’ll generate alerts from EOD % change:
-//  warning if <= -5%, critical if <= -10%. Deadline = today 23:59 UTC.
-app.get('/api/market/auto-alerts', async (req,res)=>{
-  try{
-    const dateStr = yesterUtc();
-    const byTicker = await getGroupedDaily(dateStr);
+// --- API: Market snapshot (free-tier friendly) -------------------------------
+app.get('/api/market/snapshot', async (req, res) => {
+  const symbols = String(req.query.symbols || '')
+    .split(',')
+    .map(s => s.trim().toUpperCase())
+    .filter(Boolean);
 
-    const tokens = (req.query.symbols || '')
-      .split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
-    const list = tokens.length ? tokens : Object.keys(SYMBOL_MAP);
+  if (!symbols.length) return res.json({ items: [], note: 'No symbols selected.' });
 
-    const out = [];
-    for (const token of list){
-      const ticker = SYMBOL_MAP[token];
-      if (!ticker) continue;
-      const row = byTicker.get(ticker);
-      if (!row) continue;
+  const note = POLYGON_KEY
+    ? 'End-of-day aggregates via Polygon (free tier).'
+    : 'No API key set — showing empty EOD snapshot.';
 
-      const open = Number(row.o ?? 0);
-      const close = Number(row.c ?? 0);
-      if (!open) continue;
+  const items = [];
+  for (const sym of symbols) {
+    const ticker = mapSymbolToPolygon(sym);
+    if (!ticker || !POLYGON_KEY) {
+      items.push({ token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, error: 'no-data' });
+      continue;
+    }
+    try {
+      // Free plan: previous-day aggregate (EOD)
+      const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(ticker)}/prev?adjusted=true&apiKey=${POLYGON_KEY}`;
+      const r = await fetch(url);
+      if (!r.ok) {
+        items.push({ token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, error: `http-${r.status}` });
+        continue;
+      }
+      const json = await r.json();
+      const rec = (json.results && json.results[0]) || null;
+      if (!rec) {
+        items.push({ token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, error: 'no-results' });
+        continue;
+      }
+      const lastPrice = rec.c ?? null;
+      const open = rec.o ?? null;
+      const dayChangePct = (lastPrice != null && open != null && open !== 0) ? ((lastPrice - open) / open) * 100 : null;
+      items.push({ token: sym, lastPrice, dayChangePct, change30mPct: null });
+    } catch (e) {
+      items.push({ token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, error: 'fetch-failed' });
+    }
+  }
 
-      const pct = ((close-open)/open)*100;
-      let severity = null;
-      if (pct <= -10) severity = 'critical';
-      else if (pct <= -5) severity = 'warning';
-      if (!severity) continue;
+  res.json({ items, note });
+});
 
-      out.push({
-        token,
-        severity,
-        title: severity==='critical'
-          ? `Down ${pct.toFixed(1)}% today (EOD)`
-          : `Down ${pct.toFixed(1)}% today (EOD)`,
-        description: 'Daily move exceeded your risk threshold (free-tier EOD data).',
-        deadline: new Date(Date.now() + 12*60*60*1000).toISOString(),
-        generated: true
+// --- API: Auto alerts derived from EOD move ----------------------------------
+app.get('/api/market/auto-alerts', async (req, res) => {
+  const symbols = String(req.query.symbols || '')
+    .split(',')
+    .map(s => s.trim().toUpperCase())
+    .filter(Boolean);
+
+  // Reuse snapshot data to derive alerts
+  const snapRes = await fetch(`${req.protocol}://${req.get('host')}/api/market/snapshot?symbols=${encodeURIComponent(symbols.join(','))}`);
+  const { items = [] } = (await snapRes.json()) || {};
+
+  const now = Date.now();
+  const mk = [];
+
+  items.forEach(it => {
+    const pct = typeof it.dayChangePct === 'number' ? it.dayChangePct : null;
+    if (pct == null) return;
+
+    let sev = 'info';
+    let title = 'Daily move';
+    if (pct <= -10) { sev = 'critical'; title = 'Sharp drawdown'; }
+    else if (pct <= -5) { sev = 'warning'; title = 'Drawdown'; }
+    else if (pct >= 8) { sev = 'warning'; title = 'Spike up'; }
+
+    if (sev !== 'info') {
+      mk.push({
+        token: it.token,
+        title,
+        description: `EOD change ${pct.toFixed(2)}%. Review exposure if needed.`,
+        severity: sev,
+        deadline: new Date(now + 6 * 3600 * 1000).toISOString() // next 6h
       });
     }
-    res.json(out);
-  }catch(e){
-    res.status(502).json({ error:String(e) });
-  }
+  });
+
+  res.json(mk);
 });
 
-// ----------------------- Static frontend serve -------------------------------
-const distDir = path.join(__dirname, 'dist');
-if (fs.existsSync(distDir)) {
-  app.use(express.static(distDir));
-  app.get('*', (_req,res)=> res.sendFile(path.join(distDir,'index.html')));
-} else {
-  app.use(express.static(__dirname));
-  app.get('/', (_req,res)=> res.sendFile(path.join(__dirname,'index.html')));
-}
+// --- Health ------------------------------------------------------------------
+app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-app.listen(PORT, ()=> {
-  console.log(`✅ Backend on http://localhost:${PORT}`);
+// --- Static files ------------------------------------------------------------
+const distDir = path.resolve(__dirname, 'dist');
+app.use(express.static(distDir));
+// SPA fallback
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(distDir, 'index.html'));
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
