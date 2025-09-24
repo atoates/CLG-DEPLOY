@@ -22,8 +22,6 @@ function moneyFmt(n){
   if (n === null || n === undefined || isNaN(n)) return '—';
   return '$' + Number(n).toLocaleString(undefined, {maximumFractionDigits: 2});
 }
-
-// Generate a stable key for an alert (no server IDs required)
 function alertKey(a){
   return [
     (a.token || '').toUpperCase(),
@@ -35,11 +33,9 @@ function alertKey(a){
 
 // --- State -------------------------------------------------------------------
 let selectedTokens = JSON.parse(localStorage.getItem('cl_selectedTokens') || '[]');
-let showAll       = localStorage.getItem('cl_showAll') === '1';
+let showAll       = localStorage.getItem('cl_showAll') === '1'; // now just controls "include dismissed"
 let sevFilter     = JSON.parse(localStorage.getItem('cl_sevFilter') || '["critical","warning","info"]');
-
-// NEW: hidden alerts (dismissed) — store keys in a Set
-let hiddenKeys = new Set(JSON.parse(localStorage.getItem('cl_hiddenAlerts') || '[]'));
+let hiddenKeys    = new Set(JSON.parse(localStorage.getItem('cl_hiddenAlerts') || '[]'));
 
 let serverAlerts = [];
 let autoAlerts   = [];
@@ -63,15 +59,14 @@ const marketGridEl    = document.getElementById('market-grid');
 const marketEmptyEl   = document.getElementById('market-empty');
 const marketNoteEl    = document.getElementById('market-note');
 
-// --- Show all toggle ---------------------------------------------------------
+// --- Show all toggle (now: include dismissed) --------------------------------
 const showAllToggle = document.getElementById('toggle-show-all');
 if (showAllToggle) {
   showAllToggle.checked = showAll;
-  showAllToggle.addEventListener('change', async () => {
+  showAllToggle.addEventListener('change', () => {
     showAll = showAllToggle.checked;
     localStorage.setItem('cl_showAll', showAll ? '1' : '0');
-    await loadAutoAlerts();
-    renderAlerts();
+    renderAlerts(); // no need to refetch; just change visibility rules
   });
 }
 
@@ -189,9 +184,7 @@ function persistState(){
 function persistHidden(){
   localStorage.setItem('cl_hiddenAlerts', JSON.stringify([...hiddenKeys]));
 }
-function isHidden(a){
-  return hiddenKeys.has(alertKey(a));
-}
+function isHidden(a){ return hiddenKeys.has(alertKey(a)); }
 function dismissAlert(a){
   hiddenKeys.add(alertKey(a));
   persistHidden();
@@ -218,12 +211,12 @@ async function loadAlertsFromServer(){
 }
 
 async function loadAutoAlerts(){
-  // If Show All is on, fetch for ALL_TOKENS; otherwise only for selected tokens (if any).
-  if (!showAll && selectedTokens.length === 0){
+  // Always fetch for SELECTED tokens only (Show all no longer means "all tokens")
+  if (selectedTokens.length === 0){
     autoAlerts = [];
     return;
   }
-  const symbols = (showAll ? ALL_TOKENS : selectedTokens).join(',');
+  const symbols = selectedTokens.join(',');
   try{
     const res = await fetch(`/api/market/auto-alerts?symbols=${encodeURIComponent(symbols)}`);
     autoAlerts = await res.json();
@@ -239,25 +232,19 @@ function applySeverityFilter(list){
 }
 
 function getRelevantAlerts(){
-  const base = [...serverAlerts, ...autoAlerts];
+  // Scope to selected tokens
+  if (selectedTokens.length === 0) return [];
+  const base = [...serverAlerts, ...autoAlerts].filter(a =>
+    selectedTokens.includes((a.token || '').toUpperCase())
+  );
 
-  // First, token/watchlist scope
-  let scoped;
-  if (showAll) {
-    scoped = base;
-  } else {
-    if (selectedTokens.length === 0) return [];
-    scoped = base.filter(a => selectedTokens.includes((a.token || '').toUpperCase()));
-  }
+  // Apply severity
+  let list = applySeverityFilter(base);
 
-  // Then, severity
-  scoped = applySeverityFilter(scoped);
+  // Hide dismissed unless Show all is ON
+  if (!showAll) list = list.filter(a => !isHidden(a));
 
-  // Finally, hide dismissed unless 'showAll' is active
-  if (!showAll) {
-    scoped = scoped.filter(a => !isHidden(a));
-  }
-  return scoped;
+  return list;
 }
 
 // SORT: nearest deadline first
@@ -283,10 +270,10 @@ function renderAlerts(){
     const wrap = document.createElement('div');
     wrap.className = 'alert-item severity-' + (a.severity || 'info');
 
-    // If we're in Show All and this alert is hidden, fade it
     const hidden = isHidden(a);
     if (showAll && hidden) wrap.classList.add('is-hidden');
 
+    // LEFT: icon + text
     const left = document.createElement('div');
     left.className = 'content';
 
@@ -295,6 +282,7 @@ function renderAlerts(){
     icon.textContent = a.severity === 'critical' ? '🚨' : (a.severity === 'warning' ? '⚠️' : '🛟');
 
     const text = document.createElement('div');
+
     const title = document.createElement('div');
     title.className = 'alert-title';
     title.textContent = `${a.title} — ${(a.token || '').toUpperCase()}`;
@@ -303,53 +291,46 @@ function renderAlerts(){
     desc.className = 'alert-desc';
     desc.textContent = a.description || '';
 
+    // META inside body: time-left chip
+    const metaWrap = document.createElement('div');
+    metaWrap.className = 'alert-meta';
+    const metaChip = document.createElement('span');
+    metaChip.className = 'deadline-chip';
+    const msLeft = new Date(a.deadline).getTime() - Date.now();
+    metaChip.textContent = fmtTimeLeft(msLeft);
+    metaWrap.appendChild(metaChip);
+
     text.appendChild(title);
     text.appendChild(desc);
+    text.appendChild(metaWrap);
 
     left.appendChild(icon);
     left.appendChild(text);
 
-    // Right column: deadline + actions stacked
+    // RIGHT: checkbox dismiss/unhide
     const right = document.createElement('div');
     right.className = 'alert-right';
 
-    const meta = document.createElement('div');
-    meta.className = 'alert-deadline';
-    const msLeft = new Date(a.deadline).getTime() - Date.now();
-    meta.textContent = fmtTimeLeft(msLeft);
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.className = 'chk-dismiss';
+    chk.checked = hidden;
+    chk.title = hidden ? 'Unhide alert' : 'Dismiss alert';
+    chk.setAttribute('aria-label', chk.title);
 
-    const actions = document.createElement('div');
-    actions.className = 'alert-actions';
+    chk.addEventListener('change', () => {
+      if (chk.checked) dismissAlert(a); else unhideAlert(a);
+    });
 
-    if (showAll && hidden){
-      const tag = document.createElement('span');
-      tag.className = 'hidden-tag';
-      tag.textContent = 'Hidden';
-
-      const unhideBtn = document.createElement('button');
-      unhideBtn.className = 'btn-link';
-      unhideBtn.textContent = 'Unhide';
-      unhideBtn.addEventListener('click', () => unhideAlert(a));
-
-      actions.appendChild(tag);
-      actions.appendChild(unhideBtn);
-    } else {
-      const dismissBtn = document.createElement('button');
-      dismissBtn.className = 'btn-link';
-      dismissBtn.textContent = 'Dismiss';
-      dismissBtn.addEventListener('click', () => dismissAlert(a));
-      actions.appendChild(dismissBtn);
-    }
-
-    right.appendChild(meta);
-    right.appendChild(actions);
+    right.appendChild(chk);
 
     wrap.appendChild(left);
     wrap.appendChild(right);
 
+    // live tick function
     wrap._tick = () => {
       const leftMs = new Date(a.deadline).getTime() - Date.now();
-      meta.textContent = fmtTimeLeft(leftMs);
+      metaChip.textContent = fmtTimeLeft(leftMs);
     };
 
     alertsListEl.appendChild(wrap);
