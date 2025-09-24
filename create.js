@@ -18,18 +18,50 @@ const formTitle = document.getElementById('form-title');
 const formDescription = document.getElementById('form-description');
 const formDeadline = document.getElementById('form-deadline');
 
+function toISOFromLocal(dtLocalStr){
+  if (!dtLocalStr) return null;
+  const dt = new Date(dtLocalStr);
+  if (isNaN(dt.getTime())) return null;
+  return dt.toISOString();
+}
+
+// Add the alert token to the server-side watchlist so it shows after redirect
+async function addTokenToServerWatchlist(token){
+  try{
+    const meRes = await fetch('/api/me');
+    if (!meRes.ok) return;
+    const me = await meRes.json();
+    const wl = Array.isArray(me.watchlist) ? me.watchlist.slice() : [];
+    if (!wl.includes(token)) wl.push(token);
+    await fetch('/api/me/prefs', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        watchlist: wl,
+        severity: Array.isArray(me.severity) ? me.severity : ['critical','warning','info'],
+        showAll: !!me.showAll,
+        dismissed: Array.isArray(me.dismissed) ? me.dismissed : []
+      })
+    });
+  }catch(_e){}
+}
+
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  let token = (formToken.value || '').trim().toUpperCase();
+
+  const token = (formToken.value || '').trim().toUpperCase();
   const severity = formSeverity.value;
   const title = (formTitle.value || '').trim();
   const description = (formDescription.value || '').trim();
   const deadlineLocal = formDeadline.value;
 
   if (!token || !severity || !title || !description || !deadlineLocal) return;
-  const deadlineIso = new Date(deadlineLocal).toISOString();
+  const deadlineIso = toISOFromLocal(deadlineLocal);
+  if (!deadlineIso){
+    msg.textContent = 'Invalid deadline.';
+    return;
+  }
 
-  // UI feedback
   submitBtn.disabled = true;
   submitBtn.textContent = 'Saving…';
   msg.textContent = '';
@@ -42,19 +74,11 @@ form.addEventListener('submit', async (e) => {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    // Ensure token is in the user's watchlist for the index page
-    const key = 'cl_selectedTokens';
-    const current = JSON.parse(localStorage.getItem(key) || '[]');
-    if (!current.includes(token)) {
-      current.push(token);
-      localStorage.setItem(key, JSON.stringify(current));
-    }
+    // Ensure this token is on the user's server-side watchlist
+    await addTokenToServerWatchlist(token);
 
     msg.textContent = 'Alert created. Redirecting…';
-    // Redirect back to the alerts page
-    setTimeout(() => {
-      window.location.href = './index.html';
-    }, 600);
+    setTimeout(() => { window.location.href = '/'; }, 600);
   }catch(err){
     console.error(err);
     msg.textContent = 'Failed to save alert. Please try again.';
