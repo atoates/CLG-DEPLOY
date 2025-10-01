@@ -1,7 +1,11 @@
-// create.js (module)
+// create.js
 
-// Token suggestions consistent with the main app
+// Token suggestions
 const ALL_TOKENS = ['BTC','ETH','USDC','MATIC','DOGE','ADA','SOL','POL','UNI','LINK'];
+const ALLOWED_TAGS = [
+  'Price change','Migration','Hack','Fork','Scam',
+  'Airdrop','Whale alert','News','Community','Exploit'
+];
 
 const datalist = document.getElementById('token-datalist');
 ALL_TOKENS.forEach(t => {
@@ -20,27 +24,38 @@ const formTitle = document.getElementById('form-title');
 const formDescription = document.getElementById('form-description');
 const formDeadline = document.getElementById('form-deadline');
 
-// UX: focus the token field and set a sensible default deadline (now + 6h)
-(function initForm(){
-  try {
-    formToken.focus();
-  } catch {}
+// --- Tag selection ------------------------------------------------------------
+const tagWrap = document.getElementById('tag-select');
+let selectedTags = [];
+
+function renderTagButtons(){
+  tagWrap.innerHTML = '';
+  ALLOWED_TAGS.forEach(t=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip tag-chip' + (selectedTags.includes(t) ? ' active':'');
+    btn.textContent = t;
+    btn.addEventListener('click', ()=>{
+      const i = selectedTags.indexOf(t);
+      if(i>=0) selectedTags.splice(i,1); else selectedTags.push(t);
+      renderTagButtons();
+    });
+    tagWrap.appendChild(btn);
+  });
+}
+renderTagButtons();
+
+// --- Default deadline ---------------------------------------------------------
+(function initDeadline(){
   const now = new Date();
-  const plus6h = new Date(now.getTime() + 6 * 3600 * 1000);
-  const pad = n => String(n).padStart(2,'0');
+  const plus6h = new Date(now.getTime() + 6*3600*1000);
+  const pad = n=>String(n).padStart(2,'0');
   const localVal = `${plus6h.getFullYear()}-${pad(plus6h.getMonth()+1)}-${pad(plus6h.getDate())}T${pad(plus6h.getHours())}:${pad(plus6h.getMinutes())}`;
   formDeadline.min = localVal;
   formDeadline.value = localVal;
 })();
 
-function toISOFromLocal(dtLocalStr){
-  if (!dtLocalStr) return null;
-  const dt = new Date(dtLocalStr);
-  if (isNaN(dt.getTime())) return null;
-  return dt.toISOString();
-}
-
-// Ensure alert token is in the server-side watchlist so it shows after redirect
+// --- Ensure alert token goes into watchlist ----------------------------------
 async function addTokenToServerWatchlist(token){
   try{
     const meRes = await fetch('/api/me');
@@ -48,54 +63,53 @@ async function addTokenToServerWatchlist(token){
     const me = await meRes.json();
     const wl = Array.isArray(me.watchlist) ? me.watchlist.slice() : [];
     if (!wl.includes(token)) wl.push(token);
-    await fetch('/api/me/prefs', {
+    await fetch('/api/me/prefs',{
       method:'POST',
-      headers:{ 'Content-Type':'application/json' },
+      headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         watchlist: wl,
-        severity: Array.isArray(me.severity) ? me.severity : ['critical','warning','info'],
+        severity: me.severity || ['critical','warning','info'],
         showAll: !!me.showAll,
-        dismissed: Array.isArray(me.dismissed) ? me.dismissed : []
+        dismissed: me.dismissed || [],
+        tags: me.tags || []
       })
     });
-  }catch(_e){}
+  }catch(e){}
 }
 
+// --- Submit handler -----------------------------------------------------------
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
 
-  const token = (formToken.value || '').trim().toUpperCase();
+  const token = (formToken.value||'').trim().toUpperCase();
   const severity = formSeverity.value;
-  const title = (formTitle.value || '').trim();
-  const description = (formDescription.value || '').trim();
+  const title = (formTitle.value||'').trim();
+  const description = (formDescription.value||'').trim();
   const deadlineLocal = formDeadline.value;
 
   if (!token || !severity || !title || !description || !deadlineLocal){
     msg.textContent = 'Please complete all fields.';
     return;
   }
-  const deadlineIso = toISOFromLocal(deadlineLocal);
-  if (!deadlineIso){
-    msg.textContent = 'Invalid deadline.';
-    return;
-  }
+
+  const deadlineIso = new Date(deadlineLocal).toISOString();
 
   submitBtn.disabled = true;
   submitBtn.textContent = 'Saving…';
   msg.textContent = '';
 
   try{
-    const res = await fetch('/api/alerts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, severity, title, description, deadline: deadlineIso })
+    const res = await fetch('/api/alerts',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ token, severity, title, description, deadline: deadlineIso, tags: selectedTags })
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     await addTokenToServerWatchlist(token);
 
     msg.textContent = 'Alert created ✔ Redirecting…';
-    setTimeout(() => { window.location.href = '/'; }, 700);
+    setTimeout(()=>{ window.location.href = '/'; }, 800);
   }catch(err){
     console.error(err);
     msg.textContent = 'Failed to save alert. Please try again.';

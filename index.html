@@ -3,12 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Crypto Lifeguard — Web Demo</title>
+  <title>Crypto Lifeguard — Demo</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <a href="./create.html" class="fab" aria-label="New alert" title="New alert">+</a>
-
+  <!-- Top banner -->
   <header class="topbar" role="banner">
     <div class="topbar-inner">
       <div class="brand-wrap">
@@ -24,76 +23,96 @@
           <p class="brand-tagline">Rescue your tokens — personalised alerts without the noise.</p>
         </div>
       </div>
-
       <div class="actions">
-        <div class="dropdown">
-          <button id="user-menu-btn" class="menu-btn" aria-haspopup="true" aria-expanded="false">
-            Account ▾
-          </button>
-          <div id="user-menu" class="menu" hidden>
-            <button class="menu-item" data-action="login">Log in</button>
-            <button class="menu-item" data-action="signup">Sign up</button>
-            <hr />
-            <button class="menu-item" data-action="settings">Settings</button>
-            <button class="menu-item" data-action="help">Help</button>
-            <hr />
-            <button class="menu-item" data-action="logout">Log out</button>
+        <details class="menu">
+          <summary class="menu-btn">Account</summary>
+          <div class="menu-sheet card" style="padding:10px; margin-top:8px; right:0;">
+            <a href="/create.html" class="btn" style="display:inline-block;">+ New alert</a>
           </div>
-        </div>
+        </details>
       </div>
     </div>
   </header>
 
   <main class="container">
+    <!-- Token select card -->
     <section class="card">
       <h2 class="section-title">Select tokens to watch</h2>
-      <div class="token-select-row">
-        <input id="token-input" class="input" type="text" placeholder="Type a token symbol (e.g., BTC, ETH, MATIC) and press Enter…" list="token-datalist" aria-label="Add token" />
+      <div class="token-select-row" style="gap:10px; flex-wrap:wrap;">
+        <input id="token-input" class="input" list="token-datalist"
+               placeholder="Type a token symbol (e.g., BTC, ETH, MATIC)" />
         <datalist id="token-datalist"></datalist>
         <button id="add-token-btn" class="btn">Add to watchlist</button>
       </div>
-      <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
+      <div id="selected-tokens" class="pill-row" style="margin-top:10px;"></div>
     </section>
 
-    <div class="tabsbar" role="navigation" aria-label="Main tabs and filters">
-      <nav class="tabs" role="tablist" aria-label="Main tabs">
-        <button class="tab active" data-tab="alerts" aria-selected="true" role="tab">Alerts</button>
-        <button class="tab" data-tab="summary" aria-selected="false" role="tab">Summary</button>
-        <button class="tab" data-tab="market" aria-selected="false" role="tab">Market</button>
-      </nav>
-
-      <div id="sev-filter" class="sev-filter" role="group" aria-label="Filter by severity">
-        <button class="sev-btn active" data-sev="critical" aria-pressed="true" title="Critical">🚨</button>
-        <button class="sev-btn active" data-sev="warning"  aria-pressed="true" title="Warning">⚠️</button>
-        <button class="sev-btn active" data-sev="info"     aria-pressed="true" title="Info">🛟</button>
-      </div>
-
-      <label class="switch small" id="showall-wrap" title="Include dismissed alerts">
-        <span class="switch-caption">Show all</span>
-        <input type="checkbox" id="toggle-show-all" />
-        <span class="slider" aria-hidden="true"></span>
-      </label>
+    <!-- Tabs -->
+    <div class="tabs" style="margin-top:-2px;">
+      <button class="tab active" data-tab="alerts">Alerts</button>
+      <button class="tab" data-tab="summary">Summary</button>
+      <button class="tab" data-tab="market">Market</button>
     </div>
 
-    <section id="panel-alerts" class="card" role="tabpanel">
-      <div id="alerts-list" class="alerts-list"></div>
-      <p id="no-alerts" class="muted" hidden>No alerts for your selected filters. Adjust severity or watchlist to see alerts.</p>
+    <!-- Filters toolbar (only visible on Alerts tab) -->
+    <section id="filters" class="card" style="padding:12px;">
+      <!-- Severity filter -->
+      <div id="sev-filter" class="toolbar-row">
+        <div class="toolbar-group">
+          <label class="label" style="margin-left:4px; font-size:12px;">Severity</label>
+          <div class="pill-row" style="margin-top:6px;">
+            <button id="sev-critical" class="chip tag-chip" title="Critical">🚨</button>
+            <button id="sev-warning"  class="chip tag-chip" title="Warning">⚠️</button>
+            <button id="sev-info"     class="chip tag-chip" title="Info">🛟</button>
+          </div>
+        </div>
+
+        <!-- Tag filter -->
+        <div id="tag-filter" class="toolbar-group" style="margin-left:12px; flex:1;">
+          <label class="label" style="margin-left:4px; font-size:12px;">Tags</label>
+          <div id="tag-chips" class="pill-row" style="margin-top:6px;">
+            <!-- tag chips injected by app.js -->
+          </div>
+        </div>
+
+        <!-- Show all -->
+        <div id="showall-filter" class="toolbar-group" style="min-width:120px;">
+          <label class="label" style="margin-left:4px; font-size:12px;">Show all</label>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+            <input id="toggle-showall" type="checkbox" />
+          </div>
+        </div>
+      </div>
     </section>
 
-    <section id="panel-summary" class="card" hidden role="tabpanel">
+    <!-- Panels -->
+    <section id="panel-alerts" class="card">
+      <div id="no-alerts" class="muted">No alerts for your selected filters. Adjust severity/tags or your watchlist to see alerts.</div>
+      <div id="alerts-list" class="alerts-list"></div>
+    </section>
+
+    <section id="panel-summary" class="card" hidden>
       <div id="summary-content" class="summary"></div>
     </section>
 
-    <section id="panel-market" class="card" hidden role="tabpanel">
+    <section id="panel-market" class="card" hidden>
+      <div class="muted" id="market-note" style="margin-bottom:10px;">End-of-day aggregates (free tier).</div>
+      <div id="market-empty" class="muted">Select some tokens to see a market snapshot.</div>
       <div id="market-grid" class="market-grid"></div>
-      <p id="market-empty" class="muted" hidden>No market data. Add tokens to your watchlist.</p>
-      <p id="market-note" class="muted" style="margin-top:8px"></p>
     </section>
   </main>
 
-  <footer class="footer muted"><span>© 2025 Crypto Lifeguard — demo build</span></footer>
+  <footer class="footer muted">
+    © 2025 Crypto Lifeguard — demo build
+  </footer>
 
-  <!-- IMPORTANT for Vite build -->
-  <script type="module" src="/app.js"></script>
+  <!-- IMPORTANT: module so Vite bundles it -->
+  <script type="module" src="./app.js"></script>
+
+  <!-- Minimal styles for <details> account menu (optional) -->
+  <style>
+    details.menu { position: relative; }
+    details.menu[open] .menu-sheet { position: absolute; }
+  </style>
 </body>
 </html>

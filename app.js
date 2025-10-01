@@ -22,91 +22,49 @@ function moneyFmt(n){
   if (n === null || n === undefined || isNaN(n)) return '—';
   return '$' + Number(n).toLocaleString(undefined, {maximumFractionDigits: 2});
 }
-function alertKey(a){
-  return [
-    (a.token || '').toUpperCase(),
-    a.title || '',
-    a.deadline || '',
-    a.severity || 'info'
-  ].join('|');
-}
 
-// --- State (will be hydrated from /api/me) -----------------------------------
-let selectedTokens = [];                                 // watchlist
-let showAll       = false;                               // include dismissed
-let sevFilter     = ['critical','warning','info'];       // active severities
-let hiddenKeys    = new Set();                           // dismissed set
-
+// --- State -------------------------------------------------------------------
+let selectedTokens = [];
 let serverAlerts = [];
-let autoAlerts   = [];
-let marketItems  = [];
+let autoAlerts = [];
+let marketItems = [];
+let sevFilter = ['critical','warning','info'];
+let showAll = false;
+let hiddenKeys = new Set();
+let tagFilter = []; // NEW
 
 // --- DOM ---------------------------------------------------------------------
-const tokenInput      = document.getElementById('token-input');
-const tokenDatalist   = document.getElementById('token-datalist');
-const addTokenBtn     = document.getElementById('add-token-btn');
-const pillsRow        = document.getElementById('selected-tokens');
+const tokenInput = document.getElementById('token-input');
+const tokenDatalist = document.getElementById('token-datalist');
+const addTokenBtn = document.getElementById('add-token-btn');
+const pillsRow = document.getElementById('selected-tokens');
 
-const tabs            = document.querySelectorAll('.tab');
-const panelAlerts     = document.getElementById('panel-alerts');
-const panelSummary    = document.getElementById('panel-summary');
-const panelMarket     = document.getElementById('panel-market');
+const tabs = document.querySelectorAll('.tab');
+const panelAlerts = document.getElementById('panel-alerts');
+const panelSummary = document.getElementById('panel-summary');
+const panelMarket = document.getElementById('panel-market');
+const summaryContent = document.getElementById('summary-content');
 
-const alertsListEl    = document.getElementById('alerts-list');
-const noAlertsEl      = document.getElementById('no-alerts');
+const alertsListEl = document.getElementById('alerts-list');
+const noAlertsEl = document.getElementById('no-alerts');
 
-const marketGridEl    = document.getElementById('market-grid');
-const marketEmptyEl   = document.getElementById('market-empty');
-const marketNoteEl    = document.getElementById('market-note');
+const marketGridEl = document.getElementById('market-grid');
+const marketEmptyEl = document.getElementById('market-empty');
 
-const sevFilterWrap   = document.getElementById('sev-filter');
-const showAllWrap     = document.getElementById('showall-wrap');
-const showAllToggle   = document.getElementById('toggle-show-all');
+// NEW: filter toolbars
+const sevFilterWrap = document.getElementById('sev-filter');
+const showAllWrap   = document.getElementById('showall-filter');
+const tagFilterWrap = document.getElementById('tag-filter');
+const tagButtonsWrap= document.getElementById('tag-chips');
 
-const sevButtons      = document.querySelectorAll('.sev-btn');
-
-// --- Server-backed prefs -----------------------------------------------------
-function persistPrefsServerDebounced(){
-  clearTimeout(persistPrefsServerDebounced._t);
-  persistPrefsServerDebounced._t = setTimeout(() => {
-    fetch('/api/me/prefs', {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({
-        watchlist: selectedTokens,
-        severity: sevFilter,
-        showAll,
-        dismissed: [...hiddenKeys]
-      })
-    }).catch(()=>{});
-  }, 250);
-}
-
-// --- Init (boot) -------------------------------------------------------------
-(async function boot(){
-  // Load user preferences from server (cookie-based anon ID)
-  try{
-    const res = await fetch('/api/me');
-    if (res.ok){
-      const me = await res.json();
-      selectedTokens = Array.isArray(me.watchlist) ? me.watchlist : [];
-      sevFilter      = Array.isArray(me.severity) ? me.severity : ['critical','warning','info'];
-      showAll        = !!me.showAll;
-      hiddenKeys     = new Set(Array.isArray(me.dismissed) ? me.dismissed : []);
-    }
-  }catch(e){ console.warn('prefs load failed', e); }
-
-  // Sync UI controls to prefs
-  if (showAllToggle) showAllToggle.checked = showAll;
-  syncSevUi();
-
-  // Render + load data
-  renderDatalist();
+// --- Init --------------------------------------------------------------------
+renderDatalist();
+loadPrefs().then(()=>{
   renderAll();
   loadAlertsFromServer();
-  loadMarket();
-  updateFilterVisibility('alerts'); // default tab
-})();
+  loadMarket(); // prefetch so Market tab is instant
+  renderTagFilter();
+});
 
 // --- Datalist ----------------------------------------------------------------
 function renderDatalist(){
@@ -135,7 +93,6 @@ function renderPills(){
       persistPrefsServerDebounced();
       renderAll();
       loadMarket();
-      loadAutoAlerts().then(renderAlerts);
     });
 
     pill.appendChild(btn);
@@ -148,20 +105,18 @@ tabs.forEach(btn => {
   btn.addEventListener('click', () => {
     tabs.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-
     const tab = btn.getAttribute('data-tab');
-    const isAlerts  = tab === 'alerts';
+    const isAlerts = tab === 'alerts';
     const isSummary = tab === 'summary';
-    const isMarket  = tab === 'market';
-
-    panelAlerts.hidden  = !isAlerts;
+    const isMarket = tab === 'market';
+    panelAlerts.hidden = !isAlerts;
     panelSummary.hidden = !isSummary;
-    panelMarket.hidden  = !isMarket;
+    panelMarket.hidden = !isMarket;
 
     updateFilterVisibility(tab);
 
     if (isSummary) renderSummary();
-    if (isMarket)  loadMarket();
+    if (isMarket) loadMarket();
   });
 });
 
@@ -169,6 +124,7 @@ function updateFilterVisibility(tab){
   const visible = (tab === 'alerts');
   if (sevFilterWrap) sevFilterWrap.hidden = !visible;
   if (showAllWrap)   showAllWrap.hidden   = !visible;
+  if (tagFilterWrap) tagFilterWrap.hidden = !visible;
 }
 
 // --- Token Add ---------------------------------------------------------------
@@ -188,57 +144,41 @@ function tryAddTokenFromInput(){
     persistPrefsServerDebounced();
     renderAll();
     loadMarket();
-    loadAutoAlerts().then(renderAlerts);
   }
   tokenInput.value = '';
   tokenInput.focus();
 }
 
-// --- Show all toggle ---------------------------------------------------------
-if (showAllToggle) {
-  showAllToggle.addEventListener('change', () => {
-    showAll = showAllToggle.checked;
-    persistPrefsServerDebounced();
-    renderAlerts();
-  });
+// --- Prefs Load/Save ---------------------------------------------------------
+async function loadPrefs(){
+  try{
+    const res = await fetch('/api/me');
+    if (!res.ok) return;
+    const me = await res.json();
+    selectedTokens = me.watchlist || [];
+    sevFilter = me.severity || ['critical','warning','info'];
+    showAll = !!me.showAll;
+    hiddenKeys = new Set(me.dismissed || []);
+    tagFilter = me.tags || [];
+  }catch(e){ console.error('prefs load fail', e); }
 }
-
-// --- Severity selector buttons ----------------------------------------------
-function syncSevUi(){
-  sevButtons.forEach(btn => {
-    const sev = btn.dataset.sev;
-    const on = sevFilter.includes(sev);
-    btn.classList.toggle('active', on);
-    btn.setAttribute('aria-pressed', String(on));
-  });
-}
-sevButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    const sev = btn.dataset.sev;
-    const idx = sevFilter.indexOf(sev);
-    if (idx >= 0) sevFilter.splice(idx, 1);
-    else sevFilter.push(sev);
-    syncSevUi();
-    persistPrefsServerDebounced();
-    renderAlerts();
-  });
-});
-
-// --- Hidden alerts helpers ---------------------------------------------------
-function persistHidden(){
-  // keep local shadow if you want, but server is the source of truth now
-  persistPrefsServerDebounced();
-}
-function isHidden(a){ return hiddenKeys.has(alertKey(a)); }
-function dismissAlert(a){
-  hiddenKeys.add(alertKey(a));
-  persistHidden();
-  renderAlerts();
-}
-function unhideAlert(a){
-  hiddenKeys.delete(alertKey(a));
-  persistHidden();
-  renderAlerts();
+function persistPrefsServerDebounced(){
+  clearTimeout(persistPrefsServerDebounced._t);
+  persistPrefsServerDebounced._t = setTimeout(async ()=>{
+    try{
+      await fetch('/api/me/prefs',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          watchlist: selectedTokens,
+          severity: sevFilter,
+          showAll,
+          dismissed: [...hiddenKeys],
+          tags: tagFilter
+        })
+      });
+    }catch(e){}
+  }, 500);
 }
 
 // --- Alerts (Saved + Auto) ---------------------------------------------------
@@ -260,46 +200,38 @@ async function loadAutoAlerts(){
   if (selectedTokens.length === 0) return;
 
   const symbols = selectedTokens.join(',');
-
-  const tasks = [
-    // existing market-derived alerts
-    fetch(`/api/market/auto-alerts?symbols=${encodeURIComponent(symbols)}`)
-      .then(r => r.ok ? r.json() : [])
-      .catch(() => []),
-
-    // NEW: CryptoPanic-derived alerts
-    fetch(`/api/news/cryptopanic-alerts?symbols=${encodeURIComponent(symbols)}&size=50`)
-      .then(r => r.ok ? r.json() : [])
-      .catch(() => [])
-  ];
-
   try{
-    const [mk, cp] = await Promise.all(tasks);
-    autoAlerts = []
-      .concat(Array.isArray(mk) ? mk : [])
-      .concat(Array.isArray(cp) ? cp : []);
-  }catch{
+    const res = await fetch(`/api/market/auto-alerts?symbols=${encodeURIComponent(symbols)}`);
+    autoAlerts = await res.json();
+  }catch(e){
+    console.error('auto alerts error', e);
     autoAlerts = [];
   }
 }
 
-function applySeverityFilter(list){
-  if (!sevFilter || sevFilter.length === 0) return [];
-  return list.filter(a => sevFilter.includes((a.severity || 'info')));
-}
-
 function getRelevantAlerts(){
-  if (selectedTokens.length === 0) return [];
-  const base = [...serverAlerts, ...autoAlerts].filter(a =>
-    selectedTokens.includes((a.token || '').toUpperCase())
-  );
-
-  let list = applySeverityFilter(base);
-
-  // Hide dismissed unless Show all is ON
-  if (!showAll) list = list.filter(a => !isHidden(a));
-
+  const base = [...serverAlerts, ...autoAlerts];
+  if (!base.length) return [];
+  let list = base;
+  // filter tokens
+  if (selectedTokens.length > 0){
+    list = list.filter(a => selectedTokens.includes((a.token||'').toUpperCase()));
+  }
+  // severity
+  list = list.filter(a => sevFilter.includes(a.severity||'info'));
+  // tags
+  list = applyTagFilter(list);
+  // dismissed
+  if (!showAll) list = list.filter(a => !hiddenKeys.has(a.id));
   return list;
+}
+function applyTagFilter(list){
+  if (!tagFilter || tagFilter.length===0) return list;
+  const set = new Set(tagFilter);
+  return list.filter(a => {
+    const tags = Array.isArray(a.tags) ? a.tags : [];
+    return tags.some(t => set.has(t));
+  });
 }
 
 // SORT: nearest deadline first
@@ -325,10 +257,6 @@ function renderAlerts(){
     const wrap = document.createElement('div');
     wrap.className = 'alert-item severity-' + (a.severity || 'info');
 
-    const hidden = isHidden(a);
-    if (showAll && hidden) wrap.classList.add('is-hidden');
-
-    // LEFT: icon + text
     const left = document.createElement('div');
     left.className = 'content';
 
@@ -337,7 +265,6 @@ function renderAlerts(){
     icon.textContent = a.severity === 'critical' ? '🚨' : (a.severity === 'warning' ? '⚠️' : '🛟');
 
     const text = document.createElement('div');
-
     const title = document.createElement('div');
     title.className = 'alert-title';
     title.textContent = `${a.title} — ${(a.token || '').toUpperCase()}`;
@@ -346,50 +273,37 @@ function renderAlerts(){
     desc.className = 'alert-desc';
     desc.textContent = a.description || '';
 
-    const metaWrap = document.createElement('div');
-    metaWrap.className = 'alert-meta';
-    const metaChip = document.createElement('span');
-    metaChip.className = 'deadline-chip';
-    const msLeft = new Date(a.deadline).getTime() - Date.now();
-    metaChip.textContent = fmtTimeLeft(msLeft);
-    metaWrap.appendChild(metaChip);
-
     text.appendChild(title);
     text.appendChild(desc);
-    text.appendChild(metaWrap);
+
+    // NEW: tags row
+    const tags = Array.isArray(a.tags) ? a.tags : [];
+    if (tags.length){
+      const tagsRow = document.createElement('div');
+      tagsRow.className = 'alert-tags';
+      tags.forEach(t => {
+        const chip = document.createElement('span');
+        chip.className = 'mk-chip neutral';
+        chip.textContent = t;
+        tagsRow.appendChild(chip);
+      });
+      text.appendChild(tagsRow);
+    }
 
     left.appendChild(icon);
     left.appendChild(text);
 
-    // RIGHT: divided dismiss column (title + checkbox)
-    const right = document.createElement('div');
-    right.className = 'dismiss-col';
-
-    const label = document.createElement('div');
-    label.className = 'dismiss-title';
-    label.textContent = 'Dismiss';
-
-    const chk = document.createElement('input');
-    chk.type = 'checkbox';
-    chk.className = 'chk-dismiss';
-    chk.checked = hidden;
-    chk.title = hidden ? 'Unhide alert' : 'Dismiss alert';
-    chk.setAttribute('aria-label', chk.title);
-
-    chk.addEventListener('change', () => {
-      if (chk.checked) dismissAlert(a); else unhideAlert(a);
-    });
-
-    right.appendChild(label);
-    right.appendChild(chk);
+    const metaWrap = document.createElement('div');
+    metaWrap.className = 'alert-deadline';
+    const msLeft = new Date(a.deadline).getTime() - Date.now();
+    metaWrap.textContent = fmtTimeLeft(msLeft);
 
     wrap.appendChild(left);
-    wrap.appendChild(right);
+    wrap.appendChild(metaWrap);
 
-    // live tick function
     wrap._tick = () => {
       const leftMs = new Date(a.deadline).getTime() - Date.now();
-      metaChip.textContent = fmtTimeLeft(leftMs);
+      metaWrap.textContent = fmtTimeLeft(leftMs);
     };
 
     alertsListEl.appendChild(wrap);
@@ -407,50 +321,45 @@ function startTicking(){
   }, 1000);
 }
 
-// --- Summary (mock) ----------------------------------------------------------
+// --- Weekly Summary (mock) ---------------------------------------------------
 function renderSummary(){
   const tokens = selectedTokens;
   const out = [];
-  if (tokens.includes('BTC')) out.push('- BTC: Network activity ticked up; devs debated a future fork proposal. No immediate action required.');
+  if (tokens.includes('BTC')) out.push('- BTC: Network activity ticked up; devs debated a future fork proposal.');
   if (tokens.includes('ETH')) out.push('- ETH: Staking withdrawals increased; core devs signalled steady upgrade progress.');
-  if (tokens.includes('MATIC')) out.push('- MATIC: Transition to POL remains on track; migration tooling improving.');
-  if (tokens.includes('UNI')) out.push('- UNI: Large holder flows spotted; monitor governance/treasury chatter.');
-  if (tokens.includes('SOL')) out.push('- SOL: Validator upgrade window scheduled; ecosystem projects testing compatibility.');
-  if (tokens.includes('USDC')) out.push('- USDC: Issuer posted routine compliance updates; peg remains stable.');
+  if (tokens.includes('MATIC')) out.push('- MATIC: Transition to POL remains on track.');
+  if (tokens.includes('UNI')) out.push('- UNI: Large holder flows spotted; monitor governance.');
+  if (tokens.includes('SOL')) out.push('- SOL: Validator upgrade window scheduled.');
+  if (tokens.includes('USDC')) out.push('- USDC: Issuer posted routine compliance updates.');
   if (tokens.includes('LINK')) out.push('- LINK: Oracle performance optimisations rolling out.');
-  if (tokens.includes('ADA')) out.push('- ADA: Community proposals discussed throughput; research teams shared progress.');
-  if (tokens.includes('DOGE')) out.push('- DOGE: Client updates recommended for improved security and reliability.');
-  if (tokens.includes('POL')) out.push('- POL: Ecosystem integrations expanding; bridging UX under refinement.');
+  if (tokens.includes('ADA')) out.push('- ADA: Community proposals discussed throughput.');
+  if (tokens.includes('DOGE')) out.push('- DOGE: Client updates recommended for improved security.');
+  if (tokens.includes('POL')) out.push('- POL: Ecosystem integrations expanding.');
   const sc = document.getElementById('summary-content');
   sc.innerHTML = '';
   if (out.length === 0){
     sc.innerHTML = '<p class="muted">Select some tokens to see a summary.</p>';
   } else {
-    const h = document.createElement('h2'); h.className='section-title'; h.textContent='AI-Generated Summary (mock)';
+    const h = document.createElement('h2'); h.className='section-title'; h.textContent='Summary (mock)';
     sc.appendChild(h);
     out.forEach(line => { const p=document.createElement('p'); p.textContent=line; sc.appendChild(p); });
-    const note=document.createElement('p'); note.className='muted'; note.textContent='(This summary is auto-generated based on trending news for your selected tokens.)'; sc.appendChild(note);
   }
 }
 
-// --- Market snapshot (FREE TIER: EOD only) -----------------------------------
+// --- Market snapshot ----------------------------------------------------------
 async function loadMarket(){
-  if (!selectedTokens.length){
-    marketItems = [];
-    if (marketNoteEl) marketNoteEl.textContent = 'Add tokens to your watchlist to see market data.';
-    renderMarket();
-    return;
-  }
-  const symbols = selectedTokens.join(',');
+  const symbols = (selectedTokens.length ? selectedTokens : ALL_TOKENS).join(',');
   try{
     const res = await fetch(`/api/market/snapshot?symbols=${encodeURIComponent(symbols)}`);
     const json = await res.json();
     marketItems = json.items || [];
-    if (marketNoteEl) marketNoteEl.textContent = json.note || 'End-of-day aggregates (free tier).';
+    const noteEl = document.getElementById('market-note');
+    if (noteEl) noteEl.textContent = json.note || 'End-of-day aggregates (free tier).';
   }catch(e){
     console.error('snapshot error', e);
     marketItems = [];
-    if (marketNoteEl) marketNoteEl.textContent = 'Data unavailable (free plan limits).';
+    const noteEl = document.getElementById('market-note');
+    if (noteEl) noteEl.textContent = 'Data unavailable.';
   }
   renderMarket();
 }
@@ -463,58 +372,76 @@ function renderMarket(){
   } else {
     marketEmptyEl.hidden = true;
   }
-
   const list = [...marketItems].sort((a,b) => a.token.localeCompare(b.token));
   list.forEach(it => {
     const card = document.createElement('div');
     card.className = 'market-card';
 
     const header = document.createElement('div');
-    header.className = 'mk-header';
-
-    const badge = document.createElement('div');
-    badge.className = 'mk-badge';
-    badge.textContent = (it.token || '?').slice(0,3);
-
-    const name = document.createElement('div');
-    name.className = 'mk-title';
-    name.textContent = it.token;
-
-    header.appendChild(badge);
-    header.appendChild(name);
+    header.className = 'mk-title';
+    header.textContent = it.token;
 
     const price = document.createElement('div');
     price.className = 'mk-price';
     price.textContent = moneyFmt(it.lastPrice);
 
-    const chips = document.createElement('div');
-    chips.className = 'mk-row';
+    const row = document.createElement('div');
+    row.className = 'mk-row';
 
-    const eodVal = typeof it.dayChangePct === 'number' ? it.dayChangePct : null;
-    const eod = document.createElement('span');
-    eod.className = 'mk-chip ' + (eodVal === null ? 'neutral' : (eodVal >= 0 ? 'chg-pos' : 'chg-neg'));
-    eod.textContent = `EOD ${pctFmt(eodVal)}`;
-    chips.appendChild(eod);
+    const d24 = document.createElement('span');
+    d24.className = 'mk-chip ' + (it.dayChangePct >= 0 ? 'chg-pos' : 'chg-neg');
+    d24.textContent = `24h ${pctFmt(it.dayChangePct)}`;
 
-    if (typeof it.change30mPct === 'number'){
-      const m30 = document.createElement('span');
-      m30.className = 'mk-chip ' + (it.change30mPct >= 0 ? 'chg-pos' : 'chg-neg');
-      m30.textContent = `30m ${pctFmt(it.change30mPct)}`;
-      chips.appendChild(m30);
-    }
-
-    if (it.error){
-      const err = document.createElement('div');
-      err.className = 'mk-err muted';
-      err.textContent = 'Data unavailable';
-      card.appendChild(err);
-    }
+    row.appendChild(d24);
 
     card.appendChild(header);
     card.appendChild(price);
-    card.appendChild(chips);
+    card.appendChild(row);
 
     marketGridEl.appendChild(card);
+  });
+}
+
+// --- Tag Filter UI -----------------------------------------------------------
+async function renderTagFilter(){
+  if (!tagButtonsWrap) return;
+  let tagsList = [];
+  try{
+    const r = await fetch('/api/tags');
+    const j = await r.json();
+    tagsList = Array.isArray(j.tags) ? j.tags : [];
+  }catch{}
+  if (!tagsList.length){
+    tagsList = ['Price change','Migration','Hack','Fork','Scam','Airdrop','Whale alert','News','Community','Exploit'];
+  }
+
+  tagButtonsWrap.innerHTML = '';
+  // "All"
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button';
+  allBtn.className = 'chip tag-chip ' + (tagFilter.length===0 ? 'active':'');
+  allBtn.textContent = 'All';
+  allBtn.addEventListener('click', ()=>{
+    tagFilter = [];
+    persistPrefsServerDebounced();
+    renderTagFilter();
+    renderAlerts();
+  });
+  tagButtonsWrap.appendChild(allBtn);
+
+  tagsList.forEach(t=>{
+    const btn = document.createElement('button');
+    btn.type='button';
+    btn.className='chip tag-chip' + (tagFilter.includes(t)?' active':'');
+    btn.textContent=t;
+    btn.addEventListener('click', ()=>{
+      const i=tagFilter.indexOf(t);
+      if(i>=0) tagFilter.splice(i,1); else tagFilter.push(t);
+      persistPrefsServerDebounced();
+      renderTagFilter();
+      renderAlerts();
+    });
+    tagButtonsWrap.appendChild(btn);
   });
 }
 

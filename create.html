@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Create Alert — Crypto Lifeguard</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <!-- Consistent dark-blue banner like the home page -->
+  <!-- Top banner consistent with app -->
   <header class="topbar" role="banner">
     <div class="topbar-inner">
       <div class="brand-wrap">
@@ -56,12 +56,12 @@
 
           <div class="col-span-2">
             <label class="label" for="form-title">Title</label>
-            <input id="form-title" class="input" placeholder="Short, action-oriented title (e.g., ‘Validator maintenance window’)" required />
+            <input id="form-title" class="input" placeholder="Alert title" required />
           </div>
 
           <div class="col-span-2">
             <label class="label" for="form-description">Description</label>
-            <textarea id="form-description" class="input" rows="3" placeholder="Optional details, steps, links…" required></textarea>
+            <textarea id="form-description" class="input" rows="3" placeholder="Details about the alert" required></textarea>
           </div>
 
           <div>
@@ -69,11 +69,18 @@
             <input id="form-deadline" class="input" type="datetime-local" required />
           </div>
 
-          <div class="form-actions">
+          <!-- NEW: Tag selector -->
+          <div class="col-span-2">
+            <label class="label">Tags (choose all that apply)</label>
+            <div id="tag-select" class="pill-row">
+              <!-- tag chips injected by create.js -->
+            </div>
+          </div>
+
+          <div class="form-actions col-span-2">
             <button type="submit" class="btn btn-teal" id="submit-btn">Create alert</button>
           </div>
         </div>
-
         <p id="msg" class="muted" style="margin-top:10px"></p>
       </form>
     </section>
@@ -83,7 +90,6 @@
     <span>© 2025 Crypto Lifeguard — demo build</span>
   </footer>
 
-  <!-- IMPORTANT: module so Vite bundles it -->
-  <script type="module" src="/create.js"></script>
+  <script type="module" src="./create.js"></script>
 </body>
 </html>
