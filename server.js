@@ -23,6 +23,17 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 
+// Function to ensure tags are properly formatted
+function ensureValidTags(tags) {
+  if (!tags) return '[]';
+  try {
+    const parsed = typeof tags === 'string' ? JSON.parse(tags) : tags;
+    return Array.isArray(parsed) ? JSON.stringify(parsed) : '[]';
+  } catch (e) {
+    return '[]';
+  }
+}
+
 // Ensure required tables exist
 db.exec(`
 CREATE TABLE IF NOT EXISTS schema_migrations (

@@ -436,7 +436,17 @@ function renderAlertTags(alert, alertWrap) {
   tagsWrap.className = 'alert-tags';
   
   // Parse tags if they're stored as JSON string
-  const tags = typeof alert.tags === 'string' ? JSON.parse(alert.tags) : alert.tags;
+  let tags = [];
+  try {
+    if (typeof alert.tags === 'string') {
+      tags = JSON.parse(alert.tags);
+    } else if (Array.isArray(alert.tags)) {
+      tags = alert.tags;
+    }
+  } catch (e) {
+    console.warn('Failed to parse tags:', alert.tags);
+    tags = [];
+  }
   
   tags.forEach(tag => {
     const info = ALERT_TAGS[tag];
