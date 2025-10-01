@@ -22,23 +22,24 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 /* ---------------- DB setup (SQLite) ---------------- */
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
+
+// Ensure required tables exist
 db.exec(`
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  filename TEXT NOT NULL UNIQUE,
+  applied_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+
+CREATE TABLE IF NOT EXISTS alerts (
   id TEXT PRIMARY KEY,
-  provider TEXT,
-  provider_user_id TEXT,
-  email TEXT,
-  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
-);
-CREATE TABLE IF NOT EXISTS user_prefs (
-  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  watchlist_json TEXT NOT NULL DEFAULT '[]',
-  severity_json  TEXT NOT NULL DEFAULT '["critical","warning","info"]',
-  show_all INTEGER NOT NULL DEFAULT 0,
-  dismissed_json TEXT NOT NULL DEFAULT '[]',
-  updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
-);
-`);
+  token TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  severity TEXT NOT NULL DEFAULT 'info',
+  deadline TEXT NOT NULL,
+  tags TEXT DEFAULT '[]'
+);`);
 const qUpsertUser   = db.prepare('INSERT OR IGNORE INTO users (id) VALUES (?)');
 const qGetPrefs     = db.prepare('SELECT * FROM user_prefs WHERE user_id = ?');
 const qUpsertPrefs  = db.prepare(`
