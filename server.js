@@ -28,6 +28,10 @@ function getDefaultTags(severity) {
 }
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
+console.log('Data directory:', DATA_DIR);
+console.log('Database path:', DB_PATH);
+console.log('Current directory:', __dirname);
+console.log('Directory contents:', fs.readdirSync(DATA_DIR));
 
 /* ---------------- DB setup (SQLite) ---------------- */
 const db = new Database(DB_PATH);

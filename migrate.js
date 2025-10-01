@@ -37,7 +37,9 @@ if (!fs.existsSync(migrationsDir)) {
   process.exit(0);
 }
 
+console.log('Scanning migrations directory:', migrationsDir);
 const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+console.log('Found migration files:', files);
 if (!files.length) {
   console.log('No .sql migrations found in', migrationsDir);
   process.exit(0);

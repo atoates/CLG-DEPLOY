@@ -22,7 +22,13 @@ CREATE TABLE IF NOT EXISTS alerts (
 );`);
 
 // Read alerts from JSON
+console.log('Reading alerts from alerts.json...');
 const alerts = JSON.parse(fs.readFileSync('alerts.json', 'utf8'));
+console.log(`Found ${alerts.length} alerts in JSON file`);
+
+// Clear existing alerts first
+console.log('Clearing existing alerts...');
+db.exec('DELETE FROM alerts');
 
 // Prepare insert statement
 const insert = db.prepare(`
