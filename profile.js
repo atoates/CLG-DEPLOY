@@ -1,5 +1,5 @@
 // Profile page script
-import './app.js'; // ensure shared utilities/UI if needed
+// Standalone profile logic
 
 const nameEl = document.getElementById('prof-name');
 const emailEl = document.getElementById('prof-email');
@@ -12,8 +12,10 @@ const addBtn = document.getElementById('prof-add-token');
 const tokenInput = document.getElementById('prof-token-input');
 const showAllToggle = document.getElementById('prof-show-all');
 const msgEl = document.getElementById('prof-msg');
+const avatarPresetsEl = document.getElementById('avatar-presets');
 
 let me = null;
+const ALL_TOKENS = ['BTC','ETH','USDC','MATIC','DOGE','ADA','SOL','POL','UNI','LINK'];
 
 function setAvatar(profile){
   avatarEl.innerHTML = '';
@@ -49,6 +51,13 @@ function renderPills(){
   });
 }
 
+function renderTokenDatalist(){
+  const dl = document.getElementById('token-datalist');
+  if (!dl) return;
+  dl.innerHTML = '';
+  ALL_TOKENS.forEach(t => { const opt=document.createElement('option'); opt.value=t; dl.appendChild(opt); });
+}
+
 async function loadMe(){
   const r = await fetch('/api/me');
   me = await r.json();
@@ -59,6 +68,9 @@ async function loadMe(){
   setAvatar(me.profile || {});
   showAllToggle.checked = !!me.showAll;
   renderPills();
+  renderTokenDatalist();
+  // Prime username input with existing value
+  if (me.profile?.username) usernameInput.value = me.profile.username;
 }
 
 function savePrefs(){
@@ -118,4 +130,71 @@ usernameSave.addEventListener('click', async () => {
   setTimeout(()=>msgEl.textContent='', 1500);
 });
 
+// Avatar presets (simple defaults)
+const PRESET_AVATARS = [
+  'https://api.dicebear.com/9.x/identicon/svg?seed=A',
+  'https://api.dicebear.com/9.x/identicon/svg?seed=B',
+  'https://api.dicebear.com/9.x/identicon/svg?seed=C',
+  'https://api.dicebear.com/9.x/bottts/svg?seed=Robo',
+  'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Joy'
+];
+
+function renderAvatarPresets(){
+  if (!avatarPresetsEl) return;
+  avatarPresetsEl.innerHTML = '';
+  PRESET_AVATARS.forEach(url => {
+    const btn = document.createElement('button');
+    btn.className = 'pill'; btn.style.padding='4px 6px';
+    const img = document.createElement('img'); img.src=url; img.width=24; img.height=24; img.style.borderRadius='999px';
+    btn.appendChild(img);
+    btn.addEventListener('click', async () => {
+      try{
+        const r = await fetch('/api/me/avatar', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ url }) });
+        if (!r.ok){
+          const j = await r.json().catch(()=>({}));
+          msgEl.textContent = j.error === 'invalid_url' ? 'Invalid avatar URL.' : 'Failed to update avatar.';
+          setTimeout(()=>msgEl.textContent='', 1800);
+          return;
+        }
+        const j = await r.json();
+        me.profile = me.profile || {}; me.profile.avatar = j.avatar || url;
+        setAvatar(me.profile);
+        msgEl.textContent = 'Avatar updated.'; setTimeout(()=>msgEl.textContent='',1200);
+      }catch(e){
+        msgEl.textContent = 'Failed to update avatar.'; setTimeout(()=>msgEl.textContent='',1500);
+      }
+    });
+    avatarPresetsEl.appendChild(btn);
+  });
+}
+
+renderAvatarPresets();
 loadMe();
+
+// ---- Severity buttons handling ----
+function renderSeverityButtons(){
+  const btns = document.querySelectorAll('.sev-btn[data-sev]');
+  const active = new Set((me?.severity && Array.isArray(me.severity) ? me.severity : ['critical','warning','info']).map(s=>String(s)));
+  btns.forEach(b => {
+    const key = b.getAttribute('data-sev');
+    if (active.has(key)) b.classList.add('active');
+    else b.classList.remove('active');
+  });
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.sev-btn[data-sev]');
+  if (!btn) return;
+  const sev = btn.getAttribute('data-sev');
+  const arr = Array.isArray(me?.severity) ? [...me.severity] : ['critical','warning','info'];
+  const idx = arr.indexOf(sev);
+  if (idx >= 0) arr.splice(idx,1); else arr.push(sev);
+  // Keep a stable order
+  const order = ['critical','warning','info'];
+  me.severity = order.filter(s => arr.includes(s));
+  renderSeverityButtons();
+  savePrefs();
+});
+
+// Ensure severity buttons reflect state on first load (slight delay to allow loadMe to set me)
+setTimeout(() => renderSeverityButtons(), 0);

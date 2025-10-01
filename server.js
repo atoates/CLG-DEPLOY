@@ -89,6 +89,7 @@ const qUpsertUser   = db.prepare('INSERT OR IGNORE INTO users (id) VALUES (?)');
 const qGetUser      = db.prepare('SELECT id, google_id, email, name, avatar, username FROM users WHERE id = ?');
 const qGetUserByUsername = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)');
 const qSetUsername  = db.prepare('UPDATE users SET username = ? WHERE id = ?');
+const qSetAvatar    = db.prepare('UPDATE users SET avatar = ? WHERE id = ?');
 const qGetPrefs     = db.prepare('SELECT * FROM user_prefs WHERE user_id = ?');
 const qUpsertPrefs  = db.prepare(`
 INSERT INTO user_prefs (user_id, watchlist_json, severity_json, show_all, dismissed_json, updated_at)
@@ -245,6 +246,23 @@ app.post('/api/me/username', (req, res) => {
   }
   qSetUsername.run(val, effectiveUid);
   res.json({ ok:true, username: val });
+});
+
+// Set/update avatar (simple URL validation)
+app.post('/api/me/avatar', (req, res) => {
+  const sess = getSession(req);
+  const effectiveUid = sess?.uid || req.uid;
+  const { url } = req.body || {};
+  const val = String(url || '').trim();
+  try{
+    const u = new URL(val);
+    if (u.protocol !== 'https:') throw new Error('https_required');
+    if (val.length > 300) throw new Error('too_long');
+  }catch(e){
+    return res.status(400).json({ ok:false, error:'invalid_url' });
+  }
+  qSetAvatar.run(val, effectiveUid);
+  res.json({ ok:true, avatar: val });
 });
 
 app.post('/api/me/prefs', (req, res) => {
