@@ -255,7 +255,59 @@ const distDir = path.resolve(__dirname, 'dist');
 app.use(express.static(distDir));
 app.get('*', (_req,res)=>res.sendFile(path.join(distDir,'index.html')));
 
-app.listen(PORT, ()=>console.log(`Server running on http://localhost:${PORT}`));
+// Start server and keep a reference so we can gracefully shut down
+const server = app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+
+// Readiness endpoint: verify DB is accessible with a trivial query
+app.get('/ready', (_req, res) => {
+  try {
+    // simple query to ensure DB file and engine are responsive
+    db.prepare('SELECT 1').get();
+    res.json({ ok: true, db: true });
+  } catch (err) {
+    console.error('Readiness check failed', err && err.stack ? err.stack : err);
+    res.status(503).json({ ok: false, db: false });
+  }
+});
+
+// Graceful shutdown helper
+let shuttingDown = false;
+function gracefulShutdown(code = 0) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log('Graceful shutdown initiated');
+
+  try {
+    // persist in-memory alerts to disk before closing
+    persistAlerts();
+  } catch (e) { console.error('Failed to persist alerts during shutdown', e); }
+
+  // stop accepting new connections
+  server.close(() => {
+    console.log('HTTP server closed');
+    try {
+      db.close();
+      console.log('Database closed');
+    } catch (e) {
+      console.error('Error closing database', e);
+    }
+    process.exit(code);
+  });
+
+  // Force exit if shutdown takes too long
+  setTimeout(() => {
+    console.error('Forcing shutdown after timeout');
+    try { db.close(); } catch (e) {}
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+process.on('SIGTERM', () => gracefulShutdown(0));
+process.on('SIGINT', () => gracefulShutdown(0));
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception', err && err.stack ? err.stack : err);
+  gracefulShutdown(1);
+});
 
 // GET /api/news/cryptopanic?symbols=BTC,ETH&size=20&filter=important
 app.get('/api/news/cryptopanic', async (req, res) => {
