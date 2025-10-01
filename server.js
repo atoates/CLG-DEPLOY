@@ -491,6 +491,58 @@ app.get('/api/news/cryptopanic-alerts', async (req, res) => {
 // --- Admin: backup endpoint -------------------------------------------------
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 
+app.post('/admin/migrate', async (req, res) => {
+  // Accept either Authorization: Bearer <token> or X-Admin-Token
+  const auth = String(req.get('authorization') || req.get('x-admin-token') || '').trim();
+  let token = auth;
+  if (auth.toLowerCase().startsWith('bearer ')) token = auth.slice(7).trim();
+  if (!ADMIN_TOKEN || !token || token !== ADMIN_TOKEN) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  
+  try {
+    // Check if users table has the required columns
+    const userColumns = db.prepare('PRAGMA table_info(users)').all();
+    const columnNames = userColumns.map(col => col.name);
+    
+    console.log('Current users table columns:', columnNames);
+    
+    const missingColumns = [];
+    if (!columnNames.includes('google_id')) missingColumns.push('google_id TEXT UNIQUE');
+    if (!columnNames.includes('email')) missingColumns.push('email TEXT');
+    if (!columnNames.includes('name')) missingColumns.push('name TEXT');
+    if (!columnNames.includes('avatar')) missingColumns.push('avatar TEXT');
+    if (!columnNames.includes('created_at')) missingColumns.push('created_at INTEGER NOT NULL DEFAULT (strftime(\'%s\',\'now\'))');
+    
+    if (missingColumns.length > 0) {
+      console.log('Adding missing columns:', missingColumns);
+      for (const column of missingColumns) {
+        const sql = `ALTER TABLE users ADD COLUMN ${column}`;
+        console.log('Executing:', sql);
+        db.exec(sql);
+      }
+      
+      // Also create user_prefs table if it doesn't exist
+      db.exec(`CREATE TABLE IF NOT EXISTS user_prefs (
+        user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        watchlist_json TEXT NOT NULL DEFAULT '[]',
+        severity_json  TEXT NOT NULL DEFAULT '["critical","warning","info"]',
+        show_all       INTEGER NOT NULL DEFAULT 0,
+        dismissed_json TEXT NOT NULL DEFAULT '[]',
+        updated_at     INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+      )`);
+      
+      console.log('Database schema updated successfully');
+      return res.json({ ok: true, added: missingColumns, message: 'Schema updated' });
+    } else {
+      return res.json({ ok: true, message: 'Schema already up to date' });
+    }
+  } catch (e) {
+    console.error('Migration failed:', e);
+    return res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
 app.post('/admin/backup', async (req, res) => {
   // Accept either Authorization: Bearer <token> or X-Admin-Token
   const auth = String(req.get('authorization') || req.get('x-admin-token') || '').trim();
