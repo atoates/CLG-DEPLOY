@@ -373,13 +373,50 @@ function initializeTagFilters() {
   // Handle multi-select changes
   tagSelect.addEventListener('change', handleTagFilterChange);
   resetTagsBtn.addEventListener('click', resetTagFilters);
+  
+  // Initialize display
+  updateSelectedTagsDisplay();
 }
 
 function handleTagFilterChange() {
   const tagSelect = document.getElementById('tag-filters');
   const selectedOptions = Array.from(tagSelect.selectedOptions);
-  tagFilter = selectedOptions.map(option => option.value);
+  tagFilter = selectedOptions.map(option => option.value).filter(val => val !== '');
   
+  updateSelectedTagsDisplay();
+  renderAlerts();
+}
+
+function updateSelectedTagsDisplay() {
+  const selectedTagsDisplay = document.getElementById('selected-tags-display');
+  
+  if (tagFilter.length === 0) {
+    selectedTagsDisplay.innerHTML = '';
+    return;
+  }
+  
+  selectedTagsDisplay.innerHTML = tagFilter.map(tag => `
+    <div class="selected-tag-pill">
+      ${tag}
+      <button class="remove-tag" onclick="removeTagFilter('${tag}')" title="Remove ${tag}">×</button>
+    </div>
+  `).join('');
+}
+
+function removeTagFilter(tagToRemove) {
+  const tagSelect = document.getElementById('tag-filters');
+  
+  // Remove from tagFilter array
+  tagFilter = tagFilter.filter(tag => tag !== tagToRemove);
+  
+  // Update select element
+  Array.from(tagSelect.options).forEach(option => {
+    if (option.value === tagToRemove) {
+      option.selected = false;
+    }
+  });
+  
+  updateSelectedTagsDisplay();
   renderAlerts();
 }
 
@@ -390,6 +427,7 @@ function resetTagFilters() {
     option.selected = false;
   });
   tagFilter = [];
+  updateSelectedTagsDisplay();
   renderAlerts();
 }
 

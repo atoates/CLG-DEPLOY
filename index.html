@@ -69,10 +69,14 @@
       </div>
       
       <div class="tag-filters-wrap">
-        <select id="tag-filters" class="tag-select" multiple aria-label="Filter by tag">
-          <option value="">Select tags to filter...</option>
-        </select>
-        <button id="reset-tags" class="btn" style="padding: 6px 12px; font-size: 14px;">Reset Tags</button>
+        <div class="tag-dropdown-container">
+          <label for="tag-filters" class="tag-dropdown-label">Filter by tags:</label>
+          <select id="tag-filters" class="tag-select" multiple aria-label="Filter by tag">
+            <option value="">Select tags to filter...</option>
+          </select>
+          <div id="selected-tags-display" class="selected-tags-pills"></div>
+        </div>
+        <button id="reset-tags" class="btn btn-secondary" style="padding: 6px 12px; font-size: 14px;">Clear All</button>
       </div>
 
       <label class="switch small" id="showall-wrap" title="Include dismissed alerts">
