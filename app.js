@@ -352,56 +352,46 @@ function applySeverityFilter(list){
 
 // Initialize tag filters
 function initializeTagFilters() {
-  const tagFiltersEl = document.getElementById('tag-filters');
-  const resetBtn = document.getElementById('reset-tags');
-  if (!tagFiltersEl) return;
+  const tagSelect = document.getElementById('tag-filters');
+  const resetTagsBtn = document.getElementById('reset-tags');
   
-  tagFiltersEl.innerHTML = '';
-  
-  // Reset button handler
-  if (resetBtn) {
-    resetBtn.addEventListener('click', () => {
-      tagFilter = [];
-      document.querySelectorAll('.tag-filter').forEach(btn => {
-        btn.classList.remove('active');
-        btn.setAttribute('aria-pressed', 'false');
-      });
-      renderAlerts();
-    });
-  }
-  
-  Object.entries(ALERT_TAGS).forEach(([tag, info]) => {
-    const btn = document.createElement('button');
-    btn.className = 'tag-filter';
-    btn.setAttribute('data-tag', tag);
-    btn.setAttribute('aria-pressed', 'false');
-    btn.style.color = info.color;
-    
-    const icon = document.createElement('span');
-    icon.className = 'icon';
-    icon.textContent = info.icon;
-    
-    const label = document.createElement('span');
-    label.textContent = info.label;
-    
-    btn.appendChild(icon);
-    btn.appendChild(label);
-    
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      btn.classList.toggle('active');
-      btn.setAttribute('aria-pressed', btn.classList.contains('active'));
-      
-      const tag = btn.getAttribute('data-tag');
-      const idx = tagFilter.indexOf(tag);
-      if (idx >= 0) tagFilter.splice(idx, 1);
-      else tagFilter.push(tag);
-      
-      renderAlerts();
-    });
-    
-    tagFiltersEl.appendChild(btn);
+  // Get all unique tags from alerts
+  const allTags = new Set();
+  alerts.forEach(alert => {
+    const tags = getAlertTagsArray(alert);
+    tags.forEach(tag => allTags.add(tag));
   });
+  
+  // Create select options
+  tagSelect.innerHTML = '<option value="" disabled>Select tags to filter...</option>';
+  Array.from(allTags).sort().forEach(tag => {
+    const option = document.createElement('option');
+    option.value = tag;
+    option.textContent = tag;
+    tagSelect.appendChild(option);
+  });
+  
+  // Handle multi-select changes
+  tagSelect.addEventListener('change', handleTagFilterChange);
+  resetTagsBtn.addEventListener('click', resetTagFilters);
+}
+
+function handleTagFilterChange() {
+  const tagSelect = document.getElementById('tag-filters');
+  const selectedOptions = Array.from(tagSelect.selectedOptions);
+  tagFilter = selectedOptions.map(option => option.value);
+  
+  renderAlerts();
+}
+
+function resetTagFilters() {
+  const tagSelect = document.getElementById('tag-filters');
+  // Clear all selections
+  Array.from(tagSelect.options).forEach(option => {
+    option.selected = false;
+  });
+  tagFilter = [];
+  renderAlerts();
 }
 
 // Apply tag filter
