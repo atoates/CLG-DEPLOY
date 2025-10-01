@@ -257,12 +257,15 @@ body{
 /* ---------------- Alerts list ---------------- */
 .alerts-list{ display:flex; flex-direction:column; gap:12px; }
 .alert-item{
-  display:flex; justify-content:space-between; align-items:flex-start;
+  /* Grid: content | tags | dismiss */
+  display:grid; grid-template-columns: 1fr auto 80px; column-gap: 12px;
+  align-items:start;
   padding:12px 14px; margin:6px 0; border-radius:12px; border:1px solid rgba(2,6,23,0.06);
 }
 .alert-item > .content{
+  grid-column: 1 / 2;
   display:flex; align-items:flex-start; gap:10px;
-  flex: 1 1 auto; min-width:0; /* content grows and takes left side */
+  min-width:0; /* allow text to truncate before pushing layout */
 }
 .alert-item .alert-icon{ font-size:20px; line-height:1; margin-top:2px; }
 .alert-item .alert-title{ font-weight:700; }
@@ -271,14 +274,10 @@ body{
 
 /* Make tags section sit between content and dismiss, aligned to the right */
 .alert-tags {
-  display:flex;
-  flex-direction:row;
-  align-items:center;
-  justify-content:flex-end;
-  gap:6px;
-  margin: 0 12px 0 auto; /* push tags to the right side */
-  flex: 1 1 auto;        /* fill remaining space between content and dismiss */
-  flex-wrap: wrap;
+  grid-column: 2 / 3;
+  display:flex; flex-direction:row; flex-wrap:wrap;
+  align-items:center; justify-content:flex-end;
+  gap:6px; padding:0 4px; margin:0; min-width: 120px;
 }
 .deadline-chip{
   display:inline-block; font-size:12px; font-weight:800; color:#0b4a8f;
@@ -287,6 +286,7 @@ body{
 
 /* Right-side dismiss column with divider */
 .dismiss-col{
+  grid-column: 3 / 4;
   display:flex; flex-direction:column; align-items:center; gap:6px;
   margin-left:12px; padding-left:12px;
   border-left:1px solid rgba(2,6,23,0.08);
@@ -367,6 +367,9 @@ body{
   .market-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); }
 }
 @media (max-width: 720px){
+  .alert-item{ grid-template-columns: 1fr auto 64px; }
+  .alert-tags{ gap:4px; }
+  .alert-tag{ font-size:12px; padding:3px 8px; }
   .brand-tagline{ display:none; }
   .market-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
   .mk-price{ font-size:20px; }
