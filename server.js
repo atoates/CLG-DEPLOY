@@ -525,9 +525,19 @@ app.get('/auth/google', (req, res) => {
 });
 
 app.get('/auth/google/callback', async (req, res) => {
-  try{ assertAuthConfig(); } catch(e){ return res.status(500).send(String(e.message||e)); }
+  try{ assertAuthConfig(); } catch(e){ 
+    console.error('OAuth config error:', e.message);
+    return res.status(500).send(String(e.message||e)); 
+  }
+  
   const { code, state } = req.query || {};
-  if (!code || !state || state !== req.cookies.oauth_state) return res.status(400).send('Invalid state');
+  console.log('OAuth callback received:', { code: code ? 'present' : 'missing', state: state ? 'present' : 'missing', cookieState: req.cookies.oauth_state ? 'present' : 'missing' });
+  
+  if (!code || !state || state !== req.cookies.oauth_state) {
+    console.error('OAuth state validation failed:', { code: !!code, state: !!state, stateMatch: state === req.cookies.oauth_state });
+    return res.status(400).send('Invalid state');
+  }
+  
   try{
     // Exchange code
     const tokenParams = new URLSearchParams({
@@ -537,12 +547,41 @@ app.get('/auth/google/callback', async (req, res) => {
       grant_type: 'authorization_code',
       redirect_uri: `${BASE_URL}/auth/google/callback`
     });
-    const tr = await fetch('https://oauth2.googleapis.com/token', { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body: tokenParams.toString() });
-    if (!tr.ok) return res.status(502).send('token exchange failed');
+    
+    console.log('Exchanging token with params:', { 
+      client_id: GOOGLE_CLIENT_ID ? 'present' : 'missing',
+      client_secret: GOOGLE_CLIENT_SECRET ? 'present' : 'missing',
+      redirect_uri: `${BASE_URL}/auth/google/callback`,
+      code_length: String(code).length
+    });
+    
+    const tr = await fetch('https://oauth2.googleapis.com/token', { 
+      method:'POST', 
+      headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, 
+      body: tokenParams.toString() 
+    });
+    
+    console.log('Token exchange response:', { status: tr.status, ok: tr.ok });
+    
+    if (!tr.ok) {
+      const errorText = await tr.text();
+      console.error('Token exchange failed:', { status: tr.status, error: errorText });
+      return res.status(502).send('token exchange failed');
+    }
+    
     const tj = await tr.json();
+    console.log('Token exchange success:', { hasIdToken: !!tj.id_token, hasAccessToken: !!tj.access_token });
+    
     const idToken = tj.id_token;
+    if (!idToken) {
+      console.error('No ID token in response');
+      return res.status(502).send('No ID token received');
+    }
+    
     // Decode ID token payload (without verification — for demo)
     const payload = JSON.parse(Buffer.from(String(idToken).split('.')[1]||'', 'base64').toString('utf8')) || {};
+    console.log('ID token payload:', { sub: !!payload.sub, email: !!payload.email, name: !!payload.name });
+    
     const googleId = payload.sub || '';
     const email = payload.email || '';
     const name = payload.name || '';
@@ -550,12 +589,16 @@ app.get('/auth/google/callback', async (req, res) => {
 
     // Create or map user
     const uid = `usr_${googleId}`; // simple mapping for demo
+    console.log('Creating user:', { uid, googleId: !!googleId, email: !!email });
+    
     qUpsertUser.run(uid);
     db.prepare('UPDATE users SET google_id=?, email=?, name=?, avatar=? WHERE id=?').run(googleId, email, name, avatar, uid);
     setSession(res, { uid });
     res.clearCookie('oauth_state');
+    console.log('OAuth success, redirecting to profile');
     res.redirect('/profile');
   }catch(e){
+    console.error('OAuth callback error:', e.message, e.stack);
     res.status(500).send('oauth failed');
   }
 });
