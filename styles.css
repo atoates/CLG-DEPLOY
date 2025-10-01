@@ -615,9 +615,9 @@ body{
   
   /* Improve alert list spacing on mobile - FINAL VERSION */
   #alerts-list.alerts-list {
-    gap: 60px !important; /* Large gap between items */
-    padding: 24px 0 !important;
-    margin: 16px 0 !important;
+    gap: 20px !important; /* Balanced gap between items */
+    padding: 12px 0 !important;
+    margin: 8px 0 !important;
   }
   
   #alerts-list .alert-item,
@@ -626,9 +626,9 @@ body{
     /* Compact internal layout on mobile */
     grid-template-columns: 1fr minmax(0, auto) 56px !important; 
     column-gap: 8px !important;
-    margin: 40px 0 !important; /* keep generous outer spacing */
-    padding: 16px 14px !important; /* tighter internal padding */
-    margin-bottom: 50px !important; /* Extra bottom spacing */
+  margin: 12px 0 !important; /* balanced outer spacing */
+  padding: 14px 12px !important; /* tighter internal padding */
+  margin-bottom: 16px !important; /* consistent bottom spacing */
     display: grid !important;
     transform: translateY(0) !important;
     /* Restore original styling */
@@ -660,9 +660,7 @@ body{
   }
   
   /* Add spacing between each alert item */
-  .alert-item + .alert-item {
-    margin-top: 60px !important;
-  }
+  .alert-item + .alert-item { margin-top: 20px !important; }
   
   /* Force container spacing */
   main.container,
