@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Profile — Crypto Lifeguard</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>.auth-card{max-width:640px;margin:24px auto}.row{display:flex;gap:12px;align-items:center}</style>
+  <script defer>
+    async function loadProfile(){
+      try{
+        const r = await fetch('/api/me');
+        if (!r.ok) throw new Error('not signed in');
+        const me = await r.json();
+        document.getElementById('user-id').textContent = me.userId || '(anon)';
+        document.getElementById('watchlist').textContent = (me.watchlist||[]).join(', ');
+        document.getElementById('sev').textContent = (me.severity||[]).join(', ');
+        document.getElementById('showall').textContent = me.showAll ? 'Yes' : 'No';
+      }catch(e){ document.getElementById('authed').hidden=true; document.getElementById('not-authed').hidden=false; }
+    }
+    async function signIn(){ window.location.href = '/auth/google'; }
+    async function signOut(){ await fetch('/auth/logout', { method:'POST' }); window.location.href = '/'; }
+    window.addEventListener('DOMContentLoaded', loadProfile);
+  </script>
+</head>
+<body>
+  <header class="topbar"><div class="topbar-inner">
+    <div class="brand-wrap">
+      <img class="brand-logo" src="https://i.postimg.cc/Fz0xdDzd/Crypto-Lifeguard-Logo-Striking-Impact-background.png" alt="Logo" />
+      <div class="brand-text"><h1 class="brand-title">Crypto Lifeguard</h1><p class="brand-tagline">Your profile</p></div>
+    </div>
+    <div class="actions"><a class="menu-btn" href="/">Home</a></div>
+  </div></header>
+
+  <main class="container">
+    <section class="card auth-card" id="authed">
+      <h2 class="section-title">Profile</h2>
+      <div class="row"><strong>User ID:</strong> <span id="user-id"></span></div>
+      <div class="row"><strong>Watchlist:</strong> <span id="watchlist"></span></div>
+      <div class="row"><strong>Severities:</strong> <span id="sev"></span></div>
+      <div class="row"><strong>Show all:</strong> <span id="showall"></span></div>
+      <div style="margin-top:12px"><button class="btn" onclick="signOut()">Sign out</button></div>
+    </section>
+
+    <section class="card auth-card" id="not-authed" hidden>
+      <h2 class="section-title">You’re not signed in</h2>
+      <p class="muted">Sign in to save your preferences to your account.</p>
+      <div style="margin-top:12px"><button class="btn" onclick="signIn()">Continue with Google</button></div>
+    </section>
+  </main>
+  <footer class="footer muted"><span>© 2025 Crypto Lifeguard — demo build</span></footer>
+</body>
+</html>

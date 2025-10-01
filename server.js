@@ -4,6 +4,7 @@ const path = require('path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const Database = require('better-sqlite3');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +17,9 @@ const BACKUP_DIR = process.env.BACKUP_DIR || path.join(DATA_DIR, 'backups');
 // server reference declared up-front so shutdown handlers can close it later
 let server;
 const POLYGON_KEY = process.env.POLYGON_API_KEY || '';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const BASE_URL = process.env.BASE_URL || '';
 
 // Function to get default tags based on severity
 function getDefaultTags(severity) {
@@ -81,6 +85,17 @@ ON CONFLICT(user_id) DO UPDATE SET
 /* ---------------- Middleware ---------------- */
 app.use(express.json());
 app.use(cookieParser());
+// Very small ephemeral in-memory session store
+const sessions = new Map(); // sid -> { uid }
+function setSession(res, data){
+  const sid = crypto.randomBytes(16).toString('hex');
+  sessions.set(sid, { ...data, t: Date.now() });
+  res.cookie('sid', sid, { httpOnly:true, sameSite:'lax', maxAge: 365*24*3600*1000 });
+}
+function getSession(req){
+  const sid = req.cookies.sid; if (!sid) return null;
+  const s = sessions.get(sid); return s || null;
+}
 
 // create anon user if missing cookie
 app.use((req, res, next) => {
@@ -130,6 +145,9 @@ function persistAlerts(){ writeJsonSafe(ALERTS_PATH, alerts); }
 
 /* ---------------- User prefs API ---------------- */
 app.get('/api/me', (req, res) => {
+  // If Google session exists, prefer that user id
+  const sess = getSession(req);
+  const effectiveUid = sess?.uid || req.uid;
   const row = qGetPrefs.get(req.uid);
   if (!row) {
     // first-time defaults
@@ -141,16 +159,16 @@ app.get('/api/me', (req, res) => {
       dismissed: []
     };
     qUpsertPrefs.run({
-      user_id: req.uid,
+      user_id: effectiveUid,
       watchlist_json: JSON.stringify(payload.watchlist),
       severity_json: JSON.stringify(payload.severity),
       show_all: payload.showAll ? 1 : 0,
       dismissed_json: JSON.stringify(payload.dismissed)
     });
-    return res.json(payload);
+    return res.json({ ...payload, userId: effectiveUid });
   }
   res.json({
-    userId: req.uid,
+    userId: effectiveUid,
     watchlist: JSON.parse(row.watchlist_json),
     severity: JSON.parse(row.severity_json),
     showAll: !!row.show_all,
@@ -160,8 +178,10 @@ app.get('/api/me', (req, res) => {
 
 app.post('/api/me/prefs', (req, res) => {
   const { watchlist = [], severity = ['critical','warning','info'], showAll = false, dismissed = [] } = req.body || {};
+  const sess = getSession(req);
+  const effectiveUid = sess?.uid || req.uid;
   qUpsertPrefs.run({
-    user_id: req.uid,
+    user_id: effectiveUid,
     watchlist_json: JSON.stringify([...new Set(watchlist.map(s => String(s).toUpperCase()))]),
     severity_json: JSON.stringify(severity),
     show_all: showAll ? 1 : 0,
@@ -461,6 +481,9 @@ app.post('/admin/backup', async (req, res) => {
 // Serve static SPA (after API routes)
 const distDir = path.resolve(__dirname, 'dist');
 app.use(express.static(distDir));
+// Also serve standalone pages
+app.get('/signup', (_req,res) => res.sendFile(path.join(__dirname, 'signup.html')));
+app.get('/profile', (_req,res) => res.sendFile(path.join(__dirname, 'profile.html')));
 app.get('*', (_req,res) => res.sendFile(path.join(distDir,'index.html')));
 
 // Mask paths for logging (basic)
@@ -471,4 +494,68 @@ function maskPath(p){
 
 // Start server and keep a reference so we can gracefully shut down
 server = app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT} - DB: ${maskPath(DB_PATH)} Backup: ${maskPath(BACKUP_DIR)}`));
+
+/* ---------------- Google OAuth (minimal) ---------------- */
+function assertAuthConfig(){
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !BASE_URL) {
+    throw new Error('Missing GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/BASE_URL');
+  }
+}
+
+app.get('/auth/google', (req, res) => {
+  try{ assertAuthConfig(); } catch(e){ return res.status(500).send(String(e.message||e)); }
+  const state = crypto.randomBytes(12).toString('hex');
+  res.cookie('oauth_state', state, { httpOnly:true, sameSite:'lax', maxAge: 300000 });
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: `${BASE_URL}/auth/google/callback`,
+    response_type: 'code',
+    scope: 'openid email profile',
+    state,
+    prompt: 'select_account',
+  });
+  res.redirect('https://accounts.google.com/o/oauth2/v2/auth?' + params.toString());
+});
+
+app.get('/auth/google/callback', async (req, res) => {
+  try{ assertAuthConfig(); } catch(e){ return res.status(500).send(String(e.message||e)); }
+  const { code, state } = req.query || {};
+  if (!code || !state || state !== req.cookies.oauth_state) return res.status(400).send('Invalid state');
+  try{
+    // Exchange code
+    const tokenParams = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      code: String(code),
+      grant_type: 'authorization_code',
+      redirect_uri: `${BASE_URL}/auth/google/callback`
+    });
+    const tr = await fetch('https://oauth2.googleapis.com/token', { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body: tokenParams.toString() });
+    if (!tr.ok) return res.status(502).send('token exchange failed');
+    const tj = await tr.json();
+    const idToken = tj.id_token;
+    // Decode ID token payload (without verification — for demo)
+    const payload = JSON.parse(Buffer.from(String(idToken).split('.')[1]||'', 'base64').toString('utf8')) || {};
+    const googleId = payload.sub || '';
+    const email = payload.email || '';
+    const name = payload.name || '';
+    const avatar = payload.picture || '';
+
+    // Create or map user
+    const uid = `usr_${googleId}`; // simple mapping for demo
+    qUpsertUser.run(uid);
+    db.prepare('UPDATE users SET google_id=?, email=?, name=?, avatar=? WHERE id=?').run(googleId, email, name, avatar, uid);
+    setSession(res, { uid });
+    res.clearCookie('oauth_state');
+    res.redirect('/profile');
+  }catch(e){
+    res.status(500).send('oauth failed');
+  }
+});
+
+app.post('/auth/logout', (req, res) => {
+  const sid = req.cookies.sid;
+  if (sid) { sessions.delete(sid); res.clearCookie('sid'); }
+  res.json({ ok:true });
+});
 
