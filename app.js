@@ -577,7 +577,8 @@ function renderAlertTags(alert, alertWrap) {
 
   // Only insert if we have at least one tag element
   if (tagsWrap.children.length > 0) {
-    alertWrap.insertBefore(tagsWrap, alertWrap.lastElementChild);
+    // Append after the content so the grid order is: content (col 1) -> tags (col 2) -> dismiss (col 3)
+    alertWrap.appendChild(tagsWrap);
   }
 }
 
