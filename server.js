@@ -491,6 +491,34 @@ app.get('/api/news/cryptopanic-alerts', async (req, res) => {
 // --- Admin: backup endpoint -------------------------------------------------
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 
+app.post('/admin/sql', async (req, res) => {
+  // Accept either Authorization: Bearer <token> or X-Admin-Token
+  const auth = String(req.get('authorization') || req.get('x-admin-token') || '').trim();
+  let token = auth;
+  if (auth.toLowerCase().startsWith('bearer ')) token = auth.slice(7).trim();
+  if (!ADMIN_TOKEN || !token || token !== ADMIN_TOKEN) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  
+  const { sql } = req.body || {};
+  if (!sql) {
+    return res.status(400).json({ error: 'sql parameter required' });
+  }
+  
+  try {
+    if (sql.toLowerCase().startsWith('select') || sql.toLowerCase().startsWith('pragma')) {
+      const result = db.prepare(sql).all();
+      return res.json({ ok: true, result });
+    } else {
+      db.exec(sql);
+      return res.json({ ok: true, message: 'SQL executed successfully' });
+    }
+  } catch (e) {
+    console.error('SQL execution failed:', e);
+    return res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
 app.post('/admin/schema', async (req, res) => {
   // Accept either Authorization: Bearer <token> or X-Admin-Token
   const auth = String(req.get('authorization') || req.get('x-admin-token') || '').trim();
