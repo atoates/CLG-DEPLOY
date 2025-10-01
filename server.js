@@ -103,6 +103,8 @@ app.use(express.json());
 app.use(cookieParser());
 // Very small ephemeral in-memory session store
 const sessions = new Map(); // sid -> { uid }
+const oauthStates = new Map(); // state -> { timestamp, used }
+
 function setSession(res, data){
   const sid = crypto.randomBytes(16).toString('hex');
   sessions.set(sid, { ...data, t: Date.now() });
@@ -522,17 +524,20 @@ function assertAuthConfig(){
 
 app.get('/auth/google', (req, res) => {
   try{ assertAuthConfig(); } catch(e){ return res.status(500).send(String(e.message||e)); }
-  const state = crypto.randomBytes(12).toString('hex');
+  const state = crypto.randomBytes(16).toString('hex');
   
-  // For HTTPS, use sameSite: 'none' to allow cross-site cookie setting during OAuth redirect
-  const cookieOptions = {
-    httpOnly: true,
-    maxAge: 300000, // 5 minutes
-    ...(COOKIE_SECURE ? { secure: true, sameSite: 'none' } : { sameSite: 'lax' })
-  };
+  // Store state server-side instead of relying on cookies
+  oauthStates.set(state, { timestamp: Date.now(), used: false });
   
-  console.log('Setting oauth_state cookie with options:', cookieOptions);
-  res.cookie('oauth_state', state, cookieOptions);
+  // Clean up old states (older than 10 minutes)
+  const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+  for (const [key, value] of oauthStates.entries()) {
+    if (value.timestamp < tenMinutesAgo) {
+      oauthStates.delete(key);
+    }
+  }
+  
+  console.log('Generated OAuth state:', state, 'Total states in memory:', oauthStates.size);
   
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
@@ -556,14 +561,35 @@ app.get('/auth/google/callback', async (req, res) => {
     code: code ? `${String(code).slice(0,10)}...` : 'missing', 
     state: state ? 'present' : 'missing', 
     cookieState: req.cookies.oauth_state ? 'present' : 'missing',
+    allCookies: Object.keys(req.cookies || {}),
     userAgent: req.get('user-agent'),
     timestamp: new Date().toISOString()
   });
   
-  if (!code || !state || state !== req.cookies.oauth_state) {
-    console.error('OAuth state validation failed:', { code: !!code, state: !!state, stateMatch: state === req.cookies.oauth_state });
-    return res.status(400).send('Invalid state');
+  if (!code || !state) {
+    console.error('OAuth callback missing code or state:', { code: !!code, state: !!state });
+    return res.status(400).send('Invalid request - missing code or state');
   }
+  
+  // Validate state against server-side store
+  const stateData = oauthStates.get(state);
+  if (!stateData) {
+    console.error('OAuth state not found in server store:', { 
+      receivedState: state,
+      availableStates: Array.from(oauthStates.keys()),
+      storeSize: oauthStates.size
+    });
+    return res.status(400).send('Invalid state - not found');
+  }
+  
+  if (stateData.used) {
+    console.error('OAuth state already used:', { state, timestamp: stateData.timestamp });
+    return res.status(400).send('Invalid state - already used');
+  }
+  
+  // Mark state as used and remove it
+  oauthStates.delete(state);
+  console.log('OAuth state validated successfully:', state);
   
   try{
     // Exchange code
@@ -621,7 +647,6 @@ app.get('/auth/google/callback', async (req, res) => {
     qUpsertUser.run(uid);
     db.prepare('UPDATE users SET google_id=?, email=?, name=?, avatar=? WHERE id=?').run(googleId, email, name, avatar, uid);
     setSession(res, { uid });
-    res.clearCookie('oauth_state', COOKIE_SECURE ? { secure: true, sameSite: 'none', httpOnly: true } : { sameSite: 'lax', httpOnly: true });
     console.log('OAuth success, redirecting to profile');
     res.redirect('/profile');
   }catch(e){
