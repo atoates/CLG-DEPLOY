@@ -271,6 +271,7 @@ body{
 .alert-item .alert-title{ font-weight:700; }
 .alert-item .alert-desc{ font-size:13px; color:var(--ink-2); margin-top:3px; }
 .alert-meta{ margin-top:6px; }
+.alert-meta, .summary, .muted { text-align: left; }
 
 /* Make tags section sit between content and dismiss, aligned to the right */
 .alert-tags {
@@ -282,6 +283,7 @@ body{
 .deadline-chip{
   display:inline-block; font-size:12px; font-weight:800; color:#0b4a8f;
   background:#e6f3ff; border:1px solid #cfe8ff; border-radius:999px; padding:4px 8px;
+  text-align: center;
 }
 
 /* Right-side dismiss column with divider */
