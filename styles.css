@@ -623,9 +623,11 @@ body{
   #alerts-list .alert-item,
   .alerts-list .alert-item,
   .alert-item { 
-    grid-template-columns: 1fr auto 64px !important; 
-    margin: 40px 0 !important; /* Large margin */
-    padding: 24px 16px !important; /* Comfortable padding */
+    /* Compact internal layout on mobile */
+    grid-template-columns: 1fr minmax(0, auto) 56px !important; 
+    column-gap: 8px !important;
+    margin: 40px 0 !important; /* keep generous outer spacing */
+    padding: 16px 14px !important; /* tighter internal padding */
     margin-bottom: 50px !important; /* Extra bottom spacing */
     display: grid !important;
     transform: translateY(0) !important;
@@ -634,6 +636,27 @@ body{
     border: 1px solid rgba(2,6,23,0.06) !important;
     border-radius: 12px !important;
     box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+  }
+
+  /* Tighter tags column on mobile */
+  .alert-tags {
+    min-width: 0 !important;
+    padding: 0 !important;
+    gap: 4px !important;
+    justify-content: flex-start !important;
+    align-items: flex-start !important;
+  }
+
+  /* Compact dismiss column spacing */
+  .dismiss-col{
+    min-width: 56px !important;
+    margin-left: 8px !important;
+    padding-left: 8px !important;
+    gap: 4px !important;
+  }
+  .dismiss-title{
+    font-size: 10px !important;
+    letter-spacing: .1px !important;
   }
   
   /* Add spacing between each alert item */
