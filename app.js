@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const url = me.profile?.avatar || '';
           if (url){ const img=document.createElement('img'); img.src=url; img.alt=''; img.width=22; img.height=22; img.style.display='block'; av.appendChild(img); }
           else { av.textContent = (me.profile?.name||'U').trim().charAt(0).toUpperCase(); av.style.fontWeight='800'; av.style.color='#0f172a'; display='grid'; }
-          const nm = document.createElement('span'); nm.textContent = me.profile?.name || 'Profile';
+          const nm = document.createElement('span'); nm.textContent = (me.profile?.username ? `@${me.profile.username}` : (me.profile?.name || 'Profile'));
           wrap.appendChild(av); wrap.appendChild(nm);
           clone.appendChild(wrap);
           btn.parentNode.replaceChild(clone, btn);

@@ -86,7 +86,9 @@ CREATE TABLE IF NOT EXISTS alerts (
   tags TEXT DEFAULT '[]'
 );`);
 const qUpsertUser   = db.prepare('INSERT OR IGNORE INTO users (id) VALUES (?)');
-const qGetUser      = db.prepare('SELECT id, google_id, email, name, avatar FROM users WHERE id = ?');
+const qGetUser      = db.prepare('SELECT id, google_id, email, name, avatar, username FROM users WHERE id = ?');
+const qGetUserByUsername = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)');
+const qSetUsername  = db.prepare('UPDATE users SET username = ? WHERE id = ?');
 const qGetPrefs     = db.prepare('SELECT * FROM user_prefs WHERE user_id = ?');
 const qUpsertPrefs  = db.prepare(`
 INSERT INTO user_prefs (user_id, watchlist_json, severity_json, show_all, dismissed_json, updated_at)
@@ -204,7 +206,7 @@ app.get('/api/me', (req, res) => {
       showAll: false,
       dismissed: [],
       loggedIn: !!sess,
-      profile: urow ? { name: urow.name || '', email: urow.email || '', avatar: urow.avatar || '' } : { name:'', email:'', avatar:'' }
+      profile: urow ? { name: urow.name || '', email: urow.email || '', avatar: urow.avatar || '', username: urow.username || '' } : { name:'', email:'', avatar:'', username:'' }
     };
     qUpsertPrefs.run({
       user_id: effectiveUid,
@@ -222,8 +224,27 @@ app.get('/api/me', (req, res) => {
     showAll: !!row.show_all,
     dismissed: JSON.parse(row.dismissed_json),
     loggedIn: !!sess,
-    profile: urow ? { name: urow.name || '', email: urow.email || '', avatar: urow.avatar || '' } : { name:'', email:'', avatar:'' }
+    profile: urow ? { name: urow.name || '', email: urow.email || '', avatar: urow.avatar || '', username: urow.username || '' } : { name:'', email:'', avatar:'', username:'' }
   });
+});
+
+// Set/update username
+app.post('/api/me/username', (req, res) => {
+  const sess = getSession(req);
+  const effectiveUid = sess?.uid || req.uid;
+  const { username } = req.body || {};
+  const val = String(username || '').trim();
+  // validate: 3-20 chars, letters, numbers, underscore only; must start with a letter
+  if (!/^[A-Za-z][A-Za-z0-9_]{2,19}$/.test(val)) {
+    return res.status(400).json({ ok:false, error:'invalid_username', rules:'3-20 chars, letters/numbers/underscore, start with a letter' });
+  }
+  // uniqueness (case-insensitive)
+  const taken = qGetUserByUsername.get(val);
+  if (taken && taken.id !== effectiveUid) {
+    return res.status(409).json({ ok:false, error:'taken' });
+  }
+  qSetUsername.run(val, effectiveUid);
+  res.json({ ok:true, username: val });
 });
 
 app.post('/api/me/prefs', (req, res) => {

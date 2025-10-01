@@ -4,6 +4,9 @@ import './app.js'; // ensure shared utilities/UI if needed
 const nameEl = document.getElementById('prof-name');
 const emailEl = document.getElementById('prof-email');
 const avatarEl = document.getElementById('prof-avatar');
+const usernameEl = document.getElementById('prof-username');
+const usernameInput = document.getElementById('prof-username-input');
+const usernameSave = document.getElementById('prof-username-save');
 const pillsEl = document.getElementById('prof-watch-pills');
 const addBtn = document.getElementById('prof-add-token');
 const tokenInput = document.getElementById('prof-token-input');
@@ -51,6 +54,7 @@ async function loadMe(){
   me = await r.json();
   if (!me.loggedIn){ window.location.href = '/'; return; }
   nameEl.textContent = me.profile?.name || 'Your profile';
+  usernameEl.textContent = me.profile?.username ? `@${me.profile.username}` : '';
   emailEl.textContent = me.profile?.email || '';
   setAvatar(me.profile || {});
   showAllToggle.checked = !!me.showAll;
@@ -95,6 +99,23 @@ document.getElementById('btn-export').addEventListener('click', async () => {
   a.href = URL.createObjectURL(blob);
   a.download = 'crypto-lifeguard-profile.json';
   document.body.appendChild(a); a.click(); a.remove();
+});
+
+usernameSave.addEventListener('click', async () => {
+  const u = (usernameInput.value||'').trim();
+  if (!u) return;
+  const r = await fetch('/api/me/username', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: u }) });
+  if (!r.ok) {
+    const j = await r.json().catch(()=>({}));
+    msgEl.textContent = j.error === 'taken' ? 'That username is taken.' : (j.rules || 'Invalid username.');
+    setTimeout(()=>msgEl.textContent='', 2000);
+    return;
+  }
+  const j = await r.json();
+  me.profile = me.profile || {}; me.profile.username = j.username;
+  usernameEl.textContent = `@${j.username}`;
+  msgEl.textContent = 'Username saved.';
+  setTimeout(()=>msgEl.textContent='', 1500);
 });
 
 loadMe();

@@ -49,6 +49,7 @@
         <div id="prof-avatar" class="profile-avatar"></div>
         <div>
           <h2 id="prof-name" class="profile-name">Loading…</h2>
+          <p id="prof-username" class="profile-email" style="margin-top:2px"></p>
           <p id="prof-email" class="profile-email"></p>
         </div>
       </div>
@@ -58,6 +59,10 @@
       <div class="profile-grid">
         <div class="profile-section">
           <h3>Preferences</h3>
+          <div class="token-select-row" style="margin: 8px 0 10px;">
+            <input id="prof-username-input" class="input" placeholder="Choose a username (e.g., alice_01)" />
+            <button id="prof-username-save" class="btn">Save username</button>
+          </div>
           <div class="prefs-row" style="margin-bottom:8px">
             <span class="muted">Severities:</span>
             <button class="sev-btn" data-sev="critical" title="Critical">🚨 Critical</button>
