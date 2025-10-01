@@ -491,6 +491,30 @@ app.get('/api/news/cryptopanic-alerts', async (req, res) => {
 // --- Admin: backup endpoint -------------------------------------------------
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 
+app.post('/admin/schema', async (req, res) => {
+  // Accept either Authorization: Bearer <token> or X-Admin-Token
+  const auth = String(req.get('authorization') || req.get('x-admin-token') || '').trim();
+  let token = auth;
+  if (auth.toLowerCase().startsWith('bearer ')) token = auth.slice(7).trim();
+  if (!ADMIN_TOKEN || !token || token !== ADMIN_TOKEN) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  
+  try {
+    const userColumns = db.prepare('PRAGMA table_info(users)').all();
+    const userPrefsColumns = db.prepare('PRAGMA table_info(user_prefs)').all();
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+    
+    return res.json({ 
+      tables: tables.map(t => t.name),
+      users_columns: userColumns,
+      user_prefs_columns: userPrefsColumns
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
 app.post('/admin/migrate', async (req, res) => {
   // Accept either Authorization: Bearer <token> or X-Admin-Token
   const auth = String(req.get('authorization') || req.get('x-admin-token') || '').trim();
