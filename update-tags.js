@@ -28,6 +28,10 @@ db.exec(`
 // Initialize any NULL tags to empty array
 db.exec(`UPDATE alerts SET tags = '[]' WHERE tags IS NULL;`);
 
+// First check all alerts in the database
+const alerts = db.prepare('SELECT * FROM alerts').all();
+console.log('Found alerts:', alerts);
+
 // Update all alerts, forcing new tag format based on severity
 const updateTags = db.prepare(`
   UPDATE alerts 
@@ -37,7 +41,7 @@ const updateTags = db.prepare(`
     WHEN severity = 'info' THEN '["community","news"]'
     ELSE '[]'
   END
-  WHERE tags = '[]';
+  WHERE tags = '[]' OR tags IS NULL OR tags = '' OR json_valid(tags) = 0;
 `);
 
 console.log('Updating tags for existing alerts...');
