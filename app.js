@@ -429,26 +429,36 @@ function getRelevantAlerts(){
 }
 
 // Add tag display to alerts
-function renderAlertTags(alert, parentEl) {
+function renderAlertTags(alert, alertWrap) {
   if (!alert.tags || !alert.tags.length) return;
   
   const tagsWrap = document.createElement('div');
   tagsWrap.className = 'alert-tags';
   
-  alert.tags.forEach(tag => {
+  // Parse tags if they're stored as JSON string
+  const tags = typeof alert.tags === 'string' ? JSON.parse(alert.tags) : alert.tags;
+  
+  tags.forEach(tag => {
     const info = ALERT_TAGS[tag];
     if (!info) return;
     
     const tagEl = document.createElement('span');
     tagEl.className = 'alert-tag';
     tagEl.style.color = info.color;
-    tagEl.title = info.label;
-    tagEl.textContent = info.icon;
     
+    const icon = document.createElement('span');
+    icon.className = 'icon';
+    icon.textContent = info.icon;
+    
+    const label = document.createElement('span');
+    label.textContent = info.label;
+    
+    tagEl.appendChild(icon);
+    tagEl.appendChild(label);
     tagsWrap.appendChild(tagEl);
   });
   
-  parentEl.appendChild(tagsWrap);
+  alertWrap.insertBefore(tagsWrap, alertWrap.lastElementChild);
 }
 
 // SORT: nearest deadline first
@@ -506,9 +516,6 @@ function renderAlerts(){
     text.appendChild(title);
     text.appendChild(desc);
     text.appendChild(metaWrap);
-    
-    // Add tags display
-    renderAlertTags(a, text);
 
     left.appendChild(icon);
     left.appendChild(text);
@@ -536,6 +543,10 @@ function renderAlerts(){
     right.appendChild(chk);
 
     wrap.appendChild(left);
+    
+    // Add tags before the dismiss column
+    renderAlertTags(a, wrap);
+    
     wrap.appendChild(right);
 
     // live tick function

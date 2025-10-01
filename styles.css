@@ -206,19 +206,25 @@ body{
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 8px;
+  margin-left: auto;
+  padding-right: 12px;
 }
 
 .alert-tag {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
+  padding: 4px 8px;
   border-radius: 999px;
-  font-size: 16px;
-  background: #f1f5f9;
-  color: #475569;
-  margin-right: 4px;
+  font-size: 14px;
+  background: #f8fafc;
+  border: 1px solid rgba(0,0,0,0.1);
+  color: currentColor;
+  transition: transform 0.2s ease;
+}
+
+.alert-tag:hover {
+  transform: translateY(-1px);
 }
 
 .alert-tag .icon {
