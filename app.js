@@ -153,6 +153,25 @@ document.addEventListener('DOMContentLoaded', () => {
       sevFilter      = Array.isArray(me.severity) ? me.severity : ['critical','warning','info'];
       showAll        = !!me.showAll;
       hiddenKeys     = new Set(Array.isArray(me.dismissed) ? me.dismissed : []);
+
+      // If logged in, replace the Account dropdown button with a Profile button
+      if (me.loggedIn) {
+        const btn = document.getElementById('user-menu-btn');
+        const menu = document.getElementById('user-menu');
+        if (menu) menu.hidden = true;
+        if (btn) {
+          const clone = btn.cloneNode(true);
+          clone.id = 'user-menu-btn';
+          clone.textContent = 'Profile';
+          clone.setAttribute('aria-haspopup', 'false');
+          clone.setAttribute('aria-expanded', 'false');
+          btn.parentNode.replaceChild(clone, btn);
+          clone.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.location.href = '/profile';
+          });
+        }
+      }
     }
   }catch(e){ console.warn('prefs load failed', e); }
 

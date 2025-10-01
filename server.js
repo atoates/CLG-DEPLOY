@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS alerts (
   tags TEXT DEFAULT '[]'
 );`);
 const qUpsertUser   = db.prepare('INSERT OR IGNORE INTO users (id) VALUES (?)');
+const qGetUser      = db.prepare('SELECT id, google_id, email, name, avatar FROM users WHERE id = ?');
 const qGetPrefs     = db.prepare('SELECT * FROM user_prefs WHERE user_id = ?');
 const qUpsertPrefs  = db.prepare(`
 INSERT INTO user_prefs (user_id, watchlist_json, severity_json, show_all, dismissed_json, updated_at)
@@ -192,6 +193,7 @@ app.get('/api/me', (req, res) => {
   // If Google session exists, prefer that user id
   const sess = getSession(req);
   const effectiveUid = sess?.uid || req.uid;
+  const urow = qGetUser.get(effectiveUid);
   const row = qGetPrefs.get(effectiveUid);
   if (!row) {
     // first-time defaults
@@ -200,7 +202,9 @@ app.get('/api/me', (req, res) => {
       watchlist: [],
       severity: ['critical','warning','info'],
       showAll: false,
-      dismissed: []
+      dismissed: [],
+      loggedIn: !!sess,
+      profile: urow ? { name: urow.name || '', email: urow.email || '', avatar: urow.avatar || '' } : { name:'', email:'', avatar:'' }
     };
     qUpsertPrefs.run({
       user_id: effectiveUid,
@@ -216,7 +220,9 @@ app.get('/api/me', (req, res) => {
     watchlist: JSON.parse(row.watchlist_json),
     severity: JSON.parse(row.severity_json),
     showAll: !!row.show_all,
-    dismissed: JSON.parse(row.dismissed_json)
+    dismissed: JSON.parse(row.dismissed_json),
+    loggedIn: !!sess,
+    profile: urow ? { name: urow.name || '', email: urow.email || '', avatar: urow.avatar || '' } : { name:'', email:'', avatar:'' }
   });
 });
 
