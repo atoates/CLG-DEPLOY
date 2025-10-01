@@ -613,9 +613,9 @@ body{
   .tabsbar .switch{ order:4; flex:1 1 0; }
   .tabsbar{ justify-content:space-between; flex-wrap: wrap; }
   
-  /* Improve alert list spacing on mobile - EXTREME OVERRIDE */
+  /* Improve alert list spacing on mobile - FINAL VERSION */
   #alerts-list.alerts-list {
-    gap: 60px !important; /* HUGE gap */
+    gap: 60px !important; /* Large gap between items */
     padding: 24px 0 !important;
     margin: 16px 0 !important;
   }
@@ -624,11 +624,16 @@ body{
   .alerts-list .alert-item,
   .alert-item { 
     grid-template-columns: 1fr auto 64px !important; 
-    margin: 40px 0 !important; /* HUGE margin */
-    padding: 24px 16px !important; /* More padding */
-    margin-bottom: 50px !important; /* Force huge bottom margin */
+    margin: 40px 0 !important; /* Large margin */
+    padding: 24px 16px !important; /* Comfortable padding */
+    margin-bottom: 50px !important; /* Extra bottom spacing */
     display: grid !important;
-    transform: translateY(0) !important; /* Force layout recalc */
+    transform: translateY(0) !important;
+    /* Restore original styling */
+    background: #fff !important;
+    border: 1px solid rgba(2,6,23,0.06) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
   }
   
   /* Add spacing between each alert item */
@@ -640,12 +645,6 @@ body{
   main.container,
   .container {
     padding: 24px 16px !important;
-  }
-  
-  /* Debug: Add visible borders to see what's happening */
-  .alert-item {
-    border: 2px solid red !important;
-    background: yellow !important;
   }
 }
 @media (max-width: 640px){
