@@ -446,15 +446,15 @@ function renderAlertTags(alert, alertWrap) {
     tagEl.className = 'alert-tag';
     tagEl.style.color = info.color;
     
+    const label = document.createElement('span');
+    label.textContent = info.label;
+    
     const icon = document.createElement('span');
     icon.className = 'icon';
     icon.textContent = info.icon;
     
-    const label = document.createElement('span');
-    label.textContent = info.label;
-    
-    tagEl.appendChild(icon);
     tagEl.appendChild(label);
+    tagEl.appendChild(icon);
     tagsWrap.appendChild(tagEl);
   });
   
