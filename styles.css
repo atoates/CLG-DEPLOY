@@ -271,6 +271,7 @@ body{
 .alert-item .alert-title{ font-weight:700; }
 .alert-item .alert-desc{ font-size:13px; color:var(--ink-2); margin-top:3px; }
 .alert-meta{ margin-top:6px; }
+.alert-text{ display:flex; flex-direction:column; align-items:flex-start; }
 .alert-meta, .summary, .muted { text-align: left; }
 
 /* Make tags section sit between content and dismiss, aligned to the right */

@@ -511,7 +511,8 @@ function renderAlerts(){
     icon.className = 'alert-icon';
     icon.textContent = a.severity === 'critical' ? '🚨' : (a.severity === 'warning' ? '⚠️' : '🛟');
 
-    const text = document.createElement('div');
+  const text = document.createElement('div');
+  text.className = 'alert-text';
 
     const title = document.createElement('div');
     title.className = 'alert-title';
