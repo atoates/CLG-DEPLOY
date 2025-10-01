@@ -353,6 +353,7 @@ function initializeTagFilters() {
   const dropdownTrigger = document.getElementById('tag-dropdown-trigger');
   const dropdownOptions = document.getElementById('tag-dropdown-options');
   const resetTagsBtn = document.getElementById('reset-tags');
+  const selectedTagsDisplay = document.getElementById('selected-tags-display');
   
   // Get all unique tags from combined alerts (serverAlerts + autoAlerts)
   const allTags = new Set();
@@ -375,27 +376,44 @@ function initializeTagFilters() {
     dropdownOptions.appendChild(option);
   });
   
-  // Handle dropdown toggle
-  dropdownTrigger.addEventListener('click', function(e) {
-    e.stopPropagation();
-    toggleDropdown();
-  });
-  
-  // Handle option selection
-  dropdownOptions.addEventListener('click', function(e) {
-    e.stopPropagation();
-    const option = e.target.closest('.dropdown-option');
-    if (option) {
-      toggleOption(option);
+  // Bind event listeners once
+  if (!dropdownOptions.dataset.bound) {
+    // Handle dropdown toggle
+    dropdownTrigger.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleDropdown();
+    });
+    
+    // Handle option selection
+    dropdownOptions.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const option = e.target.closest('.dropdown-option');
+      if (option) {
+        toggleOption(option);
+      }
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.custom-dropdown')) {
+        closeDropdown();
+      }
+    });
+    
+    // Enable removing individual selected tag pills via event delegation
+    if (selectedTagsDisplay && !selectedTagsDisplay.dataset.bound) {
+      selectedTagsDisplay.addEventListener('click', function(e) {
+        const btn = e.target.closest('.remove-tag');
+        if (!btn) return;
+        const pill = btn.closest('.selected-tag-pill');
+        const tag = pill && pill.dataset && pill.dataset.tag;
+        if (tag) removeTagFilter(tag);
+      });
+      selectedTagsDisplay.dataset.bound = '1';
     }
-  });
-  
-  // Close dropdown when clicking outside
-  document.addEventListener('click', function(e) {
-    if (!e.target.closest('.custom-dropdown')) {
-      closeDropdown();
-    }
-  });
+    
+    dropdownOptions.dataset.bound = '1';
+  }
   
   resetTagsBtn.addEventListener('click', resetTagFilters);
   
@@ -467,10 +485,11 @@ function updateSelectedTagsDisplay() {
     return;
   }
   
+  // Render pills with data-tag and no inline handlers; clicks are delegated
   selectedTagsDisplay.innerHTML = tagFilter.map(tag => `
-    <div class="selected-tag-pill">
+    <div class="selected-tag-pill" data-tag="${tag}">
       ${tag}
-      <button class="remove-tag" onclick="removeTagFilter('${tag}')" title="Remove ${tag}">×</button>
+      <button class="remove-tag" type="button" title="Remove ${tag}" aria-label="Remove ${tag}">×</button>
     </div>
   `).join('');
 }
