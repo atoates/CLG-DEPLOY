@@ -327,17 +327,17 @@ async function loadAutoAlerts(){
       .then(r => r.ok ? r.json() : [])
       .catch(() => []),
 
-    // NEW: CryptoPanic-derived alerts
-    fetch(`/api/news/cryptopanic-alerts?symbols=${encodeURIComponent(symbols)}&size=50`)
-      .then(r => r.ok ? r.json() : [])
-      .catch(() => [])
+    // CryptoPanic-derived alerts - COMMENTED OUT to avoid rate limits
+    // fetch(`/api/news/cryptopanic-alerts?symbols=${encodeURIComponent(symbols)}&size=50`)
+    //   .then(r => r.ok ? r.json() : [])
+    //   .catch(() => [])
   ];
 
   try{
-    const [mk, cp] = await Promise.all(tasks);
+    const [mk] = await Promise.all(tasks);
     autoAlerts = []
-      .concat(Array.isArray(mk) ? mk : [])
-      .concat(Array.isArray(cp) ? cp : []);
+      .concat(Array.isArray(mk) ? mk : []);
+      // .concat(Array.isArray(cp) ? cp : []); // CryptoPanic disabled
   }catch{
     autoAlerts = [];
   }

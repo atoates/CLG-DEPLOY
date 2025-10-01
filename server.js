@@ -425,6 +425,8 @@ process.on('uncaughtException', (err) => {
 });
 
 // GET /api/news/cryptopanic?symbols=BTC,ETH&size=20&filter=important
+// COMMENTED OUT: CryptoPanic API to avoid rate limits
+/*
 app.get('/api/news/cryptopanic', async (req, res) => {
   if (!CP_TOKEN) return res.status(501).json({ error: 'CRYPTOPANIC_TOKEN not set' });
   const symbols = String(req.query.symbols || '').toUpperCase();
@@ -450,8 +452,11 @@ app.get('/api/news/cryptopanic', async (req, res) => {
     res.status(502).json({ error: 'cryptopanic_fetch_failed', detail: String(e) });
   }
 });
+*/
 
 // GET /api/news/cryptopanic-alerts?symbols=BTC,ETH&size=30
+// COMMENTED OUT: CryptoPanic API to avoid rate limits
+/*
 app.get('/api/news/cryptopanic-alerts', async (req, res) => {
   if (!CP_TOKEN) return res.json([]); // silently no-op if not configured
   const symbols = String(req.query.symbols || '').toUpperCase();
@@ -486,6 +491,7 @@ app.get('/api/news/cryptopanic-alerts', async (req, res) => {
     res.status(502).json({ error: 'cryptopanic_map_failed', detail: String(e) });
   }
 });
+*/
 
 
 // --- Admin: backup endpoint -------------------------------------------------
