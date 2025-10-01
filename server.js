@@ -483,17 +483,14 @@ const distDir = path.resolve(__dirname, 'dist');
 const distIndex = path.join(distDir, 'index.html');
 const rootIndex = path.join(__dirname, 'index.html');
 if (fs.existsSync(distDir)) {
+  // When built with Vite, prefer dist assets
   app.use(express.static(distDir));
 }
-// Also serve standalone pages
+// In local dev without a Vite build, also serve static files from the project root
+app.use(express.static(__dirname));
+// Also serve standalone pages explicitly
 app.get('/signup', (_req,res) => res.sendFile(path.join(__dirname, 'signup.html')));
 app.get('/profile', (_req,res) => res.sendFile(path.join(__dirname, 'profile.html')));
-// Wildcard fallback after auth routes are defined (see bottom). For now, point to dist or root index.
-app.get('*', (_req,res) => {
-  if (fs.existsSync(distIndex)) return res.sendFile(distIndex);
-  if (fs.existsSync(rootIndex)) return res.sendFile(rootIndex);
-  res.status(404).send('Not found');
-});
 
 // Mask paths for logging (basic)
 function maskPath(p){
@@ -502,8 +499,6 @@ function maskPath(p){
 }
 
 // Start server and keep a reference so we can gracefully shut down
-server = app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT} - DB: ${maskPath(DB_PATH)} Backup: ${maskPath(BACKUP_DIR)}`));
-
 /* ---------------- Google OAuth (minimal) ---------------- */
 function assertAuthConfig(){
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !BASE_URL) {
@@ -566,5 +561,15 @@ app.post('/auth/logout', (req, res) => {
   const sid = req.cookies.sid;
   if (sid) { sessions.delete(sid); res.clearCookie('sid'); }
   res.json({ ok:true });
+});
+
+// Start server and keep a reference so we can gracefully shut down
+server = app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT} - DB: ${maskPath(DB_PATH)} Backup: ${maskPath(BACKUP_DIR)}`));
+
+// Wildcard fallback should be last: point to dist or root index
+app.get('*', (_req,res) => {
+  if (fs.existsSync(distIndex)) return res.sendFile(distIndex);
+  if (fs.existsSync(rootIndex)) return res.sendFile(rootIndex);
+  res.status(404).send('Not found');
 });
 
