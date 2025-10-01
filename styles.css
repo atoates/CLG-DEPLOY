@@ -177,13 +177,14 @@ body{
   align-items: flex-start;
   gap: 12px;
   flex-wrap: wrap;
-  margin: 10px 0;
+  margin: 0;                 /* align with tabs/severity on desktop */
+  align-self: center;        /* baseline-align within .tabsbar */
 }
 
 .tag-dropdown-container {
   flex: 1;
   min-width: 250px;
-  max-width: 400px; /* Prevent it from getting too wide */
+  max-width: 520px; /* Slightly wider so pills align better under the control */
 }
 
 .btn-clear-tags {
@@ -193,8 +194,8 @@ body{
   padding: 4px 10px;
   font-size: 12px;
   border-radius: 6px;
-  margin-top: 8px;
-  align-self: flex-start;
+  margin-top: 6px;           /* match pills top margin */
+  align-self: flex-start;    /* left-align under dropdown */
   transition: background-color 0.2s ease;
 }
 
@@ -346,7 +347,7 @@ body{
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 6px;           /* harmonize with Clear All spacing */
   min-height: 20px;
 }
 
@@ -619,6 +620,7 @@ body{
     justify-content: flex-start;
     margin: 8px 0; 
     padding: 0;
+    align-self: stretch;  /* full width on mobile */
   }
   .tag-dropdown-container{ 
     min-width: 200px; 
