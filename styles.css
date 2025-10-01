@@ -613,21 +613,33 @@ body{
   .tabsbar .switch{ order:4; flex:1 1 0; }
   .tabsbar{ justify-content:space-between; flex-wrap: wrap; }
   
-  /* Improve alert list spacing on mobile */
-  .alerts-list {
-    gap: 32px !important; /* Much larger gap for mobile */
-    padding: 16px 0 !important;
+  /* Improve alert list spacing on mobile - EXTREME OVERRIDE */
+  #alerts-list.alerts-list {
+    gap: 40px !important; /* Even larger gap */
+    padding: 24px 0 !important;
+    margin: 16px 0 !important;
   }
   
-  .alert-item{ 
-    grid-template-columns: 1fr auto 64px; 
-    margin: 20px 0 !important; /* Much larger margin */
-    padding: 20px 16px !important; /* More padding */
+  #alerts-list .alert-item,
+  .alerts-list .alert-item,
+  .alert-item { 
+    grid-template-columns: 1fr auto 64px !important; 
+    margin: 24px 0 !important; /* Even larger margin */
+    padding: 24px 16px !important; /* More padding */
+    margin-bottom: 32px !important; /* Force bottom margin */
+    display: grid !important;
   }
   
-  /* Better container spacing */
+  /* Force container spacing */
+  main.container,
   .container {
-    padding: 20px 16px !important;
+    padding: 24px 16px !important;
+  }
+  
+  /* Debug: Add visible borders to see what's happening */
+  .alert-item {
+    border: 2px solid red !important;
+    background: yellow !important;
   }
 }
 @media (max-width: 640px){
