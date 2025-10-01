@@ -350,7 +350,8 @@ function applySeverityFilter(list){
 
 // Initialize tag filters
 function initializeTagFilters() {
-  const tagSelect = document.getElementById('tag-filters');
+  const dropdownTrigger = document.getElementById('tag-dropdown-trigger');
+  const dropdownOptions = document.getElementById('tag-dropdown-options');
   const resetTagsBtn = document.getElementById('reset-tags');
   
   // Get all unique tags from combined alerts (serverAlerts + autoAlerts)
@@ -361,25 +362,38 @@ function initializeTagFilters() {
     tags.forEach(tag => allTags.add(tag));
   });
   
-  // Create select options
-  tagSelect.innerHTML = '<option value="" disabled>Select tags to filter...</option>';
+  // Create dropdown options with checkboxes
+  dropdownOptions.innerHTML = '';
   Array.from(allTags).sort().forEach(tag => {
-    const option = document.createElement('option');
-    option.value = tag;
-    option.textContent = tag;
-    tagSelect.appendChild(option);
+    const option = document.createElement('div');
+    option.className = 'dropdown-option';
+    option.dataset.value = tag;
+    option.innerHTML = `
+      <div class="option-checkbox"></div>
+      <span class="option-label">${tag}</span>
+    `;
+    dropdownOptions.appendChild(option);
   });
   
-  // Handle multi-select changes
-  tagSelect.addEventListener('change', handleTagFilterChange);
+  // Handle dropdown toggle
+  dropdownTrigger.addEventListener('click', function(e) {
+    e.stopPropagation();
+    toggleDropdown();
+  });
   
-  // Also handle click events for better multi-select behavior
-  tagSelect.addEventListener('click', function(e) {
-    if (e.target.tagName === 'OPTION' && e.target.value !== '') {
-      // Toggle the option selection
-      e.target.selected = !e.target.selected;
-      handleTagFilterChange();
-      e.preventDefault();
+  // Handle option selection
+  dropdownOptions.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const option = e.target.closest('.dropdown-option');
+    if (option) {
+      toggleOption(option);
+    }
+  });
+  
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.custom-dropdown')) {
+      closeDropdown();
     }
   });
   
@@ -387,22 +401,62 @@ function initializeTagFilters() {
   
   // Initialize display
   updateSelectedTagsDisplay();
+  updateDropdownText();
 }
 
-function handleTagFilterChange() {
-  const tagSelect = document.getElementById('tag-filters');
+function toggleDropdown() {
+  const dropdownTrigger = document.getElementById('tag-dropdown-trigger');
+  const dropdownOptions = document.getElementById('tag-dropdown-options');
   
-  // For multi-select, we need to check all selected options
-  const selectedValues = [];
-  Array.from(tagSelect.options).forEach(option => {
-    if (option.selected && option.value !== '') {
-      selectedValues.push(option.value);
-    }
-  });
+  const isOpen = dropdownOptions.classList.contains('open');
   
-  tagFilter = selectedValues;
+  if (isOpen) {
+    closeDropdown();
+  } else {
+    dropdownOptions.classList.add('open');
+    dropdownTrigger.classList.add('active');
+  }
+}
+
+function closeDropdown() {
+  const dropdownTrigger = document.getElementById('tag-dropdown-trigger');
+  const dropdownOptions = document.getElementById('tag-dropdown-options');
+  
+  dropdownOptions.classList.remove('open');
+  dropdownTrigger.classList.remove('active');
+}
+
+function toggleOption(option) {
+  const checkbox = option.querySelector('.option-checkbox');
+  const value = option.dataset.value;
+  
+  if (tagFilter.includes(value)) {
+    // Remove from selection
+    tagFilter = tagFilter.filter(tag => tag !== value);
+    option.classList.remove('selected');
+    checkbox.classList.remove('checked');
+  } else {
+    // Add to selection
+    tagFilter.push(value);
+    option.classList.add('selected');
+    checkbox.classList.add('checked');
+  }
+  
   updateSelectedTagsDisplay();
+  updateDropdownText();
   renderAlerts();
+}
+
+function updateDropdownText() {
+  const dropdownText = document.querySelector('.dropdown-text');
+  
+  if (tagFilter.length === 0) {
+    dropdownText.textContent = 'Select tags...';
+  } else if (tagFilter.length === 1) {
+    dropdownText.textContent = tagFilter[0];
+  } else {
+    dropdownText.textContent = `${tagFilter.length} tags selected`;
+  }
 }
 
 function updateSelectedTagsDisplay() {
@@ -422,30 +476,35 @@ function updateSelectedTagsDisplay() {
 }
 
 function removeTagFilter(tagToRemove) {
-  const tagSelect = document.getElementById('tag-filters');
-  
   // Remove from tagFilter array
   tagFilter = tagFilter.filter(tag => tag !== tagToRemove);
   
-  // Update select element
-  Array.from(tagSelect.options).forEach(option => {
-    if (option.value === tagToRemove) {
-      option.selected = false;
-    }
-  });
+  // Update dropdown option visual state
+  const dropdownOptions = document.getElementById('tag-dropdown-options');
+  const option = dropdownOptions.querySelector(`[data-value="${tagToRemove}"]`);
+  if (option) {
+    option.classList.remove('selected');
+    option.querySelector('.option-checkbox').classList.remove('checked');
+  }
   
   updateSelectedTagsDisplay();
+  updateDropdownText();
   renderAlerts();
 }
 
 function resetTagFilters() {
-  const tagSelect = document.getElementById('tag-filters');
   // Clear all selections
-  Array.from(tagSelect.options).forEach(option => {
-    option.selected = false;
-  });
   tagFilter = [];
+  
+  // Update all dropdown options
+  const dropdownOptions = document.getElementById('tag-dropdown-options');
+  dropdownOptions.querySelectorAll('.dropdown-option').forEach(option => {
+    option.classList.remove('selected');
+    option.querySelector('.option-checkbox').classList.remove('checked');
+  });
+  
   updateSelectedTagsDisplay();
+  updateDropdownText();
   renderAlerts();
 }
 

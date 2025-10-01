@@ -193,10 +193,14 @@ body{
   margin-bottom: 6px;
 }
 
-.tag-select {
+.custom-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.dropdown-trigger {
   width: 100%;
   height: 44px;
-  min-height: 44px;
   padding: 10px 12px;
   border: 1px solid rgba(2,6,23,0.14);
   border-radius: 12px;
@@ -207,32 +211,118 @@ body{
   transition: all 0.2s ease;
   font-family: inherit;
   box-shadow: 0 1px 0 #fff;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
 }
 
-.tag-select:focus {
+.dropdown-trigger:hover {
+  border-color: rgba(2,6,23,0.2);
+}
+
+.dropdown-trigger:focus {
   outline: none;
   border-color: var(--ocean-blue);
   box-shadow: 0 0 0 4px var(--ring);
 }
 
-.tag-select option {
-  padding: 8px 12px;
+.dropdown-trigger.active {
+  border-color: var(--ocean-blue);
+  box-shadow: 0 0 0 4px var(--ring);
+}
+
+.dropdown-arrow {
+  font-size: 12px;
+  transition: transform 0.2s ease;
+  color: #64748b;
+}
+
+.dropdown-trigger.active .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.dropdown-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
   background: white;
-  color: var(--ink);
-  font-size: 14px;
+  border: 1px solid rgba(2,6,23,0.14);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+  display: none;
+  margin-top: 4px;
 }
 
-.tag-select option:checked {
+.dropdown-options.open {
+  display: block;
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-option {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border-bottom: 1px solid rgba(2,6,23,0.05);
+}
+
+.dropdown-option:last-child {
+  border-bottom: none;
+}
+
+.dropdown-option:hover {
+  background: #f8fafc;
+}
+
+.dropdown-option.selected {
+  background: #eff6ff;
+  color: var(--ocean-blue);
+}
+
+.option-checkbox {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #d1d5db;
+  border-radius: 4px;
+  margin-right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.option-checkbox.checked {
   background: var(--ocean-blue);
+  border-color: var(--ocean-blue);
   color: white;
-  font-weight: 500;
 }
 
-.tag-select option:hover {
-  background: #f1f5f9;
+.option-checkbox.checked::after {
+  content: '✓';
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.option-label {
+  flex: 1;
+  font-size: 14px;
 }
 
 .selected-tags-pills {
@@ -502,7 +592,7 @@ body{
   .sev-filter{ order:2; flex:1 1 0; margin-left:0; }
   .tag-filters-wrap{ order:3; flex: 1 1 100%; justify-content: center; margin: 8px 0; }
   .tag-dropdown-container{ min-width: 200px; max-width: 100%; }
-  .tag-select{ min-width: 180px; }
+  .dropdown-trigger{ min-width: 180px; }
   .tabsbar .switch{ order:4; flex:1 1 0; }
   .tabsbar{ justify-content:space-between; flex-wrap: wrap; }
 }
