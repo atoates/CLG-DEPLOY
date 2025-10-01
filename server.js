@@ -542,7 +542,13 @@ app.get('/auth/google/callback', async (req, res) => {
   }
   
   const { code, state } = req.query || {};
-  console.log('OAuth callback received:', { code: code ? 'present' : 'missing', state: state ? 'present' : 'missing', cookieState: req.cookies.oauth_state ? 'present' : 'missing' });
+  console.log('OAuth callback received:', { 
+    code: code ? `${String(code).slice(0,10)}...` : 'missing', 
+    state: state ? 'present' : 'missing', 
+    cookieState: req.cookies.oauth_state ? 'present' : 'missing',
+    userAgent: req.get('user-agent'),
+    timestamp: new Date().toISOString()
+  });
   
   if (!code || !state || state !== req.cookies.oauth_state) {
     console.error('OAuth state validation failed:', { code: !!code, state: !!state, stateMatch: state === req.cookies.oauth_state });
