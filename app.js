@@ -158,9 +158,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Sync UI controls to prefs
   if (showAllToggle) showAllToggle.checked = showAll;
   syncSevUi();
-  
-  // Initialize tag filters
-  initializeTagFilters();
 
   // Render + load data
   renderDatalist();
@@ -313,6 +310,7 @@ async function loadAlertsFromServer(){
     serverAlerts = [];
   }
   await loadAutoAlerts();
+  initializeTagFilters(); // Initialize tag filters after alerts are loaded
   renderAlerts();
   startTicking();
 }
