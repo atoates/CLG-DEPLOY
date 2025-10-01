@@ -18,6 +18,18 @@ const DB_PATH = process.env.DATABASE_PATH || path.join(DATA_DIR, 'clg.sqlite');
 // Backup dir (can be overridden by BACKUP_DIR env var)
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(DATA_DIR, 'backups');
 
+// Ensure data directory exists (fallback for volume mount issues)
+try {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  console.log('Data directory created/verified:', DATA_DIR);
+} catch (e) {
+  console.error('Failed to create data directory:', e.message);
+  // If we can't create the data dir, fall back to a local one
+  const fallbackDataDir = path.resolve(__dirname, 'data');
+  console.log('Falling back to local data directory:', fallbackDataDir);
+  fs.mkdirSync(fallbackDataDir, { recursive: true });
+}
+
 // server reference declared up-front so shutdown handlers can close it later
 let server;
 const POLYGON_KEY = process.env.POLYGON_API_KEY || '';
@@ -36,7 +48,6 @@ function getDefaultTags(severity) {
   }
 }
 
-fs.mkdirSync(DATA_DIR, { recursive: true });
 console.log('Data directory:', DATA_DIR);
 console.log('Database path:', DB_PATH);
 console.log('Current directory:', __dirname);
