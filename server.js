@@ -17,6 +17,16 @@ const BACKUP_DIR = process.env.BACKUP_DIR || path.join(DATA_DIR, 'backups');
 let server;
 const POLYGON_KEY = process.env.POLYGON_API_KEY || '';
 
+// Function to get default tags based on severity
+function getDefaultTags(severity) {
+  switch (severity) {
+    case 'critical': return '["hack","exploit"]';
+    case 'warning': return '["community","migration"]';
+    case 'info': return '["community","news"]';
+    default: return '[]';
+  }
+}
+
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 /* ---------------- DB setup (SQLite) ---------------- */
@@ -171,14 +181,17 @@ app.post('/api/alerts', (req, res) => {
     ? tags.filter(t => typeof t === 'string' && validTags.includes(t))
     : [];
 
+  const finalSeverity = ['critical','warning','info'].includes(severity) ? severity : 'info';
+  const finalTags = sanitizedTags.length > 0 ? sanitizedTags : JSON.parse(getDefaultTags(finalSeverity));
+  
   const item = {
     id:`a_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
     token:String(token).toUpperCase(),
     title:String(title),
     description:String(description||''),
-    severity:['critical','warning','info'].includes(severity)?severity:'info',
+    severity: finalSeverity,
     deadline:new Date(deadline).toISOString(),
-    tags: sanitizedTags
+    tags: finalTags
   };
   alerts.push(item); persistAlerts();
   res.status(201).json(item);
