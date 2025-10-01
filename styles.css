@@ -189,6 +189,13 @@ body{
   max-width: 520px; /* Slightly wider so pills align better under the control */
 }
 
+/* Inline row: dropdown on the left, Clear All on the right */
+.tag-select-row{
+  display:flex; align-items:center; gap:12px;
+}
+.tag-select-row .custom-dropdown{ flex:1 1 auto; }
+.tag-select-row .btn-clear-tags{ margin-top:0; white-space:nowrap; }
+
 .btn-clear-tags {
   background: #64748b;
   color: white;
@@ -196,8 +203,7 @@ body{
   padding: 4px 10px;
   font-size: 12px;
   border-radius: 6px;
-  margin-top: 6px;           /* match pills top margin */
-  align-self: flex-start;    /* left-align under dropdown */
+  align-self: center;        /* inline with dropdown */
   transition: background-color 0.2s ease;
 }
 
@@ -629,6 +635,8 @@ body{
     max-width: 100%; 
     width: 100%; /* Full width on mobile */
   }
+  .tag-select-row{ gap:8px; }
+  .tag-select-row .btn-clear-tags{ padding: 4px 10px; }
   .dropdown-trigger{ min-width: 180px; }
   .tabsbar .switch{ order:4; flex:1 1 0; }
   .tabsbar{ justify-content:space-between; flex-wrap: wrap; }

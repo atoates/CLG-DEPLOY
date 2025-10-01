@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Crypto Lifeguard — Web Demo</title>
-  <link rel="stylesheet" href="./styles.css?v=20251001" />
+  <link rel="stylesheet" href="./styles.css?v=20251002" />
 </head>
 <body>
   <a href="./create.html" class="fab" aria-label="New alert" title="New alert">+</a>
@@ -60,17 +60,19 @@
       <div class="tag-filters-wrap">
         <div class="tag-dropdown-container">
           <label for="tag-filters" class="tag-dropdown-label">Filter by tags:</label>
-          <div class="custom-dropdown">
-            <button type="button" class="dropdown-trigger" id="tag-dropdown-trigger">
-              <span class="dropdown-text">Select tags...</span>
-              <span class="dropdown-arrow">▼</span>
-            </button>
-            <div class="dropdown-options" id="tag-dropdown-options">
-              <!-- Options will be populated by JavaScript -->
+          <div class="tag-select-row">
+            <div class="custom-dropdown">
+              <button type="button" class="dropdown-trigger" id="tag-dropdown-trigger">
+                <span class="dropdown-text">Select tags...</span>
+                <span class="dropdown-arrow">▼</span>
+              </button>
+              <div class="dropdown-options" id="tag-dropdown-options">
+                <!-- Options will be populated by JavaScript -->
+              </div>
             </div>
+            <button id="reset-tags" class="btn btn-clear-tags">Clear All</button>
           </div>
           <div id="selected-tags-display" class="selected-tags-pills"></div>
-          <button id="reset-tags" class="btn btn-clear-tags">Clear All</button>
         </div>
       </div>
     </section>
