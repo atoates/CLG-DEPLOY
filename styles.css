@@ -8,7 +8,24 @@
   --teal:#20b2aa;
   --ink:#0f172a;
   --ink-2:#334155;
-  --bg-card:#ffffff;
+.alert-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: rgba(248,250,252,0.8);
+  border: 1px solid rgba(0,0,0,0.06);
+  color: currentColor;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.alert-tag .icon {
+  order: 2;  /* This moves the icon to the end */
+  margin-left: auto;
+}
   --ring: rgba(30,144,255,0.25);
 }
 
@@ -232,6 +249,8 @@ body{
 
 .alert-tag .icon {
   font-size: 14px;
+  order: 2;  /* This moves the icon to the end */
+  margin-left: auto;
 }
 
 /* ---------------- Alerts list ---------------- */
