@@ -148,11 +148,11 @@ app.get('/api/me', (req, res) => {
   // If Google session exists, prefer that user id
   const sess = getSession(req);
   const effectiveUid = sess?.uid || req.uid;
-  const row = qGetPrefs.get(req.uid);
+  const row = qGetPrefs.get(effectiveUid);
   if (!row) {
     // first-time defaults
     const payload = {
-      userId: req.uid,
+      userId: effectiveUid,
       watchlist: [],
       severity: ['critical','warning','info'],
       showAll: false,
@@ -480,11 +480,20 @@ app.post('/admin/backup', async (req, res) => {
 
 // Serve static SPA (after API routes)
 const distDir = path.resolve(__dirname, 'dist');
-app.use(express.static(distDir));
+const distIndex = path.join(distDir, 'index.html');
+const rootIndex = path.join(__dirname, 'index.html');
+if (fs.existsSync(distDir)) {
+  app.use(express.static(distDir));
+}
 // Also serve standalone pages
 app.get('/signup', (_req,res) => res.sendFile(path.join(__dirname, 'signup.html')));
 app.get('/profile', (_req,res) => res.sendFile(path.join(__dirname, 'profile.html')));
-app.get('*', (_req,res) => res.sendFile(path.join(distDir,'index.html')));
+// Wildcard fallback after auth routes are defined (see bottom). For now, point to dist or root index.
+app.get('*', (_req,res) => {
+  if (fs.existsSync(distIndex)) return res.sendFile(distIndex);
+  if (fs.existsSync(rootIndex)) return res.sendFile(rootIndex);
+  res.status(404).send('Not found');
+});
 
 // Mask paths for logging (basic)
 function maskPath(p){
