@@ -4,90 +4,79 @@
     "severity": "info",
     "title": "Network Maintenance Window",
     "description": "Routine node maintenance scheduled; no action required.",
-    "deadline": "2025-09-26T18:00:00.000Z"
+    "deadline": "2025-09-26T18:00:00.000Z",
+    "tags": ["news", "community"]
   },
   {
     "token": "ETH",
     "severity": "warning",
     "title": "Client Update Recommended",
     "description": "Upgrade execution/consensus clients to the latest version for stability.",
-    "deadline": "2025-09-25T20:00:00.000Z"
+    "deadline": "2025-09-25T20:00:00.000Z",
+    "tags": ["fork", "community"]
   },
   {
     "token": "USDC",
     "severity": "info",
     "title": "Issuer Advisory Acknowledgement",
     "description": "Review the latest issuer notice; balances unaffected.",
-    "deadline": "2025-09-27T10:00:00.000Z"
+    "deadline": "2025-09-27T10:00:00.000Z",
+    "tags": ["news"]
   },
   {
     "token": "MATIC",
     "severity": "critical",
     "title": "MATIC → POL Migration Final Reminder",
     "description": "Complete token migration to POL before the cut-off to avoid devaluation.",
-    "deadline": "2025-09-28T23:59:00.000Z"
+    "deadline": "2025-09-28T23:59:00.000Z",
+    "tags": ["migration", "price-change"]
   },
   {
     "token": "DOGE",
     "severity": "warning",
     "title": "Wallet Update Recommended",
     "description": "Update core wallet to include the latest security fixes.",
-    "deadline": "2025-09-24T16:00:00.000Z"
+    "deadline": "2025-09-24T16:00:00.000Z",
+    "tags": ["hack", "exploit"]
   },
   {
     "token": "ADA",
     "severity": "warning",
     "title": "Parameter Update Vote Closing",
     "description": "Governance vote on throughput parameters ends soon.",
-    "deadline": "2025-09-29T21:00:00.000Z"
+    "deadline": "2025-09-29T21:00:00.000Z",
+    "tags": ["community", "fork"]
   },
   {
     "token": "SOL",
     "severity": "warning",
     "title": "Mainnet Upgrade Window",
     "description": "Validator upgrade window opens; minor turbulence possible.",
-    "deadline": "2025-09-27T04:00:00.000Z"
+    "deadline": "2025-09-27T04:00:00.000Z",
+    "tags": ["fork", "community"]
   },
   {
     "token": "POL",
     "severity": "info",
     "title": "Bridge Integrations Update",
     "description": "New integrations rolling out; check supported routes.",
-    "deadline": "2025-09-25T12:00:00.000Z"
+    "deadline": "2025-09-25T12:00:00.000Z",
+    "tags": ["migration", "community"]
   },
   {
     "token": "UNI",
     "severity": "critical",
     "title": "Founder Sell Watch",
     "description": "Large holder movements observed; consider exposure limits.",
-    "deadline": "2025-09-24T08:00:00.000Z"
+    "deadline": "2025-09-24T08:00:00.000Z",
+    "tags": ["whale", "price-change"]
   },
   {
     "token": "LINK",
     "severity": "info",
     "title": "Oracle Feed Upgrade",
     "description": "Minor performance improvements scheduled; no action needed.",
-    "deadline": "2025-09-30T12:00:00.000Z"
-  },
-  {
-    "token": "SOL",
-    "severity": "critical",
-    "title": "URGENT",
-    "description": "Test Alert",
-    "deadline": "2025-09-24T21:10:00.000Z"
-  },
-  {
-    "token": "BTC",
-    "severity": "warning",
-    "title": "TEST 2",
-    "description": "Test 3",
-    "deadline": "2025-09-23T16:00:00.000Z"
-  },
-  {
-    "token": "DOGE",
-    "severity": "critical",
-    "title": "TEST",
-    "description": "TEST",
-    "deadline": "2025-09-23T21:10:00.000Z"
+    "deadline": "2025-09-30T12:00:00.000Z",
+    "tags": ["news", "community"]
   }
 ]
