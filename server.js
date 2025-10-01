@@ -8,7 +8,13 @@ const Database = require('better-sqlite3');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, 'data');
-const DB_PATH = path.join(DATA_DIR, 'clg.sqlite');
+// Prefer an explicit DATABASE_PATH when provided (keeps migrate/backup scripts consistent)
+const DB_PATH = process.env.DATABASE_PATH || path.join(DATA_DIR, 'clg.sqlite');
+// Backup dir (can be overridden by BACKUP_DIR env var)
+const BACKUP_DIR = process.env.BACKUP_DIR || path.join(DATA_DIR, 'backups');
+
+// server reference declared up-front so shutdown handlers can close it later
+let server;
 const POLYGON_KEY = process.env.POLYGON_API_KEY || '';
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -251,13 +257,6 @@ function mapPostToAlert(p){
 /* ---------------- Health + static SPA ---------------- */
 app.get('/healthz', (_req,res)=>res.json({ ok:true }));
 
-const distDir = path.resolve(__dirname, 'dist');
-app.use(express.static(distDir));
-app.get('*', (_req,res)=>res.sendFile(path.join(distDir,'index.html')));
-
-// Start server and keep a reference so we can gracefully shut down
-const server = app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
-
 // Readiness endpoint: verify DB is accessible with a trivial query
 app.get('/ready', (_req, res) => {
   try {
@@ -371,4 +370,53 @@ app.get('/api/news/cryptopanic-alerts', async (req, res) => {
     res.status(502).json({ error: 'cryptopanic_map_failed', detail: String(e) });
   }
 });
+
+
+// --- Admin: backup endpoint -------------------------------------------------
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+
+app.post('/admin/backup', async (req, res) => {
+  // Accept either Authorization: Bearer <token> or X-Admin-Token
+  const auth = String(req.get('authorization') || req.get('x-admin-token') || '').trim();
+  let token = auth;
+  if (auth.toLowerCase().startsWith('bearer ')) token = auth.slice(7).trim();
+  if (!ADMIN_TOKEN || !token || token !== ADMIN_TOKEN) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  try {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const iso = new Date().toISOString().replace(/[:.]/g, '-');
+    const out = path.join(BACKUP_DIR, `app-${iso}.db`);
+
+    // Try VACUUM INTO (safe); fall back to file copy
+    try {
+      db.pragma('journal_mode = WAL');
+      db.exec(`VACUUM INTO '${out.replace(/'/g, "''")}'`);
+      console.log('Admin backup created (VACUUM INTO):', out);
+      return res.json({ ok: true, method: 'vacuum', path: out });
+    } catch (e) {
+      console.warn('VACUUM INTO failed, falling back to copy:', e && e.message);
+      fs.copyFileSync(DB_PATH, out);
+      console.log('Admin backup created (copy):', out);
+      return res.json({ ok: true, method: 'copy', path: out });
+    }
+  } catch (e) {
+    console.error('Admin backup failed', e && e.stack ? e.stack : e);
+    return res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+// Serve static SPA (after API routes)
+const distDir = path.resolve(__dirname, 'dist');
+app.use(express.static(distDir));
+app.get('*', (_req,res) => res.sendFile(path.join(distDir,'index.html')));
+
+// Mask paths for logging (basic)
+function maskPath(p){
+  if (!p) return p;
+  try { return p.replace(process.cwd(), '[app]'); } catch { return p; }
+}
+
+// Start server and keep a reference so we can gracefully shut down
+server = app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT} - DB: ${maskPath(DB_PATH)} Backup: ${maskPath(BACKUP_DIR)}`));
 
