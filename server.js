@@ -81,12 +81,24 @@ function writeJsonSafe(file, data) {
 
 const ALERTS_PATH = path.join(DATA_DIR, 'alerts.json');
 let alerts = readJsonSafe(ALERTS_PATH, [
-  { id:'seed-1', token:'BTC', title:'Wallet update recommended',
+  { 
+    id:'seed-1', 
+    token:'BTC', 
+    title:'Wallet update recommended',
     description:'Upgrade to the latest client to ensure network compatibility.',
-    severity:'info', deadline:new Date(Date.now()+36*3600*1000).toISOString() },
-  { id:'seed-2', token:'ETH', title:'Validator maintenance window',
+    severity:'info', 
+    deadline:new Date(Date.now()+36*3600*1000).toISOString(),
+    tags: ['community', 'news']
+  },
+  { 
+    id:'seed-2', 
+    token:'ETH', 
+    title:'Validator maintenance window',
     description:'Possible brief latency. No action required for holders.',
-    severity:'warning', deadline:new Date(Date.now()+12*3600*1000).toISOString() }
+    severity:'warning', 
+    deadline:new Date(Date.now()+12*3600*1000).toISOString(),
+    tags: ['community', 'fork']
+  }
 ]);
 function persistAlerts(){ writeJsonSafe(ALERTS_PATH, alerts); }
 
@@ -137,6 +149,16 @@ app.get('/api/alerts', (_req, res) => res.json(alerts));
 app.post('/api/alerts', (req, res) => {
   const { token, title, description, severity, deadline, tags } = req.body || {};
   if (!token || !title || !deadline) return res.status(400).json({ error:'token, title, deadline are required' });
+  
+  // Validate tags against known tag types
+  const validTags = [
+    'price-change', 'migration', 'hack', 'fork', 'scam',
+    'airdrop', 'whale', 'news', 'community', 'exploit'
+  ];
+  const sanitizedTags = Array.isArray(tags) 
+    ? tags.filter(t => typeof t === 'string' && validTags.includes(t))
+    : [];
+
   const item = {
     id:`a_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
     token:String(token).toUpperCase(),
@@ -144,7 +166,7 @@ app.post('/api/alerts', (req, res) => {
     description:String(description||''),
     severity:['critical','warning','info'].includes(severity)?severity:'info',
     deadline:new Date(deadline).toISOString(),
-    tags: Array.isArray(tags) ? tags.filter(t => typeof t === 'string') : []
+    tags: sanitizedTags
   };
   alerts.push(item); persistAlerts();
   res.status(201).json(item);

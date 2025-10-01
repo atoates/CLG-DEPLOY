@@ -19,6 +19,48 @@ const formSeverity = document.getElementById('form-severity');
 const formTitle = document.getElementById('form-title');
 const formDescription = document.getElementById('form-description');
 const formDeadline = document.getElementById('form-deadline');
+const tagSelectors = document.getElementById('tag-selectors');
+
+// Initialize tag selectors
+const ALERT_TAGS = {
+  'price-change': { icon: '📊', label: 'Price Change', color: '#4ade80' },
+  'migration': { icon: '🔄', label: 'Migration', color: '#60a5fa' },
+  'hack': { icon: '🔓', label: 'Hack', color: '#f87171' },
+  'fork': { icon: '🔱', label: 'Fork', color: '#a78bfa' },
+  'scam': { icon: '⚠️', label: 'Scam', color: '#fbbf24' },
+  'airdrop': { icon: '🪂', label: 'Airdrop', color: '#34d399' },
+  'whale': { icon: '🐋', label: 'Whale Alert', color: '#818cf8' },
+  'news': { icon: '📰', label: 'News', color: '#94a3b8' },
+  'community': { icon: '👥', label: 'Community', color: '#fb923c' },
+  'exploit': { icon: '⚡', label: 'Exploit', color: '#f43f5e' }
+};
+
+// Create tag selectors
+Object.entries(ALERT_TAGS).forEach(([tag, info]) => {
+  const btn = document.createElement('button');
+  btn.className = 'tag-filter';
+  btn.setAttribute('data-tag', tag);
+  btn.setAttribute('aria-pressed', 'false');
+  btn.style.color = info.color;
+  
+  const icon = document.createElement('span');
+  icon.className = 'icon';
+  icon.textContent = info.icon;
+  
+  const label = document.createElement('span');
+  label.textContent = info.label;
+  
+  btn.appendChild(icon);
+  btn.appendChild(label);
+  
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    btn.classList.toggle('active');
+    btn.setAttribute('aria-pressed', btn.classList.contains('active'));
+  });
+  
+  tagSelectors.appendChild(btn);
+});
 
 // UX: focus the token field and set a sensible default deadline (now + 6h)
 (function initForm(){
@@ -84,11 +126,23 @@ form.addEventListener('submit', async (e) => {
   submitBtn.textContent = 'Saving…';
   msg.textContent = '';
 
+  // Get selected tags
+  const selectedTags = [...document.querySelectorAll('.tag-filter.active')]
+    .map(el => el.getAttribute('data-tag'))
+    .filter(Boolean);
+
   try{
     const res = await fetch('/api/alerts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, severity, title, description, deadline: deadlineIso })
+      body: JSON.stringify({ 
+        token, 
+        severity, 
+        title, 
+        description, 
+        deadline: deadlineIso,
+        tags: selectedTags
+      })
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
