@@ -154,17 +154,27 @@ document.addEventListener('DOMContentLoaded', () => {
       showAll        = !!me.showAll;
       hiddenKeys     = new Set(Array.isArray(me.dismissed) ? me.dismissed : []);
 
-      // If logged in, replace the Account dropdown button with a Profile button
+      // If logged in, replace the Account dropdown with avatar + name button to Profile
       if (me.loggedIn) {
         const btn = document.getElementById('user-menu-btn');
         const menu = document.getElementById('user-menu');
         if (menu) menu.hidden = true;
         if (btn) {
-          const clone = btn.cloneNode(true);
+          const clone = btn.cloneNode(false);
           clone.id = 'user-menu-btn';
-          clone.textContent = 'Profile';
           clone.setAttribute('aria-haspopup', 'false');
           clone.setAttribute('aria-expanded', 'false');
+          // Build avatar + name label
+          const wrap = document.createElement('span');
+          wrap.style.display = 'inline-flex'; wrap.style.alignItems = 'center'; wrap.style.gap = '8px';
+          const av = document.createElement('span');
+          av.style.width = '22px'; av.style.height = '22px'; av.style.borderRadius = '999px'; av.style.display = 'inline-block'; av.style.overflow = 'hidden'; av.style.background = '#e2e8f0';
+          const url = me.profile?.avatar || '';
+          if (url){ const img=document.createElement('img'); img.src=url; img.alt=''; img.width=22; img.height=22; img.style.display='block'; av.appendChild(img); }
+          else { av.textContent = (me.profile?.name||'U').trim().charAt(0).toUpperCase(); av.style.fontWeight='800'; av.style.color='#0f172a'; display='grid'; }
+          const nm = document.createElement('span'); nm.textContent = me.profile?.name || 'Profile';
+          wrap.appendChild(av); wrap.appendChild(nm);
+          clone.appendChild(wrap);
           btn.parentNode.replaceChild(clone, btn);
           clone.addEventListener('click', (e) => {
             e.preventDefault();

@@ -4,6 +4,105 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Profile — Crypto Lifeguard</title>
+  <link rel="stylesheet" href="/styles.css?v=20251001" />
+  <style>
+    .profile-header{ display:flex; align-items:center; gap:14px; }
+    .profile-avatar{ width:64px; height:64px; border-radius:999px; object-fit:cover; border:1px solid rgba(2,6,23,0.06); box-shadow:0 1px 2px rgba(0,0,0,.06); background:#eef2f7; display:grid; place-items:center; font-weight:900; color:#0b4a8f; }
+    .profile-name{ margin:0; font-size:20px; font-weight:900; }
+    .profile-email{ margin:2px 0 0; font-size:13px; color:#475569; }
+    .profile-grid{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:16px; }
+    .profile-section h3{ margin:0 0 8px; font-size:16px; }
+    .profile-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+    .btn.gray{ background:#64748b; }
+    .pill.small{ padding:6px 8px; font-size:12px; }
+    .pill .remove{ width:20px; height:20px; }
+    .avatar-initials{ width:100%; height:100%; display:grid; place-items:center; border-radius:999px; background:#e2e8f0; color:#0f172a; }
+    .prefs-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .prefs-row .sev-btn{ width:auto; min-width:40px; padding:6px 10px; font-size:14px; }
+    @media (max-width: 720px){ .profile-grid{ grid-template-columns: 1fr; } }
+  </style>
+  <script type="module" src="/profile.js"></script>
+  <script type="module" src="/app.js"></script>
+  <!-- app.js loads to keep topbar behavior consistent (logout handler, etc.) -->
+</head>
+<body>
+  <a href="/create.html" class="fab" aria-label="New alert" title="New alert">+</a>
+
+  <header class="topbar" role="banner">
+    <div class="topbar-inner">
+      <div class="brand-wrap">
+        <img class="brand-logo" src="https://i.postimg.cc/Fz0xdDzd/Crypto-Lifeguard-Logo-Striking-Impact-background.png" alt="Crypto Lifeguard Logo" decoding="async" fetchpriority="high" />
+        <div class="brand-text">
+          <h1 class="brand-title">Crypto Lifeguard</h1>
+          <p class="brand-tagline">Your account</p>
+        </div>
+      </div>
+      <div class="actions">
+        <a class="menu-btn" href="/">← Back</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <div class="profile-header">
+        <div id="prof-avatar" class="profile-avatar"></div>
+        <div>
+          <h2 id="prof-name" class="profile-name">Loading…</h2>
+          <p id="prof-email" class="profile-email"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="profile-grid">
+        <div class="profile-section">
+          <h3>Preferences</h3>
+          <div class="prefs-row" style="margin-bottom:8px">
+            <span class="muted">Severities:</span>
+            <button class="sev-btn" data-sev="critical" title="Critical">🚨 Critical</button>
+            <button class="sev-btn" data-sev="warning" title="Warning">⚠️ Warning</button>
+            <button class="sev-btn" data-sev="info" title="Info">🛟 Info</button>
+          </div>
+          <label class="switch small" title="Include dismissed alerts">
+            <span class="switch-caption">Show all</span>
+            <input type="checkbox" id="prof-show-all" />
+            <span class="slider" aria-hidden="true"></span>
+          </label>
+        </div>
+
+        <div class="profile-section">
+          <h3>Watchlist</h3>
+          <div id="prof-watch-pills" class="pill-row"></div>
+          <div class="token-select-row" style="margin-top:8px;">
+            <input id="prof-token-input" class="input" type="text" placeholder="Add a token (e.g., ETH)" list="token-datalist" />
+            <button id="prof-add-token" class="btn">Add</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="profile-section">
+        <h3>Account</h3>
+        <div class="profile-actions">
+          <button id="btn-export" class="btn gray">Export my data</button>
+          <button id="btn-logout" class="btn">Log out</button>
+        </div>
+        <p id="prof-msg" class="muted" style="margin-top:8px"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer muted"><span>© 2025 Crypto Lifeguard — demo build</span></footer>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Profile — Crypto Lifeguard</title>
   <link rel="stylesheet" href="/styles.css" />
   <style>.auth-card{max-width:640px;margin:24px auto}.row{display:flex;gap:12px;align-items:center}</style>
   <script defer>
