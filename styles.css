@@ -178,11 +178,13 @@ body{
   gap: 12px;
   flex-wrap: wrap;
   margin: 10px 0;
+  padding: 0 4px; /* Match other element padding */
 }
 
 .tag-dropdown-container {
   flex: 1;
   min-width: 250px;
+  max-width: 400px; /* Prevent it from getting too wide */
 }
 
 .btn-clear-tags {
@@ -471,12 +473,13 @@ body{
 }
 
 /* ---------------- Alerts list ---------------- */
-.alerts-list{ display:flex; flex-direction:column; gap:12px; }
+.alerts-list{ display:flex; flex-direction:column; gap:16px; }
 .alert-item{
   /* Grid: content | tags | dismiss */
   display:grid; grid-template-columns: 1fr auto 80px; column-gap: 12px;
   align-items:start;
-  padding:12px 14px; margin:6px 0; border-radius:12px; border:1px solid rgba(2,6,23,0.06);
+  padding:12px 14px; margin:8px 0; border-radius:12px; border:1px solid rgba(2,6,23,0.06);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 .alert-item > .content{
   grid-column: 1 / 2;
@@ -586,7 +589,11 @@ body{
   .market-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); }
 }
 @media (max-width: 720px){
-  .alert-item{ grid-template-columns: 1fr auto 64px; }
+  .alert-item{ 
+    grid-template-columns: 1fr auto 64px; 
+    margin: 12px 0; /* Increase margin between cards */
+    padding: 16px; /* Increase padding for better touch targets */
+  }
   .alert-tags{ gap:4px; }
   .alert-tag{ font-size:12px; padding:3px 8px; }
   .brand-tagline{ display:none; }
@@ -596,11 +603,31 @@ body{
   /* tabs full width; filters below evenly spaced */
   .tabs{ flex: 1 1 100%; order:1; }
   .sev-filter{ order:2; flex:1 1 0; margin-left:0; }
-  .tag-filters-wrap{ order:3; flex: 1 1 100%; justify-content: center; margin: 8px 0; }
-  .tag-dropdown-container{ min-width: 200px; max-width: 100%; }
+  .tag-filters-wrap{ 
+    order:3; 
+    flex: 1 1 100%; 
+    justify-content: flex-start; /* Align to left like other elements */
+    margin: 12px 0; 
+    padding: 0 4px; /* Add slight padding to match other elements */
+  }
+  .tag-dropdown-container{ 
+    min-width: 200px; 
+    max-width: 100%; 
+    width: 100%; /* Full width on mobile */
+  }
   .dropdown-trigger{ min-width: 180px; }
   .tabsbar .switch{ order:4; flex:1 1 0; }
   .tabsbar{ justify-content:space-between; flex-wrap: wrap; }
+  
+  /* Improve alert list spacing on mobile */
+  #alerts-list {
+    gap: 12px; /* Add gap between alert items */
+  }
+  
+  /* Better container spacing */
+  .container {
+    padding: 12px;
+  }
 }
 @media (max-width: 640px){
   .token-select-row{ flex-direction:column; align-items:stretch; }
