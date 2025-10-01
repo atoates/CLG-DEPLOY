@@ -430,45 +430,51 @@ function getRelevantAlerts(){
 
 // Add tag display to alerts
 function renderAlertTags(alert, alertWrap) {
-  if (!alert.tags || !alert.tags.length) return;
-  
+  // construct wrapper regardless; we'll remove it if empty
   const tagsWrap = document.createElement('div');
   tagsWrap.className = 'alert-tags';
-  
-  // Parse tags if they're stored as JSON string
+
+  // Normalize tags: handle JSON string, array, or missing -> severity-based default
   let tags = [];
   try {
-    if (typeof alert.tags === 'string') {
-      tags = JSON.parse(alert.tags);
-    } else if (Array.isArray(alert.tags)) {
+    if (Array.isArray(alert.tags)) {
       tags = alert.tags;
+    } else if (typeof alert.tags === 'string' && alert.tags.trim()) {
+      const maybe = JSON.parse(alert.tags);
+      if (Array.isArray(maybe)) tags = maybe;
     }
   } catch (e) {
-    console.warn('Failed to parse tags:', alert.tags);
-    tags = [];
+    // ignore parse errors; we'll fallback below
   }
-  
+
+  if (!tags.length) {
+    const sev = alert.severity || 'info';
+    if (sev === 'critical') tags = ['hack', 'exploit'];
+    else if (sev === 'warning') tags = ['community', 'migration'];
+    else tags = ['community', 'news'];
+  }
+
+  // Render tags
   tags.forEach(tag => {
     const info = ALERT_TAGS[tag];
     if (!info) return;
-    
     const tagEl = document.createElement('span');
     tagEl.className = 'alert-tag';
     tagEl.style.color = info.color;
-    
     const label = document.createElement('span');
     label.textContent = info.label;
-    
     const icon = document.createElement('span');
     icon.className = 'icon';
     icon.textContent = info.icon;
-    
     tagEl.appendChild(label);
     tagEl.appendChild(icon);
     tagsWrap.appendChild(tagEl);
   });
-  
-  alertWrap.insertBefore(tagsWrap, alertWrap.lastElementChild);
+
+  // Only insert if we have at least one tag element
+  if (tagsWrap.children.length > 0) {
+    alertWrap.insertBefore(tagsWrap, alertWrap.lastElementChild);
+  }
 }
 
 // SORT: nearest deadline first
