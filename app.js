@@ -408,8 +408,9 @@ function initializeTagFilters() {
 function applyTagFilter(list) {
   if (!tagFilter.length) return list;
   return list.filter(alert => {
-    if (!alert.tags || !alert.tags.length) return false;
-    return tagFilter.some(tag => alert.tags.includes(tag));
+    const tags = getAlertTagsArray(alert);
+    if (!tags.length) return false;
+    return tagFilter.some(tag => tags.includes(tag));
   });
 }
 
@@ -429,30 +430,29 @@ function getRelevantAlerts(){
 }
 
 // Add tag display to alerts
+// Helper: normalize an alert's tags to an array of strings
+function getAlertTagsArray(alert){
+  try{
+    if (Array.isArray(alert.tags)) return alert.tags;
+    if (typeof alert.tags === 'string' && alert.tags.trim()){
+      const parsed = JSON.parse(alert.tags);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  }catch(_e){}
+  // fallback by severity
+  const sev = alert.severity || 'info';
+  if (sev === 'critical') return ['hack','exploit'];
+  if (sev === 'warning') return ['community','migration'];
+  return ['community','news'];
+}
+
 function renderAlertTags(alert, alertWrap) {
   // construct wrapper regardless; we'll remove it if empty
   const tagsWrap = document.createElement('div');
   tagsWrap.className = 'alert-tags';
 
   // Normalize tags: handle JSON string, array, or missing -> severity-based default
-  let tags = [];
-  try {
-    if (Array.isArray(alert.tags)) {
-      tags = alert.tags;
-    } else if (typeof alert.tags === 'string' && alert.tags.trim()) {
-      const maybe = JSON.parse(alert.tags);
-      if (Array.isArray(maybe)) tags = maybe;
-    }
-  } catch (e) {
-    // ignore parse errors; we'll fallback below
-  }
-
-  if (!tags.length) {
-    const sev = alert.severity || 'info';
-    if (sev === 'critical') tags = ['hack', 'exploit'];
-    else if (sev === 'warning') tags = ['community', 'migration'];
-    else tags = ['community', 'news'];
-  }
+  const tags = getAlertTagsArray(alert);
 
   // Render tags
   tags.forEach(tag => {
