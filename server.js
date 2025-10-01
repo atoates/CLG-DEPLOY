@@ -1,4 +1,5 @@
 // server.js
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -20,6 +21,7 @@ const POLYGON_KEY = process.env.POLYGON_API_KEY || '';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const BASE_URL = process.env.BASE_URL || '';
+const COOKIE_SECURE = (process.env.COOKIE_SECURE || '').toLowerCase() === 'true' || (BASE_URL && BASE_URL.startsWith('https://'));
 
 // Function to get default tags based on severity
 function getDefaultTags(severity) {
@@ -90,7 +92,7 @@ const sessions = new Map(); // sid -> { uid }
 function setSession(res, data){
   const sid = crypto.randomBytes(16).toString('hex');
   sessions.set(sid, { ...data, t: Date.now() });
-  res.cookie('sid', sid, { httpOnly:true, sameSite:'lax', maxAge: 365*24*3600*1000 });
+  res.cookie('sid', sid, { httpOnly:true, sameSite:'lax', maxAge: 365*24*3600*1000, ...(COOKIE_SECURE ? { secure: true } : {}) });
 }
 function getSession(req){
   const sid = req.cookies.sid; if (!sid) return null;
@@ -102,9 +104,7 @@ app.use((req, res, next) => {
   let uid = req.cookies.uid;
   if (!uid) {
     uid = `usr_${Math.random().toString(36).slice(2,10)}`;
-    res.cookie('uid', uid, {
-      httpOnly: true, sameSite: 'lax', maxAge: 365*24*3600*1000
-    });
+    res.cookie('uid', uid, { httpOnly: true, sameSite: 'lax', maxAge: 365*24*3600*1000, ...(COOKIE_SECURE ? { secure: true } : {}) });
   }
   req.uid = uid;
   qUpsertUser.run(uid);
@@ -509,7 +509,7 @@ function assertAuthConfig(){
 app.get('/auth/google', (req, res) => {
   try{ assertAuthConfig(); } catch(e){ return res.status(500).send(String(e.message||e)); }
   const state = crypto.randomBytes(12).toString('hex');
-  res.cookie('oauth_state', state, { httpOnly:true, sameSite:'lax', maxAge: 300000 });
+  res.cookie('oauth_state', state, { httpOnly:true, sameSite:'lax', maxAge: 300000, ...(COOKIE_SECURE ? { secure: true } : {}) });
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
     redirect_uri: `${BASE_URL}/auth/google/callback`,
@@ -559,7 +559,7 @@ app.get('/auth/google/callback', async (req, res) => {
 
 app.post('/auth/logout', (req, res) => {
   const sid = req.cookies.sid;
-  if (sid) { sessions.delete(sid); res.clearCookie('sid'); }
+  if (sid) { sessions.delete(sid); res.clearCookie('sid', COOKIE_SECURE ? { secure: true, sameSite: 'lax', httpOnly: true } : undefined); }
   res.json({ ok:true });
 });
 
