@@ -10,12 +10,22 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 
-// Ensure migrations table
+// Ensure required tables exist
 db.exec(`
 CREATE TABLE IF NOT EXISTS schema_migrations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   filename TEXT NOT NULL UNIQUE,
   applied_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+
+CREATE TABLE IF NOT EXISTS alerts (
+  id TEXT PRIMARY KEY,
+  token TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  severity TEXT NOT NULL DEFAULT 'info',
+  deadline TEXT NOT NULL,
+  tags TEXT DEFAULT '[]'
 );
 `);
 
