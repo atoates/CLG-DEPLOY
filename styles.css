@@ -589,7 +589,7 @@ body{
 }
 @media (max-width: 720px){
   .alert-tags{ gap:4px; }
-  .alert-tag{ font-size:12px; padding:3px 8px; }
+  .alert-tag{ font-size:11px; padding:2px 7px; }
   .brand-tagline{ display:none; }
   .market-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
   .mk-price{ font-size:20px; }
@@ -615,20 +615,20 @@ body{
   
   /* Improve alert list spacing on mobile - FINAL VERSION */
   #alerts-list.alerts-list {
-    gap: 20px !important; /* Balanced gap between items */
-    padding: 12px 0 !important;
-    margin: 8px 0 !important;
+    gap: 16px !important; /* Use a single gap value; no per-item margins */
+    padding: 8px 0 !important;
+    margin: 0 !important;
   }
   
   #alerts-list .alert-item,
   .alerts-list .alert-item,
   .alert-item { 
     /* Compact internal layout on mobile */
-    grid-template-columns: 1fr minmax(0, auto) 56px !important; 
+    grid-template-columns: 1fr minmax(0, auto) 52px !important; 
     column-gap: 8px !important;
-  margin: 12px 0 !important; /* balanced outer spacing */
-  padding: 14px 12px !important; /* tighter internal padding */
-  margin-bottom: 16px !important; /* consistent bottom spacing */
+    /* Zero external margins; container gap controls vertical rhythm */
+    margin: 0 !important;
+    padding: 14px 12px !important; /* tighter internal padding */
     display: grid !important;
     transform: translateY(0) !important;
     /* Restore original styling */
@@ -641,31 +641,31 @@ body{
   /* Tighter tags column on mobile */
   .alert-tags {
     min-width: 0 !important;
-    padding: 0 !important;
-    gap: 4px !important;
+    padding: 0 2px 0 0 !important;
+    gap: 3px !important;
     justify-content: flex-start !important;
     align-items: flex-start !important;
   }
 
   /* Compact dismiss column spacing */
   .dismiss-col{
-    min-width: 56px !important;
+    min-width: 52px !important;
     margin-left: 8px !important;
     padding-left: 8px !important;
-    gap: 4px !important;
+    gap: 2px !important;
   }
   .dismiss-title{
     font-size: 10px !important;
     letter-spacing: .1px !important;
   }
   
-  /* Add spacing between each alert item */
-  .alert-item + .alert-item { margin-top: 20px !important; }
+  /* No additional per-item spacing; rely on the list gap above */
+  .alert-item + .alert-item { margin-top: 0 !important; }
   
   /* Force container spacing */
   main.container,
   .container {
-    padding: 24px 16px !important;
+    padding: 16px 12px !important;
   }
 }
 @media (max-width: 640px){
