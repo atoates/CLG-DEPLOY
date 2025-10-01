@@ -53,12 +53,11 @@ for (const file of files) {
   const full = path.join(migrationsDir, file);
   const sql = fs.readFileSync(full, 'utf8');
   console.log('Applying migration:', file);
-  const tx = db.transaction((s) => {
-    db.exec(s);
-    db.prepare('INSERT INTO schema_migrations (filename) VALUES (?)').run(file);
-  });
   try {
-    tx(sql);
+    db.transaction(() => {
+      db.exec(sql);
+      db.prepare('INSERT INTO schema_migrations (filename) VALUES (?)').run(file);
+    })();
     console.log('Applied', file);
   } catch (e) {
     console.error('Failed to apply', file, e && e.stack ? e.stack : e);
