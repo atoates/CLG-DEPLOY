@@ -51,6 +51,7 @@ let showAll       = false;                               // include dismissed
 let sevFilter     = ['critical','warning','info'];       // active severities
 let tagFilter     = [];                                  // active tag filters
 let hiddenKeys    = new Set();                           // dismissed set
+let tagPillsExpanded = false;                            // expanded view for selected tag pills
 
 let serverAlerts = [];
 let autoAlerts   = [];
@@ -404,10 +405,18 @@ function initializeTagFilters() {
     if (selectedTagsDisplay && !selectedTagsDisplay.dataset.bound) {
       selectedTagsDisplay.addEventListener('click', function(e) {
         const btn = e.target.closest('.remove-tag');
-        if (!btn) return;
-        const pill = btn.closest('.selected-tag-pill');
-        const tag = pill && pill.dataset && pill.dataset.tag;
-        if (tag) removeTagFilter(tag);
+        const more = e.target.closest('.toggle-more-pill');
+        if (btn) {
+          const pill = btn.closest('.selected-tag-pill');
+          const tag = pill && pill.dataset && pill.dataset.tag;
+          if (tag) removeTagWithAnimation(tag);
+          return;
+        }
+        if (more) {
+          tagPillsExpanded = true;
+          updateSelectedTagsDisplay();
+          return;
+        }
       });
       selectedTagsDisplay.dataset.bound = '1';
     }
@@ -485,18 +494,30 @@ function updateSelectedTagsDisplay() {
     return;
   }
   
-  // Render pills with data-tag and no inline handlers; clicks are delegated
-  selectedTagsDisplay.innerHTML = tagFilter.map(tag => `
+  const LIMIT = 4;
+  const visible = tagPillsExpanded ? tagFilter : tagFilter.slice(0, LIMIT);
+  const hiddenCount = Math.max(0, tagFilter.length - visible.length);
+  
+  let html = visible.map(tag => `
     <div class="selected-tag-pill" data-tag="${tag}">
       ${tag}
       <button class="remove-tag" type="button" title="Remove ${tag}" aria-label="Remove ${tag}">×</button>
     </div>
   `).join('');
+  
+  if (hiddenCount > 0 && !tagPillsExpanded) {
+    html += `
+      <button type="button" class="selected-tag-pill toggle-more-pill" aria-label="Show ${hiddenCount} more tags">+${hiddenCount} more</button>
+    `;
+  }
+  
+  selectedTagsDisplay.innerHTML = html;
 }
 
 function removeTagFilter(tagToRemove) {
   // Remove from tagFilter array
   tagFilter = tagFilter.filter(tag => tag !== tagToRemove);
+  if (tagFilter.length <= 4) tagPillsExpanded = false; // collapse when small
   
   // Update dropdown option visual state
   const dropdownOptions = document.getElementById('tag-dropdown-options');
@@ -514,6 +535,7 @@ function removeTagFilter(tagToRemove) {
 function resetTagFilters() {
   // Clear all selections
   tagFilter = [];
+  tagPillsExpanded = false;
   
   // Update all dropdown options
   const dropdownOptions = document.getElementById('tag-dropdown-options');
@@ -525,6 +547,23 @@ function resetTagFilters() {
   updateSelectedTagsDisplay();
   updateDropdownText();
   renderAlerts();
+}
+
+// Animate pill removal then update state
+function removeTagWithAnimation(tag) {
+  const container = document.getElementById('selected-tags-display');
+  const pill = container && container.querySelector(`.selected-tag-pill[data-tag="${tag}"]`);
+  if (!pill) { removeTagFilter(tag); return; }
+  // Add removing class to trigger CSS transition
+  pill.classList.add('removing');
+  // After transition, update the data
+  const done = () => {
+    pill.removeEventListener('transitionend', done);
+    removeTagFilter(tag);
+  };
+  pill.addEventListener('transitionend', done);
+  // Fallback in case transitionend doesn't fire
+  setTimeout(done, 200);
 }
 
 // Apply tag filter

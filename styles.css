@@ -361,6 +361,7 @@ body{
   font-size: 12px;
   font-weight: 500;
   animation: slideIn 0.2s ease;
+  transition: opacity .18s ease, transform .18s ease, max-width .18s ease, margin .18s ease;
 }
 
 .selected-tag-pill .remove-tag {
@@ -382,6 +383,21 @@ body{
 
 .selected-tag-pill .remove-tag:hover {
   background: rgba(255,255,255,0.2);
+}
+
+/* Fade-out on remove */
+.selected-tag-pill.removing {
+  opacity: 0;
+  transform: translateY(-6px);
+  margin-right: 0;
+}
+
+/* "+N more" collapsed pill */
+.toggle-more-pill {
+  background: #e2e8f0;
+  color: #0f172a;
+  border: 1px solid rgba(2,6,23,0.12);
+  cursor: pointer;
 }
 
 @keyframes slideIn {
