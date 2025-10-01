@@ -172,13 +172,14 @@ body{
 .switch input:checked + .slider::before{ transform: translateX(20px); }
 
 /* ---------------- Tag filters ---------------- */
+.filter-tags-card { margin-top: 0; padding-top: 14px; }
+.filter-tags-card .section-title { margin-top: 0; }
 .tag-filters-wrap {
   display: flex;
   align-items: flex-start;
   gap: 12px;
   flex-wrap: wrap;
-  margin: 0;                 /* align with tabs/severity on desktop */
-  align-self: center;        /* baseline-align within .tabsbar */
+  margin: 0;
 }
 
 .tag-dropdown-container {

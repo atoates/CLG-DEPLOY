@@ -55,19 +55,8 @@
       <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
     </section>
 
-    <div class="tabsbar" role="navigation" aria-label="Main tabs and filters">
-      <nav class="tabs" role="tablist" aria-label="Main tabs">
-        <button class="tab active" data-tab="alerts" aria-selected="true" role="tab">Alerts</button>
-        <button class="tab" data-tab="summary" aria-selected="false" role="tab">Summary</button>
-        <button class="tab" data-tab="market" aria-selected="false" role="tab">Market</button>
-      </nav>
-
-      <div id="sev-filter" class="sev-filter" role="group" aria-label="Filter by severity">
-        <button class="sev-btn active" data-sev="critical" aria-pressed="true" title="Critical">🚨</button>
-        <button class="sev-btn active" data-sev="warning"  aria-pressed="true" title="Warning">⚠️</button>
-        <button class="sev-btn active" data-sev="info"     aria-pressed="true" title="Info">🛟</button>
-      </div>
-      
+    <!-- Dedicated card for tag filters for clearer alignment -->
+    <section class="card filter-tags-card" aria-label="Tag filters">
       <div class="tag-filters-wrap">
         <div class="tag-dropdown-container">
           <label for="tag-filters" class="tag-dropdown-label">Filter by tags:</label>
@@ -83,6 +72,20 @@
           <div id="selected-tags-display" class="selected-tags-pills"></div>
           <button id="reset-tags" class="btn btn-clear-tags">Clear All</button>
         </div>
+      </div>
+    </section>
+
+    <div class="tabsbar" role="navigation" aria-label="Main tabs and filters">
+      <nav class="tabs" role="tablist" aria-label="Main tabs">
+        <button class="tab active" data-tab="alerts" aria-selected="true" role="tab">Alerts</button>
+        <button class="tab" data-tab="summary" aria-selected="false" role="tab">Summary</button>
+        <button class="tab" data-tab="market" aria-selected="false" role="tab">Market</button>
+      </nav>
+
+      <div id="sev-filter" class="sev-filter" role="group" aria-label="Filter by severity">
+        <button class="sev-btn active" data-sev="critical" aria-pressed="true" title="Critical">🚨</button>
+        <button class="sev-btn active" data-sev="warning"  aria-pressed="true" title="Warning">⚠️</button>
+        <button class="sev-btn active" data-sev="info"     aria-pressed="true" title="Info">🛟</button>
       </div>
 
       <label class="switch small" id="showall-wrap" title="Include dismissed alerts">
