@@ -523,7 +523,17 @@ function assertAuthConfig(){
 app.get('/auth/google', (req, res) => {
   try{ assertAuthConfig(); } catch(e){ return res.status(500).send(String(e.message||e)); }
   const state = crypto.randomBytes(12).toString('hex');
-  res.cookie('oauth_state', state, { httpOnly:true, sameSite:'lax', maxAge: 300000, ...(COOKIE_SECURE ? { secure: true } : {}) });
+  
+  // For HTTPS, use sameSite: 'none' to allow cross-site cookie setting during OAuth redirect
+  const cookieOptions = {
+    httpOnly: true,
+    maxAge: 300000, // 5 minutes
+    ...(COOKIE_SECURE ? { secure: true, sameSite: 'none' } : { sameSite: 'lax' })
+  };
+  
+  console.log('Setting oauth_state cookie with options:', cookieOptions);
+  res.cookie('oauth_state', state, cookieOptions);
+  
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
     redirect_uri: `${BASE_URL}/auth/google/callback`,
@@ -611,7 +621,7 @@ app.get('/auth/google/callback', async (req, res) => {
     qUpsertUser.run(uid);
     db.prepare('UPDATE users SET google_id=?, email=?, name=?, avatar=? WHERE id=?').run(googleId, email, name, avatar, uid);
     setSession(res, { uid });
-    res.clearCookie('oauth_state');
+    res.clearCookie('oauth_state', COOKIE_SECURE ? { secure: true, sameSite: 'none', httpOnly: true } : { sameSite: 'lax', httpOnly: true });
     console.log('OAuth success, redirecting to profile');
     res.redirect('/profile');
   }catch(e){
