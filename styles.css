@@ -257,17 +257,29 @@ body{
 /* ---------------- Alerts list ---------------- */
 .alerts-list{ display:flex; flex-direction:column; gap:12px; }
 .alert-item{
-  display:flex; justify-content:space-between; align-items:flex-start;
+  display:flex; justify-content:flex-start; align-items:stretch;
   padding:12px 14px; margin:6px 0; border-radius:12px; border:1px solid rgba(2,6,23,0.06);
 }
 .alert-item > .content{
   display:flex; align-items:flex-start; gap:10px;
-  flex: 1 1 auto; min-width: 0; /* let content shrink before the dismiss column */
+  flex: 0 1 auto; min-width:0; max-width:60%; /* Let content shrink but not grow */
 }
-.alert-item .alert-icon{ font-size:20px; line-height:1; margin-top:2px; }
+.alert-item .alert-icon{ font-size:20px; line-height:1; margin-top:2px; flex-shrink:0; }
 .alert-item .alert-title{ font-weight:700; }
 .alert-item .alert-desc{ font-size:13px; color:var(--ink-2); margin-top:3px; }
 .alert-meta{ margin-top:6px; }
+
+/* Make tags section grow to fill available space */
+.alert-tags {
+  flex: 1 1 auto;
+  display:flex; 
+  flex-direction:row;
+  justify-content:flex-end;
+  align-items:center;
+  gap:6px;
+  padding:0 12px;
+  flex-wrap:wrap;
+}
 .deadline-chip{
   display:inline-block; font-size:12px; font-weight:800; color:#0b4a8f;
   background:#e6f3ff; border:1px solid #cfe8ff; border-radius:999px; padding:4px 8px;
