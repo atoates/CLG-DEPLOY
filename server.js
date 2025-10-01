@@ -508,11 +508,11 @@ app.post('/admin/migrate', async (req, res) => {
     console.log('Current users table columns:', columnNames);
     
     const missingColumns = [];
-    if (!columnNames.includes('google_id')) missingColumns.push('google_id TEXT UNIQUE');
+    if (!columnNames.includes('google_id')) missingColumns.push('google_id TEXT');
     if (!columnNames.includes('email')) missingColumns.push('email TEXT');
     if (!columnNames.includes('name')) missingColumns.push('name TEXT');
     if (!columnNames.includes('avatar')) missingColumns.push('avatar TEXT');
-    if (!columnNames.includes('created_at')) missingColumns.push('created_at INTEGER NOT NULL DEFAULT (strftime(\'%s\',\'now\'))');
+    if (!columnNames.includes('created_at')) missingColumns.push('created_at INTEGER DEFAULT (strftime(\'%s\',\'now\'))');
     
     if (missingColumns.length > 0) {
       console.log('Adding missing columns:', missingColumns);
