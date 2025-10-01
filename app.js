@@ -31,10 +31,14 @@ function alertKey(a){
   ].join('|');
 }
 
+// --- Import tag definitions ------------------------------------------------
+import { ALERT_TAGS } from './alerts-tags.js';
+
 // --- State (will be hydrated from /api/me) -----------------------------------
 let selectedTokens = [];                                 // watchlist
 let showAll       = false;                               // include dismissed
 let sevFilter     = ['critical','warning','info'];       // active severities
+let tagFilter     = [];                                  // active tag filters
 let hiddenKeys    = new Set();                           // dismissed set
 
 let serverAlerts = [];
@@ -99,6 +103,9 @@ function persistPrefsServerDebounced(){
   // Sync UI controls to prefs
   if (showAllToggle) showAllToggle.checked = showAll;
   syncSevUi();
+  
+  // Initialize tag filters
+  initializeTagFilters();
 
   // Render + load data
   renderDatalist();
@@ -288,6 +295,53 @@ function applySeverityFilter(list){
   return list.filter(a => sevFilter.includes((a.severity || 'info')));
 }
 
+// Initialize tag filters
+function initializeTagFilters() {
+  const tagFiltersEl = document.getElementById('tag-filters');
+  tagFiltersEl.innerHTML = '';
+  
+  Object.entries(ALERT_TAGS).forEach(([tag, info]) => {
+    const btn = document.createElement('button');
+    btn.className = 'tag-filter';
+    btn.setAttribute('data-tag', tag);
+    btn.setAttribute('aria-pressed', 'false');
+    btn.style.borderColor = info.color;
+    
+    const icon = document.createElement('span');
+    icon.className = 'icon';
+    icon.textContent = info.icon;
+    
+    const label = document.createElement('span');
+    label.textContent = info.label;
+    
+    btn.appendChild(icon);
+    btn.appendChild(label);
+    
+    btn.addEventListener('click', () => {
+      btn.classList.toggle('active');
+      btn.setAttribute('aria-pressed', btn.classList.contains('active'));
+      
+      const tag = btn.getAttribute('data-tag');
+      const idx = tagFilter.indexOf(tag);
+      if (idx >= 0) tagFilter.splice(idx, 1);
+      else tagFilter.push(tag);
+      
+      renderAlerts();
+    });
+    
+    tagFiltersEl.appendChild(btn);
+  });
+}
+
+// Apply tag filter
+function applyTagFilter(list) {
+  if (!tagFilter.length) return list;
+  return list.filter(alert => {
+    if (!alert.tags || !alert.tags.length) return false;
+    return tagFilter.some(tag => alert.tags.includes(tag));
+  });
+}
+
 function getRelevantAlerts(){
   if (selectedTokens.length === 0) return [];
   const base = [...serverAlerts, ...autoAlerts].filter(a =>
@@ -295,11 +349,43 @@ function getRelevantAlerts(){
   );
 
   let list = applySeverityFilter(base);
+  list = applyTagFilter(list);
 
   // Hide dismissed unless Show all is ON
   if (!showAll) list = list.filter(a => !isHidden(a));
 
   return list;
+}
+
+// Add tag display to alerts
+function renderAlertTags(alert, parentEl) {
+  if (!alert.tags || !alert.tags.length) return;
+  
+  const tagsWrap = document.createElement('div');
+  tagsWrap.className = 'alert-tags';
+  
+  alert.tags.forEach(tag => {
+    const info = ALERT_TAGS[tag];
+    if (!info) return;
+    
+    const tagEl = document.createElement('span');
+    tagEl.className = 'alert-tag';
+    tagEl.style.background = info.color + '15'; // 15 = 10% opacity
+    tagEl.style.color = info.color;
+    
+    const icon = document.createElement('span');
+    icon.className = 'icon';
+    icon.textContent = info.icon;
+    
+    const label = document.createElement('span');
+    label.textContent = info.label;
+    
+    tagEl.appendChild(icon);
+    tagEl.appendChild(label);
+    tagsWrap.appendChild(tagEl);
+  });
+  
+  parentEl.appendChild(tagsWrap);
 }
 
 // SORT: nearest deadline first
@@ -357,6 +443,9 @@ function renderAlerts(){
     text.appendChild(title);
     text.appendChild(desc);
     text.appendChild(metaWrap);
+    
+    // Add tags display
+    renderAlertTags(a, text);
 
     left.appendChild(icon);
     left.appendChild(text);

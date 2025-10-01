@@ -153,6 +153,69 @@ body{
 .switch input:checked + .slider{ background: var(--ocean-blue); border-color: var(--ocean-blue); box-shadow: 0 0 0 4px var(--ring); }
 .switch input:checked + .slider::before{ transform: translateX(20px); }
 
+/* ---------------- Tag filters ---------------- */
+.tag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  background: #f8fafc;
+  border: 1px solid rgba(2,6,23,0.06);
+  border-radius: 12px;
+  margin: 10px 0;
+}
+
+.tag-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: #fff;
+  transition: all 0.2s ease;
+}
+
+.tag-filter:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.tag-filter.active {
+  box-shadow: 0 0 0 2px rgba(2,6,23,0.1);
+}
+
+.tag-filter .icon {
+  font-size: 16px;
+}
+
+/* Alert tags display */
+.alert-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.alert-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.alert-tag .icon {
+  font-size: 14px;
+}
+
 /* ---------------- Alerts list ---------------- */
 .alerts-list{ display:flex; flex-direction:column; gap:12px; }
 .alert-item{
