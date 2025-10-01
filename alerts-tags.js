@@ -1,5 +1,5 @@
 // Alert tag definitions with icons and colors
-export const ALERT_TAGS = {
+const ALERT_TAGS = {
   'price-change': { icon: '📊', label: 'Price Change', color: '#4ade80' },
   'migration': { icon: '🔄', label: 'Migration', color: '#60a5fa' },
   'hack': { icon: '🔓', label: 'Hack', color: '#f87171' },
@@ -11,3 +11,9 @@ export const ALERT_TAGS = {
   'community': { icon: '👥', label: 'Community', color: '#fb923c' },
   'exploit': { icon: '⚡', label: 'Exploit', color: '#f43f5e' }
 };
+
+// Make tags available globally
+window.ALERT_TAGS = ALERT_TAGS;
+
+// Export for ES modules
+export { ALERT_TAGS };
