@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "start": "node migrate.js && node update-tags.js && node server.js",
+    "start": "node migrate.js && node restore-alerts.js && node update-tags.js && node server.js",
     "preview": "vite preview --host",
     "migrate": "node migrate.js",
     "backup": "node backup.js",
