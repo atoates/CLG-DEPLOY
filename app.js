@@ -130,13 +130,13 @@ document.addEventListener('DOMContentLoaded', () => {
       userMenu.hidden = true;
       userMenuBtn.setAttribute('aria-expanded', 'false');
       
-      // Mock actions for demo
-      console.log('Menu action:', action);
-      if (action === 'login') alert('Login dialog would open');
-      if (action === 'signup') alert('Signup dialog would open');
-      if (action === 'settings') alert('Settings page would open');
-      if (action === 'help') alert('Help page would open');
-      if (action === 'logout') alert('Logout confirmation would show');
+      // Real actions
+      if (action === 'login' || action === 'signup') window.location.href = '/signup';
+      if (action === 'settings' || action === 'profile') window.location.href = '/profile';
+      if (action === 'help') window.open('https://github.com/atoates/CLG-DEPLOY', '_blank');
+      if (action === 'logout') {
+        fetch('/auth/logout', { method:'POST' }).finally(() => { window.location.reload(); });
+      }
     });
   }
 });
