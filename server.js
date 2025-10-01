@@ -105,6 +105,34 @@ app.use(cookieParser());
 const sessions = new Map(); // sid -> { uid }
 const oauthStates = new Map(); // state -> { timestamp, used }
 
+// Load OAuth states from file on startup (for persistence across restarts)
+const OAUTH_STATES_FILE = path.join(DATA_DIR, 'oauth_states.json');
+try {
+  if (fs.existsSync(OAUTH_STATES_FILE)) {
+    const statesData = JSON.parse(fs.readFileSync(OAUTH_STATES_FILE, 'utf8'));
+    const now = Date.now();
+    const tenMinutesAgo = now - 10 * 60 * 1000;
+    
+    for (const [state, data] of Object.entries(statesData)) {
+      if (data.timestamp > tenMinutesAgo && !data.used) {
+        oauthStates.set(state, data);
+      }
+    }
+    console.log('Loaded', oauthStates.size, 'valid OAuth states from disk');
+  }
+} catch (e) {
+  console.warn('Failed to load OAuth states from disk:', e.message);
+}
+
+function saveOAuthStates() {
+  try {
+    const statesObj = Object.fromEntries(oauthStates.entries());
+    fs.writeFileSync(OAUTH_STATES_FILE, JSON.stringify(statesObj, null, 2));
+  } catch (e) {
+    console.warn('Failed to save OAuth states to disk:', e.message);
+  }
+}
+
 function setSession(res, data){
   const sid = crypto.randomBytes(16).toString('hex');
   sessions.set(sid, { ...data, t: Date.now() });
@@ -537,6 +565,9 @@ app.get('/auth/google', (req, res) => {
     }
   }
   
+  // Save states to disk for persistence
+  saveOAuthStates();
+  
   console.log('Generated OAuth state:', state, 'Total states in memory:', oauthStates.size);
   
   const params = new URLSearchParams({
@@ -589,6 +620,7 @@ app.get('/auth/google/callback', async (req, res) => {
   
   // Mark state as used and remove it
   oauthStates.delete(state);
+  saveOAuthStates();
   console.log('OAuth state validated successfully:', state);
   
   try{
