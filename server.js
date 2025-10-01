@@ -1,5 +1,8 @@
 // server.js
-require('dotenv').config();
+// Only load .env in development (when not in Railway/production)
+if (!process.env.RAILWAY_ENVIRONMENT) {
+  require('dotenv').config();
+}
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
