@@ -31,8 +31,19 @@ function alertKey(a){
   ].join('|');
 }
 
-// --- Import tag definitions ------------------------------------------------
-import { ALERT_TAGS } from './alerts-tags.js';
+// --- Tag definitions ------------------------------------------------
+const ALERT_TAGS = {
+  'price-change': { icon: '📊', label: 'Price Change', color: '#4ade80' },
+  'migration': { icon: '🔄', label: 'Migration', color: '#60a5fa' },
+  'hack': { icon: '🔓', label: 'Hack', color: '#f87171' },
+  'fork': { icon: '🔱', label: 'Fork', color: '#a78bfa' },
+  'scam': { icon: '⚠️', label: 'Scam', color: '#fbbf24' },
+  'airdrop': { icon: '🪂', label: 'Airdrop', color: '#34d399' },
+  'whale': { icon: '🐋', label: 'Whale Alert', color: '#818cf8' },
+  'news': { icon: '📰', label: 'News', color: '#94a3b8' },
+  'community': { icon: '👥', label: 'Community', color: '#fb923c' },
+  'exploit': { icon: '⚡', label: 'Exploit', color: '#f43f5e' }
+};
 
 // --- State (will be hydrated from /api/me) -----------------------------------
 let selectedTokens = [];                                 // watchlist
@@ -84,6 +95,44 @@ function persistPrefsServerDebounced(){
       })
     }).catch(()=>{});
   }, 250);
+}
+
+// --- User menu dropdown ------------------------------------------------------
+const userMenuBtn = document.getElementById('user-menu-btn');
+const userMenu = document.getElementById('user-menu');
+
+if (userMenuBtn && userMenu) {
+  userMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isHidden = userMenu.hidden;
+    userMenu.hidden = !isHidden;
+    userMenuBtn.setAttribute('aria-expanded', !isHidden);
+  });
+
+  // Close on click outside
+  document.addEventListener('click', (e) => {
+    if (!userMenu.contains(e.target) && !userMenuBtn.contains(e.target)) {
+      userMenu.hidden = true;
+      userMenuBtn.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // Handle menu item clicks
+  userMenu.addEventListener('click', (e) => {
+    const action = e.target.getAttribute('data-action');
+    if (!action) return;
+    
+    userMenu.hidden = true;
+    userMenuBtn.setAttribute('aria-expanded', 'false');
+    
+    // Mock actions for demo
+    console.log('Menu action:', action);
+    if (action === 'login') alert('Login dialog would open');
+    if (action === 'signup') alert('Signup dialog would open');
+    if (action === 'settings') alert('Settings page would open');
+    if (action === 'help') alert('Help page would open');
+    if (action === 'logout') alert('Logout confirmation would show');
+  });
 }
 
 // --- Init (boot) -------------------------------------------------------------

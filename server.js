@@ -135,7 +135,7 @@ app.post('/api/me/prefs', (req, res) => {
 /* ---------------- Alerts API ---------------- */
 app.get('/api/alerts', (_req, res) => res.json(alerts));
 app.post('/api/alerts', (req, res) => {
-  const { token, title, description, severity, deadline } = req.body || {};
+  const { token, title, description, severity, deadline, tags } = req.body || {};
   if (!token || !title || !deadline) return res.status(400).json({ error:'token, title, deadline are required' });
   const item = {
     id:`a_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
@@ -143,7 +143,8 @@ app.post('/api/alerts', (req, res) => {
     title:String(title),
     description:String(description||''),
     severity:['critical','warning','info'].includes(severity)?severity:'info',
-    deadline:new Date(deadline).toISOString()
+    deadline:new Date(deadline).toISOString(),
+    tags: Array.isArray(tags) ? tags.filter(t => typeof t === 'string') : []
   };
   alerts.push(item); persistAlerts();
   res.status(201).json(item);

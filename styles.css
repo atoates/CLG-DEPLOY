@@ -185,7 +185,9 @@ body{
 }
 
 .tag-filter.active {
-  box-shadow: 0 0 0 2px rgba(2,6,23,0.1);
+  box-shadow: 0 0 0 2px currentColor;
+  background: var(--ring);
+  transform: translateY(-1px);
 }
 
 .tag-filter .icon {
