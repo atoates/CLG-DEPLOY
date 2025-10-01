@@ -372,6 +372,17 @@ function initializeTagFilters() {
   
   // Handle multi-select changes
   tagSelect.addEventListener('change', handleTagFilterChange);
+  
+  // Also handle click events for better multi-select behavior
+  tagSelect.addEventListener('click', function(e) {
+    if (e.target.tagName === 'OPTION' && e.target.value !== '') {
+      // Toggle the option selection
+      e.target.selected = !e.target.selected;
+      handleTagFilterChange();
+      e.preventDefault();
+    }
+  });
+  
   resetTagsBtn.addEventListener('click', resetTagFilters);
   
   // Initialize display
@@ -380,9 +391,16 @@ function initializeTagFilters() {
 
 function handleTagFilterChange() {
   const tagSelect = document.getElementById('tag-filters');
-  const selectedOptions = Array.from(tagSelect.selectedOptions);
-  tagFilter = selectedOptions.map(option => option.value).filter(val => val !== '');
   
+  // For multi-select, we need to check all selected options
+  const selectedValues = [];
+  Array.from(tagSelect.options).forEach(option => {
+    if (option.selected && option.value !== '') {
+      selectedValues.push(option.value);
+    }
+  });
+  
+  tagFilter = selectedValues;
   updateSelectedTagsDisplay();
   renderAlerts();
 }

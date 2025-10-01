@@ -195,23 +195,27 @@ body{
 
 .tag-select {
   width: 100%;
-  min-height: 42px;
+  height: 44px;
+  min-height: 44px;
   padding: 10px 12px;
-  border: 2px solid rgba(2,6,23,0.1);
-  border-radius: 10px;
+  border: 1px solid rgba(2,6,23,0.14);
+  border-radius: 12px;
   background: white;
   color: var(--ink);
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
   font-family: inherit;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 0 #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tag-select:focus {
   outline: none;
   border-color: var(--ocean-blue);
-  box-shadow: 0 0 0 3px var(--ring), 0 4px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 0 0 4px var(--ring);
 }
 
 .tag-select option {
