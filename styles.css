@@ -185,6 +185,22 @@ body{
   min-width: 250px;
 }
 
+.btn-clear-tags {
+  background: #64748b;
+  color: white;
+  border: none;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  margin-top: 8px;
+  align-self: flex-start;
+  transition: background-color 0.2s ease;
+}
+
+.btn-clear-tags:hover {
+  background: #475569;
+}
+
 .tag-dropdown-label {
   display: block;
   font-size: 14px;
@@ -376,16 +392,6 @@ body{
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.btn-secondary {
-  background: #64748b;
-  color: white;
-  border: none;
-}
-
-.btn-secondary:hover {
-  background: #475569;
 }
 
 /* Legacy styles for backward compatibility */
