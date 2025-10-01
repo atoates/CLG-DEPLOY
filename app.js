@@ -353,9 +353,22 @@ function applySeverityFilter(list){
 // Initialize tag filters
 function initializeTagFilters() {
   const tagFiltersEl = document.getElementById('tag-filters');
+  const resetBtn = document.getElementById('reset-tags');
   if (!tagFiltersEl) return;
   
   tagFiltersEl.innerHTML = '';
+  
+  // Reset button handler
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      tagFilter = [];
+      document.querySelectorAll('.tag-filter').forEach(btn => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-pressed', 'false');
+      });
+      renderAlerts();
+    });
+  }
   
   Object.entries(ALERT_TAGS).forEach(([tag, info]) => {
     const btn = document.createElement('button');
@@ -428,18 +441,10 @@ function renderAlertTags(alert, parentEl) {
     
     const tagEl = document.createElement('span');
     tagEl.className = 'alert-tag';
-    tagEl.style.background = info.color + '15'; // 15 = 10% opacity
     tagEl.style.color = info.color;
+    tagEl.title = info.label;
+    tagEl.textContent = info.icon;
     
-    const icon = document.createElement('span');
-    icon.className = 'icon';
-    icon.textContent = info.icon;
-    
-    const label = document.createElement('span');
-    label.textContent = info.label;
-    
-    tagEl.appendChild(icon);
-    tagEl.appendChild(label);
     tagsWrap.appendChild(tagEl);
   });
   
