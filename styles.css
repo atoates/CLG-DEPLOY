@@ -623,9 +623,11 @@ body{
   #alerts-list .alert-item,
   .alerts-list .alert-item,
   .alert-item { 
-    /* Compact internal layout on mobile */
-    grid-template-columns: 1fr minmax(80px, auto) 56px !important; 
-    column-gap: 8px !important;
+    /* Two-column mobile layout: content | dismiss, with tags on their own row */
+    grid-template-columns: 1fr 56px !important; 
+    grid-auto-rows: auto;
+    row-gap: 8px !important;
+    column-gap: 10px !important;
     margin: 10px 0 !important; /* balanced outer spacing */
     padding: 12px 12px !important; /* tighter internal padding */
     margin-bottom: 12px !important; /* consistent bottom spacing */
@@ -638,21 +640,31 @@ body{
     box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
   }
 
+  /* Ensure content occupies first column, first row */
+  .alert-item > .content { grid-column: 1 / 2 !important; grid-row: 1 !important; }
+
   /* Tighter tags column on mobile */
+  /* Tags as their own section, spanning full width under the content */
   .alert-tags {
+    grid-column: 1 / -1 !important; /* span both columns */
+    grid-row: 2 !important;
     min-width: 0 !important;
-    padding: 0 !important;
-    gap: 4px !important;
+    padding: 6px 0 0 !important;
+    margin: 0 !important;
+    gap: 6px !important;
     justify-content: flex-start !important;
-    align-items: flex-start !important;
+    align-items: center !important;
+    border-top: 1px solid rgba(2,6,23,0.06) !important;
   }
 
   /* Compact dismiss column spacing */
   .dismiss-col{
+    grid-column: 2 / 3 !important; grid-row: 1 !important;
     min-width: 56px !important;
     margin-left: 8px !important;
     padding-left: 8px !important;
     gap: 4px !important;
+    align-self: start !important;
   }
   .dismiss-title{
     font-size: 10px !important;
