@@ -353,9 +353,10 @@ function initializeTagFilters() {
   const tagSelect = document.getElementById('tag-filters');
   const resetTagsBtn = document.getElementById('reset-tags');
   
-  // Get all unique tags from alerts
+  // Get all unique tags from combined alerts (serverAlerts + autoAlerts)
   const allTags = new Set();
-  alerts.forEach(alert => {
+  const combinedAlerts = [...serverAlerts, ...autoAlerts];
+  combinedAlerts.forEach(alert => {
     const tags = getAlertTagsArray(alert);
     tags.forEach(tag => allTags.add(tag));
   });
