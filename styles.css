@@ -8,9 +8,13 @@
   --teal:#20b2aa;
   --ink:#0f172a;
   --ink-2:#334155;
+  --ring: rgba(30,144,255,0.25);
+}
+
 .alert-tag {
   display: inline-flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   padding: 4px 10px;
   border-radius: 999px;
@@ -23,10 +27,7 @@
 }
 
 .alert-tag .icon {
-  order: 2;  /* This moves the icon to the end */
   margin-left: auto;
-}
-  --ring: rgba(30,144,255,0.25);
 }
 
 *{ box-sizing:border-box; }
