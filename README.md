@@ -26,3 +26,4 @@ A zero-dependency web prototype you can open in any modern browser. It lets user
    - `BASE_URL` (e.g., `http://localhost:3000` for local)
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - Visit `/signup` to start; `/profile` shows current user and prefs.
+// Trigger deployment Thu Oct  2 12:53:35 BST 2025
