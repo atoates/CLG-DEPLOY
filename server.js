@@ -218,6 +218,28 @@ let alerts = readJsonSafe(ALERTS_PATH, [
 ]);
 function persistAlerts(){ writeJsonSafe(ALERTS_PATH, alerts); }
 
+// Prefer DB alerts if available (keeps start sequence consistent with restore-alerts.js)
+try {
+  const rows = db.prepare('SELECT id, token, title, description, severity, deadline, tags FROM alerts').all();
+  if (Array.isArray(rows) && rows.length > 0) {
+    alerts = rows.map(r => ({
+      id: r.id || `db_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+      token: String(r.token || '').toUpperCase(),
+      title: String(r.title || ''),
+      description: String(r.description || ''),
+      severity: ['critical','warning','info'].includes(r.severity) ? r.severity : 'info',
+      deadline: new Date(r.deadline).toISOString(),
+      tags: (() => { try{ const t = typeof r.tags === 'string' ? JSON.parse(r.tags) : r.tags; return Array.isArray(t) ? t : []; } catch { return []; } })()
+    }));
+    persistAlerts();
+    console.log(`Loaded ${alerts.length} alerts from DB into file-backed store`);
+  } else {
+    console.log('No DB alerts found; using file-backed alerts.json');
+  }
+} catch (e) {
+  console.warn('Failed to load alerts from DB; using file-backed alerts.json', e && e.message);
+}
+
 /* ---------------- User prefs API ---------------- */
 app.get('/api/me', (req, res) => {
   // If Google session exists, prefer that user id
