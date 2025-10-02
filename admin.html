@@ -66,7 +66,21 @@
       <img class="brand-logo" src="https://i.postimg.cc/Fz0xdDzd/Crypto-Lifeguard-Logo-Striking-Impact-background.png" alt="Logo" />
       <div class="brand-text"><h1 class="brand-title">Crypto Lifeguard</h1><p class="brand-tagline">Admin dashboard</p></div>
     </a>
-    <div class="actions"><a class="menu-btn" href="/" aria-label="Go to Home">Home</a></div>
+    <div class="actions">
+      <div class="dropdown">
+        <button id="user-menu-btn" class="menu-btn" aria-haspopup="true" aria-expanded="false">
+          Account ▾
+        </button>
+        <div id="user-menu" class="menu" hidden>
+          <a class="menu-item" href="/">Home</a>
+          <hr />
+          <button class="menu-item" data-action="settings">Settings</button>
+          <button class="menu-item" data-action="help">Help</button>
+          <hr />
+          <button class="menu-item" data-action="logout" id="menu-logout" hidden>Log out</button>
+        </div>
+      </div>
+    </div>
   </div></header>
 
   <main class="container">

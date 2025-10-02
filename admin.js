@@ -809,3 +809,53 @@ let validatedAlerts = [];
       importBtn.disabled = false;
     }
   });
+
+// --- Account Menu Functionality ---
+const userMenuBtn = document.getElementById('user-menu-btn');
+const userMenu = document.getElementById('user-menu');
+
+if (userMenuBtn && userMenu) {
+  userMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isExpanded = userMenuBtn.getAttribute('aria-expanded') === 'true';
+    
+    if (isExpanded) {
+      userMenu.hidden = true;
+      userMenuBtn.setAttribute('aria-expanded', 'false');
+    } else {
+      userMenu.hidden = false;
+      userMenuBtn.setAttribute('aria-expanded', 'true');
+    }
+  });
+
+  // Close menu when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!userMenuBtn.contains(e.target) && !userMenu.contains(e.target)) {
+      userMenu.hidden = true;
+      userMenuBtn.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // Handle menu item clicks
+  userMenu.addEventListener('click', (e) => {
+    if (e.target.classList.contains('menu-item') && e.target.dataset.action) {
+      const action = e.target.dataset.action;
+      
+      switch (action) {
+        case 'settings':
+          showMsg('Settings not yet implemented');
+          break;
+        case 'help':
+          showMsg('Help not yet implemented');
+          break;
+        case 'logout':
+          showMsg('Logout not yet implemented');
+          break;
+      }
+      
+      // Close menu after action
+      userMenu.hidden = true;
+      userMenuBtn.setAttribute('aria-expanded', 'false');
+    }
+  });
+}
