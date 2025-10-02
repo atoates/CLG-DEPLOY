@@ -369,7 +369,16 @@ function buildAdminTagOptions(){
     opt.className = 'dropdown-option';
     opt.setAttribute('data-tag', tag);
     const box = document.createElement('span'); box.className = 'option-checkbox';
-    const label = document.createElement('span'); label.className = 'option-label'; label.textContent = tag;
+    const label = document.createElement('span'); label.className = 'option-label';
+    // decorate with icon/label from ALERT_TAGS when available
+    if (window.ALERT_TAGS && window.ALERT_TAGS[tag]){
+      const info = window.ALERT_TAGS[tag];
+      label.textContent = `${info.icon || ''} ${tag}`;
+      // subtle color cue
+      label.style.color = info.color || '';
+    } else {
+      label.textContent = tag;
+    }
     opt.appendChild(box); opt.appendChild(label);
     opt.addEventListener('click', () => {
       const cur = gatherTags();
