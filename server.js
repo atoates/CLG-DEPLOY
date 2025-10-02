@@ -224,6 +224,8 @@ app.get('/api/me', (req, res) => {
   const sess = getSession(req);
   const effectiveUid = sess?.uid || req.uid;
   const urow = qGetUser.get(effectiveUid);
+  const emailLower = (urow && urow.email ? String(urow.email).toLowerCase() : '');
+  const isAdmin = !!(emailLower && ADMIN_EMAILS.includes(emailLower));
   const row = qGetPrefs.get(effectiveUid);
   if (!row) {
     // first-time defaults
@@ -234,6 +236,7 @@ app.get('/api/me', (req, res) => {
       showAll: false,
       dismissed: [],
       loggedIn: !!sess,
+      isAdmin,
       profile: urow ? { name: urow.name || '', email: urow.email || '', avatar: urow.avatar || '', username: urow.username || '' } : { name:'', email:'', avatar:'', username:'' }
     };
     qUpsertPrefs.run({
@@ -252,6 +255,7 @@ app.get('/api/me', (req, res) => {
     showAll: !!row.show_all,
     dismissed: JSON.parse(row.dismissed_json),
     loggedIn: !!sess,
+    isAdmin,
     profile: urow ? { name: urow.name || '', email: urow.email || '', avatar: urow.avatar || '', username: urow.username || '' } : { name:'', email:'', avatar:'', username:'' }
   });
 });
@@ -308,7 +312,7 @@ app.post('/api/me/prefs', (req, res) => {
 
 /* ---------------- Alerts API ---------------- */
 app.get('/api/alerts', (_req, res) => res.json(alerts));
-app.post('/api/alerts', (req, res) => {
+app.post('/api/alerts', requireAdmin, (req, res) => {
   const { token, title, description, severity, deadline, tags } = req.body || {};
   if (!token || !title || !deadline) return res.status(400).json({ error:'token, title, deadline are required' });
   

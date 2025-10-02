@@ -180,6 +180,18 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             window.location.href = '/profile';
           });
+          // If admin, add a small Admin chip next to the profile button
+          if (me.isAdmin) {
+            const actions = document.querySelector('.topbar .actions');
+            if (actions) {
+              const chip = document.createElement('a');
+              chip.href = '/admin';
+              chip.className = 'menu-btn';
+              chip.textContent = 'Admin';
+              chip.style.background = 'rgba(255,255,255,.18)';
+              actions.appendChild(chip);
+            }
+          }
         }
       }
     }
