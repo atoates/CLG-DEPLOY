@@ -19,7 +19,7 @@
     .sev-info{ background:#e8fff5; border-color:#b9f3d3; color:#0c6a45; }
     .title-line{ font-weight:700; color:#0f172a; }
     .meta-line{ font-size:12px; color:#475569; }
-    .field{ display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+  .field{ display:flex; flex-direction:column; gap:4px; margin-bottom:8px; }
     .field label{ font-size:12px; font-weight:800; color:#334155; }
     .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
     .seg{ display:inline-flex; border:1px solid rgba(2,6,23,0.12); border-radius:10px; overflow:hidden; }
@@ -37,12 +37,13 @@
     .muted{ color:#64748b; font-size:12px; }
     .side-note{ font-size:12px; color:#334155; margin-top:6px; }
     .search{ width:100%; }
-    /* Tighter inputs for admin */
-    .admin-pane .input{ padding:8px 10px; min-height:34px; font-size:14px; }
-    .admin-pane textarea.input{ height:120px; min-height:120px; resize:vertical; }
-    .admin-pane input[type="datetime-local"].input{ height:36px; }
-    .admin-pane .seg button{ padding:6px 10px; font-size:13px; }
-    .admin-pane .search.input{ height:36px; }
+  /* Tighter inputs for admin */
+  .admin-pane .input{ padding:6px 10px; min-height:30px; height:32px; font-size:14px; border-radius:8px; }
+  .admin-pane input.input{ line-height:1.2; }
+  .admin-pane textarea.input{ height:120px; min-height:120px; resize:vertical; line-height:1.35; }
+  .admin-pane input[type="datetime-local"].input{ height:32px; }
+  .admin-pane .seg button{ padding:6px 8px; font-size:13px; }
+  .admin-pane .search.input{ height:32px; }
 
     /* Tabs */
     .admin-tabs{ display:flex; gap:8px; margin-bottom:10px; }
@@ -51,7 +52,7 @@
     .tools-wrap{ max-width: 720px; margin: 0 auto; display:flex; flex-direction:column; gap:12px; }
     @media (max-width: 1100px){ .admin-grid{ grid-template-columns: 1fr; } .admin-list{ max-height:none; } }
   </style>
-  <script type="module" src="/admin.js"></script>
+  
 </head>
 <body>
   <header class="topbar"><div class="topbar-inner">
@@ -163,10 +164,11 @@
           </div>
         </div>
       </section>
-      </div>
     </section>
   </main>
 
   <footer class="footer muted"><span>© 2025 Crypto Lifeguard — demo build</span></footer>
+  <!-- Load script at the end to ensure DOM elements exist -->
+  <script type="module" src="/admin.js"></script>
 </body>
 </html>
