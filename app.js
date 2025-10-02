@@ -1034,5 +1034,7 @@ function renderAll(){
 }
 
 // --- Load initial data --------------------------------------------------------
-await loadAlertsFromServer();
-renderAll();
+(async () => {
+  await loadAlertsFromServer();
+  renderAll();
+})();
