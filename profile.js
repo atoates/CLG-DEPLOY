@@ -5,6 +5,7 @@ const nameEl = document.getElementById('prof-name');
 const emailEl = document.getElementById('prof-email');
 const avatarEl = document.getElementById('prof-avatar');
 const usernameEl = document.getElementById('prof-username');
+const adminBadgeEl = document.getElementById('prof-admin-badge');
 const usernameInput = document.getElementById('prof-username-input');
 const usernameSave = document.getElementById('prof-username-save');
 const pillsEl = document.getElementById('prof-watch-pills');
@@ -63,6 +64,7 @@ async function loadMe(){
   me = await r.json();
   if (!me.loggedIn){ window.location.href = '/'; return; }
   nameEl.textContent = me.profile?.name || 'Your profile';
+  if (adminBadgeEl) adminBadgeEl.style.display = me.isAdmin ? 'inline-flex' : 'none';
   usernameEl.textContent = me.profile?.username ? `@${me.profile.username}` : '';
   emailEl.textContent = me.profile?.email || '';
   setAvatar(me.profile || {});
