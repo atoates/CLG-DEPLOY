@@ -6,7 +6,7 @@
   <title>Admin — Alerts Dashboard</title>
   <link rel="stylesheet" href="/styles.css?v=20251002" />
   <style>
-    .admin-grid{ display:grid; grid-template-columns: 320px 1fr 300px; gap:16px; align-items:start; }
+  .admin-grid{ display:grid; grid-template-columns: 320px 1fr; gap:16px; align-items:start; }
     .admin-pane{ background:#fff; border:1px solid rgba(2,6,23,0.06); border-radius:12px; padding:12px; box-shadow:0 4px 14px rgba(0,0,0,.06); }
     .admin-list{ max-height: calc(100vh - 280px); overflow:auto; display:flex; flex-direction:column; gap:8px; }
     .admin-item{ padding:10px; border:1px solid rgba(2,6,23,0.08); border-radius:10px; cursor:pointer; background:#f8fafc; display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; }
@@ -37,6 +37,18 @@
     .muted{ color:#64748b; font-size:12px; }
     .side-note{ font-size:12px; color:#334155; margin-top:6px; }
     .search{ width:100%; }
+    /* Tighter inputs for admin */
+    .admin-pane .input{ padding:8px 10px; min-height:34px; font-size:14px; }
+    .admin-pane textarea.input{ height:120px; min-height:120px; resize:vertical; }
+    .admin-pane input[type="datetime-local"].input{ height:36px; }
+    .admin-pane .seg button{ padding:6px 10px; font-size:13px; }
+    .admin-pane .search.input{ height:36px; }
+
+    /* Tabs */
+    .admin-tabs{ display:flex; gap:8px; margin-bottom:10px; }
+    .admin-tab{ background:#eef6ff; border:1px solid #d9ecff; padding:8px 12px; border-radius:999px; cursor:pointer; font-weight:700; color:#0456b2; }
+    .admin-tab.active{ background:#fff; border-color: var(--ocean-blue); box-shadow:0 0 0 4px var(--ring); color: var(--ocean-blue); }
+    .tools-wrap{ max-width: 720px; margin: 0 auto; display:flex; flex-direction:column; gap:12px; }
     @media (max-width: 1100px){ .admin-grid{ grid-template-columns: 1fr; } .admin-list{ max-height:none; } }
   </style>
   <script type="module" src="/admin.js"></script>
@@ -54,7 +66,12 @@
     <section class="card">
       <div id="admin-info" class="note" style="margin-bottom:10px"></div>
       <h2 class="section-title">Alerts</h2>
-      <div class="admin-grid">
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-tab="alerts">Alerts</button>
+        <button class="admin-tab" data-tab="tools">Tools</button>
+      </div>
+
+      <div id="alerts-pane" class="admin-grid">
         <!-- Left: searchable list -->
         <aside class="admin-pane">
           <div class="row" style="justify-content:space-between; margin-bottom:8px">
@@ -112,8 +129,11 @@
           </form>
         </section>
 
-        <!-- Right: admin tools -->
-        <aside class="admin-pane">
+      </div>
+
+      <!-- Tools tab content -->
+      <section id="tools-pane" class="admin-pane" hidden>
+        <div class="tools-wrap">
           <div class="field">
             <label>Admin token</label>
             <div class="row">
@@ -121,6 +141,7 @@
               <button id="btn-save-token" class="btn" type="button">Use</button>
             </div>
             <div class="side-note" id="token-status">No token</div>
+            <div class="muted">The Admin token is a shared secret set via the ADMIN_TOKEN environment variable. It authorizes protected admin actions (like backups and direct alert writes). If your Google account email is on the admin allow-list, you won’t need a token. When you paste a token here, it’s stored in your browser’s localStorage and sent as a Bearer header for admin routes. Remove it anytime by clearing the field and clicking Use.</div>
           </div>
           <hr />
           <div class="field">
@@ -140,7 +161,8 @@
             </div>
             <div class="muted">Audit export defaults to last 30 days.</div>
           </div>
-        </aside>
+        </div>
+      </section>
       </div>
     </section>
   </main>
