@@ -13,7 +13,7 @@
     .admin-list{ max-height: calc(100vh - 280px); overflow:auto; display:flex; flex-direction:column; gap:8px; }
     .admin-item{ padding:10px; border:1px solid rgba(2,6,23,0.08); border-radius:10px; cursor:pointer; background:#f8fafc; display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; }
     .admin-item:hover{ background:#eef6ff; }
-    .admin-item.active{ outline: 2px solid var(--ocean-blue); background:#fff; }
+  .admin-item.active{ outline: 2px solid var(--ocean-blue); outline-offset: 2px; background:#fff; border-radius:12px; }
     .token-badge{ font-weight:800; background:#e6f3ff; color:#0b4a8f; border:1px solid #cfe8ff; border-radius:999px; padding:4px 8px; }
     .sev-chip{ border-radius:999px; padding:4px 8px; font-weight:700; font-size:12px; border:1px solid transparent; }
     .sev-critical{ background:#ffe8e8; border-color:#ffc6c6; color:#8f1111; }
@@ -66,7 +66,7 @@
       <img class="brand-logo" src="https://i.postimg.cc/Fz0xdDzd/Crypto-Lifeguard-Logo-Striking-Impact-background.png" alt="Logo" />
       <div class="brand-text"><h1 class="brand-title">Crypto Lifeguard</h1><p class="brand-tagline">Admin dashboard</p></div>
     </a>
-    <div class="actions"><a class="menu-btn" href="/">Home</a></div>
+  <div class="actions"><a class="menu-btn" href="/" aria-label="Go to Home">Home</a></div>
   </div></header>
 
   <main class="container">

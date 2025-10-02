@@ -58,6 +58,10 @@ async function refreshList(){
   alerts = await r.json();
   filtered = alerts;
   renderList();
+  // Build admin tag options once data is available
+  try{
+    if (typeof buildAdminTagOptions === 'function') buildAdminTagOptions();
+  }catch(_e){}
 }
 
 function renderList(){
