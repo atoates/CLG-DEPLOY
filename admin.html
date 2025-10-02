@@ -56,9 +56,6 @@
     .tools-wrap{ max-width: 720px; margin: 0 auto; display:flex; flex-direction:column; gap:12px; }
   .backup-link{ color:#0f172a; text-decoration:none; font-weight:700; display:inline-block; padding:4px 0; }
   .backup-link:hover{ text-decoration:underline; }
-    /* Admin header fixes: ensure no empty white box appears on the right */
-    .topbar .actions > *:empty{ display:none !important; }
-    .topbar .actions img{ display:none; }
     @media (max-width: 1100px){ .admin-grid{ grid-template-columns: 1fr; } .admin-list{ max-height:none; } }
   </style>
   
@@ -69,13 +66,7 @@
       <img class="brand-logo" src="https://i.postimg.cc/Fz0xdDzd/Crypto-Lifeguard-Logo-Striking-Impact-background.png" alt="Logo" />
       <div class="brand-text"><h1 class="brand-title">Crypto Lifeguard</h1><p class="brand-tagline">Admin dashboard</p></div>
     </a>
-    <div class="actions">
-      <a href="/" aria-label="Go to Home" style="
-        display:inline-block; padding:8px 12px; border-radius:999px;
-        background: rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25);
-        color:#fff; font-weight:800; text-decoration:none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
-      ">← Home</a>
-    </div>
+    <div class="actions"><a class="menu-btn" href="/" aria-label="Go to Home">Home</a></div>
   </div></header>
 
   <main class="container">
