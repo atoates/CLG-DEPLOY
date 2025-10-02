@@ -88,8 +88,8 @@ body{
 /* Actions / Dropdown */
 .actions{ display:flex; align-items:center; gap:10px; }
 .menu-btn{
-  background: rgba(255,255,255,.12);
-  border: 1px solid rgba(255,255,255,.25);
+  background: rgba(255,255,255,.12) !important;
+  border: 1px solid rgba(255,255,255,.25) !important;
   color:#fff !important; 
   font-weight:700; 
   border-radius:999px; 
@@ -99,13 +99,18 @@ body{
   display: inline-flex; 
   align-items:center; 
   gap:8px;
-  text-decoration: none;
+  text-decoration: none !important;
   font-family: inherit;
-  font-size: inherit;
+  font-size: 14px;
   line-height: 1.2;
   white-space: nowrap;
+  min-height: auto;
+  outline: none;
 }
-.menu-btn:hover{ background: rgba(255,255,255,.18); }
+.menu-btn:hover{ 
+  background: rgba(255,255,255,.18) !important; 
+  color: #fff !important;
+}
 /* Ensure header buttons never show underlines across states */
 .menu-btn:link,
 .menu-btn:visited,
