@@ -238,6 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Datalist ----------------------------------------------------------------
 function renderDatalist(){
+  if (!tokenDatalist) return;
   tokenDatalist.innerHTML = '';
   // sort + dedupe at render time to be safe
   const list = Array.from(new Set(ALL_TOKENS.map(s=>String(s).toUpperCase()))).sort();
@@ -328,6 +329,10 @@ function updateFilterVisibility(tab){
 addTokenBtn.addEventListener('click', tryAddTokenFromInput);
 tokenInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') tryAddTokenFromInput();
+});
+// Add on input change: when a datalist option is chosen, this fires; try add if valid
+tokenInput.addEventListener('change', () => {
+  tryAddTokenFromInput();
 });
 function tryAddTokenFromInput(){
   const val = (tokenInput.value || '').toUpperCase().trim();
