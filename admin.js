@@ -23,6 +23,11 @@ const fTitle = document.getElementById('f-title');
 const fDesc = document.getElementById('f-desc');
 const fDeadlineLocal = document.getElementById('f-deadline-local');
 const tagsPills = document.getElementById('tags-pills');
+// Admin tag dropdown elements
+const adminTagTrigger = document.getElementById('admin-tag-dropdown-trigger');
+const adminTagOptions = document.getElementById('admin-tag-dropdown-options');
+const adminTagText = document.getElementById('admin-tag-dropdown-text');
+const adminSelected = document.getElementById('admin-selected-tags');
 const tagInput = document.getElementById('tag-input');
 const sevSeg = document.getElementById('sev-seg');
 
@@ -271,10 +276,14 @@ function renderTags(list){
     const x = document.createElement('button'); x.className='remove'; x.textContent='×';
     x.addEventListener('click', () => {
       pill.remove();
+      // Keep admin dropdown UI in sync
+      updateAdminTagUI();
     });
     pill.appendChild(x);
     tagsPills.appendChild(pill);
   });
+  // also reflect into admin dropdown UI
+  updateAdminTagUI();
 }
 
 function toISO(localStr){
@@ -297,3 +306,113 @@ if (tagInput){
     }
   });
 }
+
+// ---- Admin tag dropdown (mirrors main page) ----
+function allKnownTags(){
+  const set = new Set();
+  // from ALERT_TAGS if available
+  if (window.ALERT_TAGS){
+    Object.keys(window.ALERT_TAGS).forEach(k => set.add(k));
+  }
+  // from currently loaded alerts
+  alerts.forEach(a => {
+    const arr = Array.isArray(a.tags) ? a.tags : [];
+    arr.forEach(t => set.add(String(t)));
+  });
+  return Array.from(set).sort();
+}
+
+function updateAdminTagUI(){
+  if (!adminSelected || !adminTagText) return;
+  // Selected pills display
+  adminSelected.innerHTML = '';
+  const sel = gatherTags();
+  sel.forEach(tag => {
+    const p = document.createElement('span');
+    p.className = 'selected-tag-pill';
+    p.textContent = tag;
+    const rm = document.createElement('button');
+    rm.className = 'remove-tag';
+    rm.textContent = '×';
+    rm.addEventListener('click', () => {
+      // remove from hidden pills and update UI
+      const pill = Array.from(tagsPills.querySelectorAll('.tag-pill')).find(el => el.dataset.tag === tag);
+      if (pill) pill.remove();
+      updateAdminTagUI();
+    });
+    p.appendChild(rm);
+    adminSelected.appendChild(p);
+  });
+  // Dropdown text
+  adminTagText.textContent = sel.length ? `${sel.length} tag${sel.length>1?'s':''} selected` : 'Select tags...';
+  // Options checked state
+  if (adminTagOptions){
+    adminTagOptions.querySelectorAll('.dropdown-option').forEach(opt => {
+      const t = opt.getAttribute('data-tag');
+      const checked = sel.includes(t);
+      opt.classList.toggle('selected', checked);
+      const box = opt.querySelector('.option-checkbox');
+      if (box){ box.classList.toggle('checked', checked); }
+    });
+  }
+}
+
+function buildAdminTagOptions(){
+  if (!adminTagOptions) return;
+  adminTagOptions.innerHTML = '';
+  allKnownTags().forEach(tag => {
+    const opt = document.createElement('div');
+    opt.className = 'dropdown-option';
+    opt.setAttribute('data-tag', tag);
+    const box = document.createElement('span'); box.className = 'option-checkbox';
+    const label = document.createElement('span'); label.className = 'option-label'; label.textContent = tag;
+    opt.appendChild(box); opt.appendChild(label);
+    opt.addEventListener('click', () => {
+      const cur = gatherTags();
+      const exists = cur.includes(tag);
+      if (exists){
+        const pill = Array.from(tagsPills.querySelectorAll('.tag-pill')).find(el => el.dataset.tag === tag);
+        if (pill) pill.remove();
+      }else{
+        renderTags([...cur, tag]);
+      }
+      updateAdminTagUI();
+    });
+    adminTagOptions.appendChild(opt);
+  });
+  updateAdminTagUI();
+}
+
+// Toggle admin tag dropdown open/close
+if (adminTagTrigger){
+  adminTagTrigger.addEventListener('click', () => {
+    if (!adminTagOptions) return;
+    const open = adminTagOptions.classList.toggle('open');
+    adminTagTrigger.classList.toggle('active', open);
+  });
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', (e) => {
+  const within = e.target.closest('.custom-dropdown');
+  if (!within && adminTagOptions){
+    adminTagOptions.classList.remove('open');
+    if (adminTagTrigger) adminTagTrigger.classList.remove('active');
+  }
+});
+
+// Build options once alerts load
+(async function waitAndBuild(){
+  try{
+    // if alerts already loaded, build immediately; else after refreshList
+    if (alerts && alerts.length) buildAdminTagOptions();
+    else {
+      // Monkey-patch refreshList to chain a build
+      const __orig = refreshList;
+      refreshList = async function(){
+        await __orig();
+        buildAdminTagOptions();
+      };
+    }
+  }catch(_e){}
+})();

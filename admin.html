@@ -62,10 +62,10 @@
 </head>
 <body>
   <header class="topbar"><div class="topbar-inner">
-    <div class="brand-wrap">
+    <a class="brand-wrap" href="/" style="text-decoration:none; color:inherit;">
       <img class="brand-logo" src="https://i.postimg.cc/Fz0xdDzd/Crypto-Lifeguard-Logo-Striking-Impact-background.png" alt="Logo" />
       <div class="brand-text"><h1 class="brand-title">Crypto Lifeguard</h1><p class="brand-tagline">Admin dashboard</p></div>
-    </div>
+    </a>
     <div class="actions"><a class="menu-btn" href="/">Home</a></div>
   </div></header>
 
@@ -122,10 +122,19 @@
               </div>
               <div class="field full">
                 <label>Tags</label>
-                <div class="tags-wrap" id="tags-pills"></div>
-                <div class="row">
-                  <input id="tag-input" class="input tag-add" placeholder="Add tag (Enter)" />
+                <!-- Admin tag selector mirrors main dropdown UX -->
+                <div class="tag-dropdown-container">
+                  <div class="custom-dropdown">
+                    <button type="button" class="dropdown-trigger" id="admin-tag-dropdown-trigger">
+                      <span class="dropdown-text" id="admin-tag-dropdown-text">Select tags...</span>
+                      <span class="dropdown-arrow">▼</span>
+                    </button>
+                    <div class="dropdown-options" id="admin-tag-dropdown-options"></div>
+                  </div>
                 </div>
+                <div id="admin-selected-tags" class="selected-tags-pills"></div>
+                <!-- Hidden legacy pills container for backward compatibility (not displayed) -->
+                <div class="tags-wrap" id="tags-pills" style="display:none"></div>
               </div>
             </div>
             <div class="actions">
@@ -190,7 +199,8 @@
     }));
   });
   </script>
-  <!-- Load script at the end to ensure DOM elements exist -->
+  <!-- Load shared tag taxonomy, then admin logic -->
+  <script src="/alerts-tags.js"></script>
   <script type="module" src="/admin.js"></script>
 </body>
 </html>
