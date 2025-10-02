@@ -76,6 +76,7 @@
       <div class="admin-tabs">
         <button class="admin-tab active" data-tab="alerts">Alerts</button>
         <button class="admin-tab" data-tab="tools">Tools</button>
+        <button class="admin-tab" data-tab="upload">Upload</button>
       </div>
 
       <div id="alerts-pane" class="admin-grid">
@@ -193,7 +194,13 @@
             </div>
             <div id="backup-list" class="admin-list" style="max-height:260px"></div>
           </div>
-          <hr />
+
+        </div>
+      </section>
+
+      <!-- Upload tab content -->
+      <section id="upload-pane" class="admin-pane" hidden>
+        <div class="tools-wrap">
           <div class="field">
             <label>Bulk Import Alerts</label>
             <div class="csv-upload-container">
@@ -221,7 +228,7 @@
               </div>
               <div id="csv-status" class="csv-status" hidden></div>
             </div>
-            <div class="muted">Upload a CSV file to bulk import multiple alerts at once. Download the template to see the required format.</div>
+            <div class="muted">Upload a CSV file to bulk import multiple alerts at once. Download the template to see the required format. This functionality requires admin authentication.</div>
           </div>
         </div>
       </section>
@@ -235,13 +242,15 @@
     const tabs = document.querySelectorAll('.admin-tab');
     const alertsPane = document.getElementById('alerts-pane');
     const toolsPane = document.getElementById('tools-pane');
-    if (!tabs.length || !alertsPane || !toolsPane) return;
+    const uploadPane = document.getElementById('upload-pane');
+    if (!tabs.length || !alertsPane || !toolsPane || !uploadPane) return;
     tabs.forEach(t => t.addEventListener('click', () => {
       tabs.forEach(x => x.classList.remove('active'));
       t.classList.add('active');
-      const isAlerts = t.getAttribute('data-tab')==='alerts';
-      alertsPane.hidden = !isAlerts;
-      toolsPane.hidden = isAlerts;
+      const activeTab = t.getAttribute('data-tab');
+      alertsPane.hidden = activeTab !== 'alerts';
+      toolsPane.hidden = activeTab !== 'tools';
+      uploadPane.hidden = activeTab !== 'upload';
     }));
   });
   </script>

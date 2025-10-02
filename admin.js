@@ -18,6 +18,7 @@ const btnExportAlerts = document.getElementById('btn-export-alerts');
 const tabs = document.querySelectorAll('.admin-tab');
 const alertsPane = document.getElementById('alerts-pane');
 const toolsPane = document.getElementById('tools-pane');
+const uploadPane = document.getElementById('upload-pane');
 
 const fToken = document.getElementById('f-token');
 const fTitle = document.getElementById('f-title');
@@ -232,9 +233,9 @@ if (tabs && tabs.length){
     tabs.forEach(x => x.classList.remove('active'));
     t.classList.add('active');
     const tab = t.getAttribute('data-tab');
-    const isAlerts = tab === 'alerts';
-    if (alertsPane) alertsPane.hidden = !isAlerts;
-    if (toolsPane) toolsPane.hidden = isAlerts;
+    if (alertsPane) alertsPane.hidden = tab !== 'alerts';
+    if (toolsPane) toolsPane.hidden = tab !== 'tools';
+    if (uploadPane) uploadPane.hidden = tab !== 'upload';
   }));
 }
 
