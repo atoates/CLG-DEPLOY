@@ -6,6 +6,8 @@
   <title>Admin — Alerts Dashboard</title>
   <link rel="stylesheet" href="/styles.css?v=20251002" />
   <style>
+  /* Ensure hidden elements are actually hidden */
+  [hidden]{ display:none !important; }
   .admin-grid{ display:grid; grid-template-columns: 320px 1fr; gap:16px; align-items:start; }
     .admin-pane{ background:#fff; border:1px solid rgba(2,6,23,0.06); border-radius:12px; padding:12px; box-shadow:0 4px 14px rgba(0,0,0,.06); }
     .admin-list{ max-height: calc(100vh - 280px); overflow:auto; display:flex; flex-direction:column; gap:8px; }
@@ -37,13 +39,15 @@
     .muted{ color:#64748b; font-size:12px; }
     .side-note{ font-size:12px; color:#334155; margin-top:6px; }
     .search{ width:100%; }
-  /* Tighter inputs for admin */
-  .admin-pane .input{ padding:6px 10px; min-height:30px; height:32px; font-size:14px; border-radius:8px; }
-  .admin-pane input.input{ line-height:1.2; }
-  .admin-pane textarea.input{ height:120px; min-height:120px; resize:vertical; line-height:1.35; }
-  .admin-pane input[type="datetime-local"].input{ height:32px; }
+  /* Tighter inputs for admin (force single-line except Description) */
+  .admin-pane .input{ padding:6px 10px !important; min-height:30px !important; height:30px !important; font-size:14px; border-radius:8px; line-height:1.2; flex: 0 0 auto !important; width: 100%; }
+  .admin-pane input.input, .admin-pane input[type="text"].input, .admin-pane input[type="search"].input{ height:30px !important; min-height:30px !important; }
+  .admin-pane .search.input{ height:30px !important; min-height:30px !important; }
+  .admin-pane input[type="datetime-local"].input{ height:30px !important; min-height:30px !important; }
+  .admin-pane textarea.input{ height:120px !important; min-height:120px !important; resize:vertical; line-height:1.35; }
   .admin-pane .seg button{ padding:6px 8px; font-size:13px; }
-  .admin-pane .search.input{ height:32px; }
+  /* Avoid floating Save/Delete inside editor */
+  .admin-pane .actions{ position:static; background:transparent; padding-top:0; }
 
     /* Tabs */
     .admin-tabs{ display:flex; gap:8px; margin-bottom:10px; }
@@ -168,6 +172,22 @@
   </main>
 
   <footer class="footer muted"><span>© 2025 Crypto Lifeguard — demo build</span></footer>
+  <script>
+  // Minimal fallback: tabs toggle, in case module script fails
+  document.addEventListener('DOMContentLoaded', function(){
+    const tabs = document.querySelectorAll('.admin-tab');
+    const alertsPane = document.getElementById('alerts-pane');
+    const toolsPane = document.getElementById('tools-pane');
+    if (!tabs.length || !alertsPane || !toolsPane) return;
+    tabs.forEach(t => t.addEventListener('click', () => {
+      tabs.forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      const isAlerts = t.getAttribute('data-tab')==='alerts';
+      alertsPane.hidden = !isAlerts;
+      toolsPane.hidden = isAlerts;
+    }));
+  });
+  </script>
   <!-- Load script at the end to ensure DOM elements exist -->
   <script type="module" src="/admin.js"></script>
 </body>
