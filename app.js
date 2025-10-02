@@ -1,6 +1,12 @@
 // --- Config ------------------------------------------------------------------
-// Start with a small seed, then enrich dynamically from server alerts and watchlist
-const ALL_TOKENS = ['BTC','ETH','USDC','MATIC','SOL'];
+// Curated base list for reliable suggestions, enriched dynamically from alerts/watchlist
+const BASE_TOKENS = [
+  'BTC','ETH','USDT','USDC','BNB','SOL','XRP','ADA','DOGE','TRX','TON','DOT','MATIC','AVAX','LINK','UNI',
+  'ATOM','ALGO','XMR','LTC','ETC','BCH','BSV','XLM','HBAR','APT','ARB','OP','SUI','NEAR','ICP',
+  'MKR','AAVE','COMP','SNX','CRV','BAL','YFI','ZEC','DASH','EOS','FIL','VET','XTZ','KSM','GLMR',
+  'POL','OMNI','UXLINK','ENA','DAI'
+];
+const ALL_TOKENS = [...BASE_TOKENS];
 
 // --- Utilities ---------------------------------------------------------------
 function fmtTimeLeft(msLeft){
@@ -216,7 +222,9 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- Datalist ----------------------------------------------------------------
 function renderDatalist(){
   tokenDatalist.innerHTML = '';
-  ALL_TOKENS.forEach(t => {
+  // sort + dedupe at render time to be safe
+  const list = Array.from(new Set(ALL_TOKENS.map(s=>String(s).toUpperCase()))).sort();
+  list.forEach(t => {
     const opt = document.createElement('option');
     opt.value = t;
     tokenDatalist.appendChild(opt);
@@ -228,7 +236,7 @@ async function enrichTokensFromAlerts(){
     const r = await fetch('/api/alerts');
     if (r.ok){
       const items = await r.json();
-      const set = new Set(ALL_TOKENS.map(s=>String(s).toUpperCase()));
+      const set = new Set(BASE_TOKENS.map(s=>String(s).toUpperCase()));
       items.forEach(a => {
         const tok = String(a.token||'').toUpperCase().trim();
         if (tok && /^[A-Z0-9]{2,15}$/.test(tok)) set.add(tok);
@@ -304,8 +312,9 @@ tokenInput.addEventListener('keydown', (e) => {
 function tryAddTokenFromInput(){
   const val = (tokenInput.value || '').toUpperCase().trim();
   if (!val) return;
+  // Accept user-provided symbols that pass basic validation, even if not pre-listed
   if (!ALL_TOKENS.includes(val)){
-    if (/^[A-Z0-9]{2,10}$/.test(val)) { ALL_TOKENS.push(val); renderDatalist(); }
+    if (/^[A-Z0-9]{2,15}$/.test(val)) { ALL_TOKENS.push(val); renderDatalist(); }
     else { tokenInput.value = ''; return; }
   }
   if (!selectedTokens.includes(val)){
