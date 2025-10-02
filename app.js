@@ -84,6 +84,8 @@ const marketNoteEl    = document.getElementById('market-note');
 
 const sevFilterWrap   = document.getElementById('sev-filter');
 const showAllWrap     = document.getElementById('showall-wrap');
+const showAllTokensWrap = document.getElementById('showall-tokens-wrap');
+const showAllTokensToggle = document.getElementById('toggle-show-all-tokens');
 const tagFilterCard   = document.getElementById('filter-tags-card');
 const showAllToggle   = document.getElementById('toggle-show-all');
 
@@ -213,6 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Sync UI controls to prefs
   if (showAllToggle) showAllToggle.checked = showAll;
+  if (showAllTokensToggle) showAllTokensToggle.checked = showAll;
   syncSevUi();
 
   // Render + load data
@@ -223,6 +226,14 @@ document.addEventListener('DOMContentLoaded', () => {
   await enrichTokensFromAlerts();
   loadMarket();
   updateFilterVisibility('alerts'); // default tab
+  // Wire the top-row 'Show all alerts' toggle to the same preference
+  if (showAllTokensToggle){
+    showAllTokensToggle.addEventListener('change', () => {
+      showAll = !!showAllTokensToggle.checked;
+      persistPrefsServerDebounced();
+      renderAll();
+    });
+  }
 })();
 
 // --- Datalist ----------------------------------------------------------------
@@ -238,21 +249,7 @@ function renderDatalist(){
 }
 
 // Add-all control: adds entire suggestions list to watchlist
-document.addEventListener('DOMContentLoaded', () => {
-  const addAllBtn = document.getElementById('add-all-btn');
-  if (addAllBtn){
-    addAllBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const list = Array.from(new Set(ALL_TOKENS.map(s=>String(s).toUpperCase())));
-      // merge into selectedTokens
-      const set = new Set(selectedTokens.map(s=>String(s).toUpperCase()));
-      list.forEach(t => set.add(t));
-      selectedTokens = Array.from(set);
-      persistPrefsServerDebounced();
-      renderAll();
-    });
-  }
-});
+// (Removed Add all; using Show all alerts toggle instead)
 
 async function enrichTokensFromAlerts(){
   try{
@@ -674,10 +671,8 @@ function applyTagFilter(list) {
 }
 
 function getRelevantAlerts(){
-  if (selectedTokens.length === 0) return [];
-  const base = [...serverAlerts, ...autoAlerts].filter(a =>
-    selectedTokens.includes((a.token || '').toUpperCase())
-  );
+  const all = [...serverAlerts, ...autoAlerts];
+  const base = showAll ? all : all.filter(a => selectedTokens.includes((a.token || '').toUpperCase()))
 
   let list = applySeverityFilter(base);
   list = applyTagFilter(list);

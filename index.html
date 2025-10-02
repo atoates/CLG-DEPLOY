@@ -50,7 +50,11 @@
   <input id="token-input" class="input" type="text" placeholder="Type a token symbol (e.g., BTC, ETH, MATIC) and press Enter…" list="token-datalist" aria-label="Add token" autocomplete="on" autocapitalize="characters" spellcheck="false" />
         <datalist id="token-datalist"></datalist>
         <button id="add-token-btn" class="btn">Add</button>
-        <button id="add-all-btn" class="btn gray" title="Add all suggested tokens to your watchlist">Add all</button>
+        <label class="switch small" id="showall-tokens-wrap" title="Show alerts for all tokens">
+          <span class="switch-caption">Show all alerts</span>
+          <input type="checkbox" id="toggle-show-all-tokens" />
+          <span class="slider" aria-hidden="true"></span>
+        </label>
       </div>
       <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
     </section>
