@@ -86,6 +86,15 @@ CREATE TABLE IF NOT EXISTS alerts (
   deadline TEXT NOT NULL,
   tags TEXT DEFAULT '[]'
 );`);
+// Simple audit log for profile-related events
+db.exec(`CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+  user_id TEXT,
+  email TEXT,
+  event TEXT,
+  detail TEXT
+)`);
 const qUpsertUser   = db.prepare('INSERT OR IGNORE INTO users (id) VALUES (?)');
 const qGetUser      = db.prepare('SELECT id, google_id, email, name, avatar, username FROM users WHERE id = ?');
 const qGetUserByUsername = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)');
@@ -102,6 +111,7 @@ ON CONFLICT(user_id) DO UPDATE SET
   dismissed_json = excluded.dismissed_json,
   updated_at     = excluded.updated_at
 `);
+const qInsertAudit = db.prepare('INSERT INTO audit_log (user_id, email, event, detail) VALUES (@user_id, @email, @event, @detail)');
 
 /* ---------------- Middleware ---------------- */
 app.use(express.json());
@@ -287,6 +297,7 @@ app.get('/api/me', (req, res) => {
       show_all: payload.showAll ? 1 : 0,
       dismissed_json: JSON.stringify(payload.dismissed)
     });
+    try { qInsertAudit.run({ user_id: effectiveUid, email: (urow&&urow.email)||'', event: 'profile_init', detail: JSON.stringify({ watchlist: payload.watchlist }) }); } catch {}
     return res.json({ ...payload, userId: effectiveUid });
   }
   res.json({
@@ -317,6 +328,7 @@ app.post('/api/me/username', (req, res) => {
     return res.status(409).json({ ok:false, error:'taken' });
   }
   qSetUsername.run(val, effectiveUid);
+  try { const urow = qGetUser.get(effectiveUid); qInsertAudit.run({ user_id: effectiveUid, email: (urow&&urow.email)||'', event: 'username_set', detail: JSON.stringify({ username: val }) }); } catch {}
   res.json({ ok:true, username: val });
 });
 
@@ -334,6 +346,7 @@ app.post('/api/me/avatar', (req, res) => {
     return res.status(400).json({ ok:false, error:'invalid_url' });
   }
   qSetAvatar.run(val, effectiveUid);
+  try { const urow = qGetUser.get(effectiveUid); qInsertAudit.run({ user_id: effectiveUid, email: (urow&&urow.email)||'', event: 'avatar_set', detail: JSON.stringify({ avatar: val.slice(0,120) }) }); } catch {}
   res.json({ ok:true, avatar: val });
 });
 
@@ -348,6 +361,7 @@ app.post('/api/me/prefs', (req, res) => {
     show_all: showAll ? 1 : 0,
     dismissed_json: JSON.stringify(dismissed)
   });
+  try { const urow = qGetUser.get(effectiveUid); qInsertAudit.run({ user_id: effectiveUid, email: (urow&&urow.email)||'', event: 'prefs_saved', detail: JSON.stringify({ watchlistLen: (watchlist||[]).length }) }); } catch {}
   res.json({ ok: true });
 });
 
@@ -772,6 +786,23 @@ app.post('/admin/backup', requireAdmin, async (req, res) => {
   } catch (e) {
     console.error('Admin backup failed', e && e.stack ? e.stack : e);
     return res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+app.get('/admin/backups', requireAdmin, (req, res) => {
+  try{
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const files = fs.readdirSync(BACKUP_DIR)
+      .filter(f => f.endsWith('.db'))
+      .map(f => {
+        const p = path.join(BACKUP_DIR, f);
+        const st = fs.statSync(p);
+        return { file: f, path: p, size: st.size, mtime: st.mtimeMs };
+      })
+      .sort((a,b) => b.mtime - a.mtime);
+    res.json({ ok: true, files });
+  }catch(e){
+    res.status(500).json({ ok:false, error: String(e) });
   }
 });
 

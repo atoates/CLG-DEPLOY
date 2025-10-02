@@ -8,6 +8,9 @@ const btnSaveToken = document.getElementById('btn-save-token');
 const tokenStatus = document.getElementById('token-status');
 const btnDelete = document.getElementById('btn-delete');
 const infoEl = document.getElementById('admin-info');
+const btnBackupNow = document.getElementById('btn-backup-now');
+const btnRefreshBackups = document.getElementById('btn-refresh-backups');
+const backupListEl = document.getElementById('backup-list');
 
 const fToken = document.getElementById('f-token');
 const fTitle = document.getElementById('f-title');
@@ -124,3 +127,42 @@ refreshList();
     infoEl.textContent = `DB: ${j.databasePath} — Alerts: ${j.counts.alerts}, Users: ${j.counts.users}, Prefs: ${j.counts.user_prefs} — Restore on deploy: ${j.restoreFromFile ? 'ON' : 'OFF'}`;
   }catch(e){ infoEl.textContent = 'Admin info unavailable'; }
 })();
+
+async function refreshBackups(){
+  if (!backupListEl) return;
+  backupListEl.innerHTML = 'Loading backups…';
+  try{
+    const r = await fetch('/admin/backups', { headers: { ...authHeaders() }});
+    if (!r.ok){ backupListEl.textContent = 'Failed to load backups'; return; }
+    const j = await r.json();
+    const files = (j && j.files) || [];
+    if (!files.length){ backupListEl.textContent = 'No backups found'; return; }
+    backupListEl.innerHTML = '';
+    files.forEach(f => {
+      const row = document.createElement('div');
+      row.className = 'admin-item';
+      const dt = new Date(f.mtime).toLocaleString();
+      const size = Math.round(f.size/1024/1024*10)/10 + ' MB';
+      row.textContent = `${f.file} — ${size} — ${dt}`;
+      backupListEl.appendChild(row);
+    });
+  }catch(e){ backupListEl.textContent = 'Failed to load backups'; }
+}
+
+async function doBackupNow(){
+  if (!btnBackupNow) return;
+  btnBackupNow.disabled = true;
+  try{
+    const r = await fetch('/admin/backup', { method:'POST', headers: { 'Content-Type':'application/json', ...authHeaders() }});
+    if (!r.ok){ showMsg('Backup failed'); return; }
+    const j = await r.json();
+    showMsg('Backup created');
+    await refreshBackups();
+  }finally{
+    btnBackupNow.disabled = false;
+  }
+}
+
+if (btnBackupNow) btnBackupNow.addEventListener('click', doBackupNow);
+if (btnRefreshBackups) btnRefreshBackups.addEventListener('click', refreshBackups);
+refreshBackups();
