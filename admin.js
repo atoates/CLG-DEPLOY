@@ -444,17 +444,16 @@ document.addEventListener('click', (e) => {
 })();
 
 // --- CSV Upload Functionality (Admin Only) ------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
-  const uploadArea = document.getElementById('csv-upload-area');
-  const fileInput = document.getElementById('csv-file-input');
-  const previewSection = document.getElementById('csv-preview-section');
-  const previewTable = document.getElementById('csv-preview-table');
-  const importBtn = document.getElementById('csv-import-btn');
-  const downloadTemplateBtn = document.getElementById('csv-template-btn');
-  const statusDiv = document.getElementById('csv-status');
+const uploadArea = document.getElementById('csv-upload-area');
+const fileInput = document.getElementById('csv-file-input');
+const previewSection = document.getElementById('csv-preview-section');
+const previewTable = document.getElementById('csv-preview-table');
+const importBtn = document.getElementById('csv-import-btn');
+const downloadTemplateBtn = document.getElementById('csv-template-btn');
+const statusDiv = document.getElementById('csv-status');
 
-  let csvData = null;
-  let validatedAlerts = [];
+let csvData = null;
+let validatedAlerts = [];
 
   // Download CSV template
   downloadTemplateBtn?.addEventListener('click', () => {
@@ -810,4 +809,3 @@ document.addEventListener('DOMContentLoaded', () => {
       importBtn.disabled = false;
     }
   });
-});
