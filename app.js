@@ -1,5 +1,6 @@
 // --- Config ------------------------------------------------------------------
-const ALL_TOKENS = ['BTC','ETH','USDC','MATIC','DOGE','ADA','SOL','POL','UNI','LINK'];
+// Start with a small seed, then enrich dynamically from server alerts and watchlist
+const ALL_TOKENS = ['BTC','ETH','USDC','MATIC','SOL'];
 
 // --- Utilities ---------------------------------------------------------------
 function fmtTimeLeft(msLeft){
@@ -172,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
           av.style.width = '22px'; av.style.height = '22px'; av.style.borderRadius = '999px'; av.style.display = 'inline-block'; av.style.overflow = 'hidden'; av.style.background = '#e2e8f0';
           const url = me.profile?.avatar || '';
           if (url){ const img=document.createElement('img'); img.src=url; img.alt=''; img.width=22; img.height=22; img.style.display='block'; av.appendChild(img); }
-          else { av.textContent = (me.profile?.name||'U').trim().charAt(0).toUpperCase(); av.style.fontWeight='800'; av.style.color='#0f172a'; display='grid'; }
+          else { av.textContent = (me.profile?.name||'U').trim().charAt(0).toUpperCase(); av.style.fontWeight='800'; av.style.color='#0f172a'; av.style.display='grid'; }
           const nm = document.createElement('span'); nm.textContent = (me.profile?.username ? `@${me.profile.username}` : (me.profile?.name || 'Profile'));
           wrap.appendChild(av); wrap.appendChild(nm);
           clone.appendChild(wrap);
@@ -205,7 +206,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Render + load data
   renderDatalist();
   renderAll();
-  loadAlertsFromServer();
+  // Load alerts and enrich token suggestions from them
+  await loadAlertsFromServer();
+  await enrichTokensFromAlerts();
   loadMarket();
   updateFilterVisibility('alerts'); // default tab
 })();
@@ -218,6 +221,25 @@ function renderDatalist(){
     opt.value = t;
     tokenDatalist.appendChild(opt);
   });
+}
+
+async function enrichTokensFromAlerts(){
+  try{
+    const r = await fetch('/api/alerts');
+    if (r.ok){
+      const items = await r.json();
+      const set = new Set(ALL_TOKENS.map(s=>String(s).toUpperCase()));
+      items.forEach(a => {
+        const tok = String(a.token||'').toUpperCase().trim();
+        if (tok && /^[A-Z0-9]{2,15}$/.test(tok)) set.add(tok);
+      });
+      // Also include any tokens already in the user's watchlist
+      selectedTokens.forEach(t => set.add(String(t||'').toUpperCase().trim()));
+      // Replace ALL_TOKENS contents in-place to preserve references
+      ALL_TOKENS.splice(0, ALL_TOKENS.length, ...Array.from(set).sort());
+      renderDatalist();
+    }
+  }catch(_e){ /* ignore; fallback seed remains */ }
 }
 
 // --- Pills -------------------------------------------------------------------
