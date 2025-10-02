@@ -14,6 +14,7 @@ const btnRefreshBackups = document.getElementById('btn-refresh-backups');
 const backupListEl = document.getElementById('backup-list');
 const btnExportUsers = document.getElementById('btn-export-users');
 const btnExportAudit = document.getElementById('btn-export-audit');
+const btnExportAlerts = document.getElementById('btn-export-alerts');
 const tabs = document.querySelectorAll('.admin-tab');
 const alertsPane = document.getElementById('alerts-pane');
 const toolsPane = document.getElementById('tools-pane');
@@ -22,6 +23,9 @@ const fToken = document.getElementById('f-token');
 const fTitle = document.getElementById('f-title');
 const fDesc = document.getElementById('f-desc');
 const fDeadlineLocal = document.getElementById('f-deadline-local');
+const fInfo = document.getElementById('f-info');
+const fSourceType = document.getElementById('f-source-type');
+const fSourceUrl = document.getElementById('f-source-url');
 const tagsPills = document.getElementById('tags-pills');
 // Admin tag dropdown elements
 const adminTagTrigger = document.getElementById('admin-tag-dropdown-trigger');
@@ -94,6 +98,9 @@ function select(a){
   fToken.value = a.token || '';
   fTitle.value = a.title || '';
   fDesc.value = a.description || '';
+  if (fInfo) fInfo.value = a.further_info || '';
+  if (fSourceType) fSourceType.value = a.source_type || '';
+  if (fSourceUrl) fSourceUrl.value = a.source_url || '';
   // deadline -> datetime-local (in local tz)
   try{
     const dt = new Date(a.deadline);
@@ -112,7 +119,8 @@ btnNew.addEventListener('click', async () => {
   // Minimal create calls the existing POST /api/alerts (no admin required in server; we’ll include token anyway)
   const payload = {
     token: 'BTC', title: 'New alert', description: '', severity: 'info',
-    deadline: new Date(Date.now()+24*3600*1000).toISOString(), tags: []
+    deadline: new Date(Date.now()+24*3600*1000).toISOString(), tags: [],
+    further_info: '', source_type: '', source_url: ''
   };
   const r = await fetch('/api/alerts', {
     method:'POST', headers:{ 'Content-Type':'application/json', ...authHeaders() }, body: JSON.stringify(payload)
@@ -135,7 +143,10 @@ form.addEventListener('submit', async (e) => {
     description: fDesc.value.trim(),
     severity: sev,
     deadline: toISO(fDeadlineLocal.value.trim()),
-    tags: gatherTags()
+    tags: gatherTags(),
+    further_info: fInfo ? fInfo.value.trim() : '',
+    source_type: fSourceType ? (fSourceType.value || '') : '',
+    source_url: fSourceUrl ? (fSourceUrl.value.trim() || '') : ''
   };
   const r = await fetch(`/api/alerts/${encodeURIComponent(current.id)}`, {
     method:'PUT', headers:{ 'Content-Type':'application/json', ...authHeaders() }, body: JSON.stringify(payload)
@@ -239,6 +250,7 @@ async function download(url, filename){
 }
 if (btnExportUsers){ btnExportUsers.addEventListener('click', () => download('/admin/export/users.csv', 'users.csv')); }
 if (btnExportAudit){ btnExportAudit.addEventListener('click', () => download('/admin/export/audit.csv?days=30', 'audit-last-30-days.csv')); }
+if (btnExportAlerts){ btnExportAlerts.addEventListener('click', () => download('/admin/export/alerts.csv', 'alerts.csv')); }
 
 // --- Search filter ---
 if (searchInput){

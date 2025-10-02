@@ -25,7 +25,10 @@ CREATE TABLE IF NOT EXISTS alerts (
   description TEXT,
   severity TEXT NOT NULL DEFAULT 'info',
   deadline TEXT NOT NULL,
-  tags TEXT DEFAULT '[]'
+  tags TEXT DEFAULT '[]',
+  further_info TEXT,
+  source_type TEXT,
+  source_url TEXT
 );
 `);
 
@@ -68,4 +71,17 @@ for (const file of files) {
 }
 
 console.log('All migrations applied');
+// Ensure alerts table has new metadata columns even on older DBs
+try{
+  const cols = db.prepare('PRAGMA table_info(alerts)').all().map(c => c.name);
+  const addStmts = [];
+  if (!cols.includes('further_info')) addStmts.push("ALTER TABLE alerts ADD COLUMN further_info TEXT");
+  if (!cols.includes('source_type')) addStmts.push("ALTER TABLE alerts ADD COLUMN source_type TEXT");
+  if (!cols.includes('source_url')) addStmts.push("ALTER TABLE alerts ADD COLUMN source_url TEXT");
+  if (addStmts.length){
+    console.log('Adding missing alert columns:', addStmts);
+    addStmts.forEach(sql => db.exec(sql));
+    console.log('Alert columns updated');
+  }
+}catch(e){ console.warn('Column check failed', e && e.message ? e.message : e); }
 db.close();

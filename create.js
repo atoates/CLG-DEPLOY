@@ -18,7 +18,10 @@ const formToken = document.getElementById('form-token');
 const formSeverity = document.getElementById('form-severity');
 const formTitle = document.getElementById('form-title');
 const formDescription = document.getElementById('form-description');
+const formInfo = document.getElementById('form-info');
 const formDeadline = document.getElementById('form-deadline');
+const formSourceType = document.getElementById('form-source-type');
+const formSourceUrl = document.getElementById('form-source-url');
 const tagSelectors = document.getElementById('tag-selectors');
 
 // Initialize tag selectors
@@ -110,7 +113,10 @@ form.addEventListener('submit', async (e) => {
   const severity = formSeverity.value;
   const title = (formTitle.value || '').trim();
   const description = (formDescription.value || '').trim();
+  const further_info = (formInfo.value || '').trim();
   const deadlineLocal = formDeadline.value;
+  const source_type = (formSourceType && formSourceType.value) || '';
+  const source_url = (formSourceUrl && formSourceUrl.value || '').trim();
 
   if (!token || !severity || !title || !description || !deadlineLocal){
     msg.textContent = 'Please complete all fields.';
@@ -141,7 +147,10 @@ form.addEventListener('submit', async (e) => {
         title, 
         description, 
         deadline: deadlineIso,
-        tags: selectedTags
+        tags: selectedTags,
+        further_info,
+        source_type,
+        source_url
       })
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

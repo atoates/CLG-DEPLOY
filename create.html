@@ -64,9 +64,29 @@
             <textarea id="form-description" class="input" rows="3" placeholder="Optional details, steps, links…" required></textarea>
           </div>
 
+          <div class="col-span-2">
+            <label class="label" for="form-info">Further information (optional)</label>
+            <textarea id="form-info" class="input" rows="3" placeholder="Longer context, analysis, or instructions…"></textarea>
+          </div>
+
           <div>
             <label class="label" for="form-deadline">Deadline</label>
             <input id="form-deadline" class="input" type="datetime-local" required />
+          </div>
+
+          <div>
+            <label class="label" for="form-source-type">Source</label>
+            <div class="row">
+              <select id="form-source-type" class="input" style="height:36px">
+                <option value="">— Select type —</option>
+                <option value="anonymous">🙈 Anonymous</option>
+                <option value="mainstream-media">📰 Mainstream media</option>
+                <option value="trusted-source">✅ Trusted source</option>
+                <option value="social-media">💬 Social media</option>
+                <option value="dev-team">🛠️ Dev. Team</option>
+              </select>
+              <input id="form-source-url" class="input" placeholder="https://… (optional)" />
+            </div>
           </div>
 
           <div>
@@ -80,6 +100,7 @@
         </div>
 
         <p id="msg" class="muted" style="margin-top:10px"></p>
+        <p class="muted">Note: Creating alerts requires admin authorization. If unauthorized, the request will be rejected.</p>
       </form>
     </section>
   </main>

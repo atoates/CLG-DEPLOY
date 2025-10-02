@@ -18,7 +18,10 @@ CREATE TABLE IF NOT EXISTS alerts (
   description TEXT,
   severity TEXT NOT NULL DEFAULT 'info',
   deadline TEXT NOT NULL,
-  tags TEXT DEFAULT '[]'
+  tags TEXT DEFAULT '[]',
+  further_info TEXT,
+  source_type TEXT,
+  source_url TEXT
 );`);
 
 // Read alerts from JSON
@@ -32,8 +35,8 @@ db.exec('DELETE FROM alerts');
 
 // Prepare insert statement
 const insert = db.prepare(`
-INSERT OR REPLACE INTO alerts (id, token, title, description, severity, deadline, tags)
-VALUES (@id, @token, @title, @description, @severity, @deadline, @tags)
+INSERT OR REPLACE INTO alerts (id, token, title, description, severity, deadline, tags, further_info, source_type, source_url)
+VALUES (@id, @token, @title, @description, @severity, @deadline, @tags, @further_info, @source_type, @source_url)
 `);
 
 // Insert all alerts
@@ -47,7 +50,10 @@ const tx = db.transaction((alerts) => {
       description: alert.description || '',
       severity: alert.severity || 'info',
       deadline: alert.deadline,
-      tags: JSON.stringify(alert.tags || [])
+      tags: JSON.stringify(alert.tags || []),
+      further_info: alert.further_info || '',
+      source_type: alert.source_type || '',
+      source_url: alert.source_url || ''
     });
   });
 });

@@ -115,10 +115,35 @@
                 <label>Description</label>
                 <textarea id="f-desc" class="input" rows="5"></textarea>
               </div>
+              <div class="field full">
+                <label>Further information</label>
+                <textarea id="f-info" class="input" rows="4" placeholder="Optional extended details"></textarea>
+              </div>
               <div class="field">
                 <label>Deadline</label>
                 <input id="f-deadline-local" class="input" type="datetime-local" />
                 <div class="muted">Saves as ISO (UTC) automatically.</div>
+              </div>
+              <div class="field">
+                <label>Source</label>
+                <div class="row">
+                  <select id="f-source-type" class="input" style="height:32px" title="Pick the source type">
+                    <option value="">— Select type —</option>
+                    <option value="anonymous">🙈 Anonymous</option>
+                    <option value="mainstream-media">📰 Mainstream media</option>
+                    <option value="trusted-source">✅ Trusted source</option>
+                    <option value="social-media">💬 Social media</option>
+                    <option value="dev-team">🛠️ Dev. Team</option>
+                  </select>
+                  <input id="f-source-url" class="input" placeholder="https://… (optional)" />
+                </div>
+                <div class="muted" style="margin-top:4px; display:flex; gap:10px; flex-wrap:wrap;">
+                  <span title="Unverified tip or rumor">🙈 Anonymous</span>
+                  <span title="Established outlet (e.g., Reuters, Bloomberg)">📰 Mainstream</span>
+                  <span title="Trusted industry researcher or analyst">✅ Trusted</span>
+                  <span title="X/Twitter, Reddit, Telegram">💬 Social</span>
+                  <span title="Official team or foundation communication">🛠️ Dev. Team</span>
+                </div>
               </div>
               <div class="field full">
                 <label>Tags</label>
@@ -174,6 +199,7 @@
             <div class="row">
               <button id="btn-export-users" class="btn" type="button">Export users.csv</button>
               <button id="btn-export-audit" class="btn" type="button">Export audit.csv</button>
+              <button id="btn-export-alerts" class="btn" type="button">Export alerts.csv</button>
             </div>
             <div class="muted">Audit export defaults to last 30 days.</div>
           </div>

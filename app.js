@@ -52,6 +52,15 @@ const ALERT_TAGS = {
   'exploit': { icon: '⚡', label: 'Exploit', color: '#f43f5e' }
 };
 
+// Source types definitions (for alert source metadata)
+const ALERT_SOURCE_TYPES = {
+  'anonymous':        { icon: '🙈', label: 'Anonymous' },
+  'mainstream-media': { icon: '📰', label: 'Mainstream media' },
+  'trusted-source':   { icon: '✅', label: 'Trusted source' },
+  'social-media':     { icon: '💬', label: 'Social media' },
+  'dev-team':         { icon: '🛠️', label: 'Dev. Team' }
+};
+
 // --- State (will be hydrated from /api/me) -----------------------------------
 let selectedTokens = [];                                 // watchlist
 let showAll       = false;                               // include dismissed ("Show closed")
@@ -777,13 +786,25 @@ function renderAlerts(){
   const text = document.createElement('div');
   text.className = 'alert-text';
 
-    const title = document.createElement('div');
-    title.className = 'alert-title';
-    title.textContent = `${a.title} — ${(a.token || '').toUpperCase()}`;
+  const title = document.createElement('div');
+  title.className = 'alert-title';
+  title.textContent = `${a.title} — ${(a.token || '').toUpperCase()}`;
+  text.appendChild(title);
 
     const desc = document.createElement('div');
     desc.className = 'alert-desc';
     desc.textContent = a.description || '';
+
+    // Optional further information (longer text)
+    if (a.further_info) {
+      const more = document.createElement('div');
+      more.className = 'alert-desc';
+      more.textContent = a.further_info;
+      text.appendChild(desc);
+      text.appendChild(more);
+    } else {
+      text.appendChild(desc);
+    }
 
     const metaWrap = document.createElement('div');
     metaWrap.className = 'alert-meta';
@@ -793,9 +814,26 @@ function renderAlerts(){
     metaChip.textContent = fmtTimeLeft(msLeft);
     metaWrap.appendChild(metaChip);
 
-    text.appendChild(title);
-    text.appendChild(desc);
-    text.appendChild(metaWrap);
+    // Optional source chip with icon + link
+    if (a.source_type || a.source_url) {
+      const src = document.createElement('a');
+      src.className = 'source-chip';
+      const st = ALERT_SOURCE_TYPES[a.source_type] || null;
+      const icon = st ? st.icon : '🔗';
+      const label = st ? st.label : 'Source';
+      src.textContent = `${icon} ${label}`;
+      if (a.source_url) {
+        try{
+          const u = new URL(a.source_url);
+          src.href = u.href;
+          src.target = '_blank';
+          src.rel = 'noopener noreferrer';
+        }catch(_e){}
+      }
+      metaWrap.appendChild(src);
+    }
+
+  text.appendChild(metaWrap);
 
     left.appendChild(icon);
     left.appendChild(text);

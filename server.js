@@ -84,7 +84,10 @@ CREATE TABLE IF NOT EXISTS alerts (
   description TEXT,
   severity TEXT NOT NULL DEFAULT 'info',
   deadline TEXT NOT NULL,
-  tags TEXT DEFAULT '[]'
+  tags TEXT DEFAULT '[]',
+  further_info TEXT,
+  source_type TEXT,
+  source_url TEXT
 );`);
 // Simple audit log for profile-related events
 db.exec(`CREATE TABLE IF NOT EXISTS audit_log (
@@ -112,6 +115,15 @@ ON CONFLICT(user_id) DO UPDATE SET
   updated_at     = excluded.updated_at
 `);
 const qInsertAudit = db.prepare('INSERT INTO audit_log (user_id, email, event, detail) VALUES (@user_id, @email, @event, @detail)');
+
+// Allowed source types for alerts metadata
+const SOURCE_TYPES = [
+  'anonymous',
+  'mainstream-media',
+  'trusted-source',
+  'social-media',
+  'dev-team'
+];
 
 /* ---------------- Middleware ---------------- */
 app.use(express.json());
@@ -231,7 +243,7 @@ function persistAlerts(){ writeJsonSafe(ALERTS_PATH, alerts); }
 
 // Prefer DB alerts if available (keeps start sequence consistent with restore-alerts.js)
 try {
-  const rows = db.prepare('SELECT id, token, title, description, severity, deadline, tags FROM alerts').all();
+  const rows = db.prepare('SELECT id, token, title, description, severity, deadline, tags, further_info, source_type, source_url FROM alerts').all();
   if (Array.isArray(rows) && rows.length > 0) {
     alerts = rows.map(r => ({
       id: r.id || `db_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
@@ -240,7 +252,10 @@ try {
       description: String(r.description || ''),
       severity: ['critical','warning','info'].includes(r.severity) ? r.severity : 'info',
       deadline: new Date(r.deadline).toISOString(),
-      tags: (() => { try{ const t = typeof r.tags === 'string' ? JSON.parse(r.tags) : r.tags; return Array.isArray(t) ? t : []; } catch { return []; } })()
+      tags: (() => { try{ const t = typeof r.tags === 'string' ? JSON.parse(r.tags) : r.tags; return Array.isArray(t) ? t : []; } catch { return []; } })(),
+      further_info: String(r.further_info || ''),
+      source_type: SOURCE_TYPES.includes(String(r.source_type||'')) ? String(r.source_type) : '',
+      source_url: String(r.source_url || '')
     }));
     persistAlerts();
     console.log(`Loaded ${alerts.length} alerts from DB into file-backed store`);
@@ -368,7 +383,7 @@ app.post('/api/me/prefs', (req, res) => {
 /* ---------------- Alerts API ---------------- */
 app.get('/api/alerts', (_req, res) => res.json(alerts));
 app.post('/api/alerts', requireAdmin, (req, res) => {
-  const { token, title, description, severity, deadline, tags } = req.body || {};
+  const { token, title, description, severity, deadline, tags, further_info, source_type, source_url } = req.body || {};
   if (!token || !title || !deadline) return res.status(400).json({ error:'token, title, deadline are required' });
   
   // Validate tags against known tag types
@@ -383,6 +398,10 @@ app.post('/api/alerts', requireAdmin, (req, res) => {
   const finalSeverity = ['critical','warning','info'].includes(severity) ? severity : 'info';
   const finalTags = sanitizedTags.length > 0 ? sanitizedTags : JSON.parse(getDefaultTags(finalSeverity));
   
+  // Validate source metadata
+  const srcType = source_type && SOURCE_TYPES.includes(String(source_type)) ? String(source_type) : '';
+  const srcUrl = source_url && /^https?:\/\//i.test(String(source_url)) ? String(source_url) : '';
+
   const item = {
     id:`a_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
     token:String(token).toUpperCase(),
@@ -390,7 +409,10 @@ app.post('/api/alerts', requireAdmin, (req, res) => {
     description:String(description||''),
     severity: finalSeverity,
     deadline:new Date(deadline).toISOString(),
-    tags: finalTags
+    tags: finalTags,
+    further_info: String(further_info || ''),
+    source_type: srcType,
+    source_url: srcUrl
   };
   alerts.push(item); persistAlerts();
   res.status(201).json(item);
@@ -433,6 +455,17 @@ app.put('/api/alerts/:id', requireAdmin, (req, res) => {
       ? payload.tags.filter(t => typeof t === 'string' && validTags.includes(t))
       : [];
     payload.tags = cleaned;
+  }
+  if (payload.source_type != null) {
+    const st = String(payload.source_type);
+    if (st && !SOURCE_TYPES.includes(st)) return res.status(400).json({ error:'invalid_source_type' });
+  }
+  if (payload.source_url != null) {
+    const su = String(payload.source_url);
+    if (su && !/^https?:\/\//i.test(su)) return res.status(400).json({ error:'invalid_source_url' });
+  }
+  if (payload.further_info != null) {
+    payload.further_info = String(payload.further_info);
   }
   // Apply changes
   const old = alerts[idx];
@@ -869,6 +902,34 @@ app.get('/admin/export/audit.csv', requireAdmin, (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="audit-last-${days}-days.csv"`);
     res.send(csv);
   }catch(e){ res.status(500).send('error'); }
+});
+
+// Export alerts.csv (includes new fields further_info, source_type, source_url)
+app.get('/admin/export/alerts.csv', requireAdmin, (_req, res) => {
+  try{
+    const headers = [
+      'id','token','title','description','severity','deadline','tags','further_info','source_type','source_url'
+    ];
+    const rows = alerts.map(a => ([
+      a.id,
+      a.token,
+      a.title,
+      (a.description||'').replaceAll('\n',' ').slice(0,1000),
+      a.severity,
+      a.deadline,
+      JSON.stringify(Array.isArray(a.tags)?a.tags:[]),
+      (a.further_info||'').replaceAll('\n',' ').slice(0,2000),
+      a.source_type||'',
+      a.source_url||''
+    ]));
+    const esc = (v) => '"' + String(v).replaceAll('"','""') + '"';
+    const body = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="alerts.csv"');
+    res.send('\uFEFF' + body);
+  }catch(e){
+    res.status(500).send('export_failed');
+  }
 });
 
 // Serve static SPA (after API routes)

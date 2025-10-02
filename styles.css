@@ -542,6 +542,19 @@ body{
   background:#e6f3ff; border:1px solid #cfe8ff; border-radius:999px; padding:4px 8px;
   text-align: center;
 }
+/* source chip next to deadline */
+.source-chip{
+  display:inline-block; font-size:12px; font-weight:700; color:#0c6a45;
+  background:#e8fff5; border:1px solid #b9f3d3; border-radius:999px; padding:4px 8px;
+  margin-left:6px; text-decoration:none;
+}
+.source-chip:hover{ filter:brightness(0.98); }
+.source-chip{
+  display:inline-block; font-size:12px; font-weight:700; color:#0c6a45;
+  background:#e8fff5; border:1px solid #b9f3d3; border-radius:999px; padding:4px 8px;
+  text-decoration:none; margin-left:6px;
+}
+.source-chip:hover{ filter:brightness(0.96); }
 
 /* Right-side dismiss column with divider */
 .dismiss-col{
