@@ -3,6 +3,7 @@ const listEl = document.getElementById('list');
 const form = document.getElementById('editor');
 const msgEl = document.getElementById('msg');
 const btnNew = document.getElementById('btn-new');
+const searchInput = document.getElementById('search-input');
 const tokenInput = document.getElementById('admin-token-input');
 const btnSaveToken = document.getElementById('btn-save-token');
 const tokenStatus = document.getElementById('token-status');
@@ -15,11 +16,15 @@ const backupListEl = document.getElementById('backup-list');
 const fToken = document.getElementById('f-token');
 const fTitle = document.getElementById('f-title');
 const fDesc = document.getElementById('f-desc');
-const fDeadline = document.getElementById('f-deadline');
-const fTags = document.getElementById('f-tags');
+const fDeadlineLocal = document.getElementById('f-deadline-local');
+const tagsPills = document.getElementById('tags-pills');
+const tagInput = document.getElementById('tag-input');
+const sevSeg = document.getElementById('sev-seg');
 
 let current = null;
 let alerts = [];
+let filtered = [];
+let currentSev = 'info';
 
 let ADMIN_TOKEN = localStorage.getItem('ADMIN_TOKEN') || '';
 tokenInput.value = ADMIN_TOKEN;
@@ -41,15 +46,25 @@ function showMsg(s){ msgEl.textContent = s; setTimeout(()=>msgEl.textContent='',
 async function refreshList(){
   const r = await fetch('/api/alerts');
   alerts = await r.json();
+  filtered = alerts;
   renderList();
 }
 
 function renderList(){
   listEl.innerHTML = '';
-  alerts.forEach(a => {
+  const list = filtered;
+  list.forEach(a => {
     const d = document.createElement('div');
     d.className = 'admin-item';
-    d.innerHTML = `<div><strong>${a.token}</strong> — <em>${a.severity}</em></div><div>${a.title}</div>`;
+    const sevClass = a.severity === 'critical' ? 'sev-critical' : (a.severity === 'warning' ? 'sev-warning' : 'sev-info');
+    d.innerHTML = `
+      <span class="token-badge">${(a.token||'').toUpperCase()}</span>
+      <div>
+        <div class="title-line">${a.title||''}</div>
+        <div class="meta-line">${a.severity} • ${new Date(a.deadline).toLocaleString()}</div>
+      </div>
+      <span class="sev-chip ${sevClass}">${a.severity}</span>
+    `;
     d.addEventListener('click', () => select(a));
     if (current && current.id === a.id) d.classList.add('active');
     listEl.appendChild(d);
@@ -65,11 +80,18 @@ function select(a){
   fToken.value = a.token || '';
   fTitle.value = a.title || '';
   fDesc.value = a.description || '';
-  fDeadline.value = a.deadline || '';
-  fTags.value = Array.isArray(a.tags) ? a.tags.join(', ') : '';
-  // severity radios
-  const radio = form.querySelector(`input[name="sev"][value="${a.severity||'info'}"]`);
-  if (radio) radio.checked = true;
+  // deadline -> datetime-local (in local tz)
+  try{
+    const dt = new Date(a.deadline);
+    const pad = n => String(n).padStart(2,'0');
+    const local = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    fDeadlineLocal.value = local;
+  }catch{ fDeadlineLocal.value = ''; }
+  // tags -> pills
+  renderTags(Array.isArray(a.tags) ? a.tags : []);
+  // severity segmented
+  currentSev = a.severity || 'info';
+  syncSevSeg();
 }
 
 btnNew.addEventListener('click', async () => {
@@ -86,16 +108,20 @@ btnNew.addEventListener('click', async () => {
   alerts.unshift(j); renderList(); select(j); showMsg('Created');
 });
 
+function gatherTags(){
+  return Array.from(tagsPills.querySelectorAll('.tag-pill')).map(p => p.dataset.tag).filter(Boolean);
+}
+
 form.addEventListener('submit', async (e) => {
   e.preventDefault(); if (!current) return;
-  const sev = form.querySelector('input[name="sev"]:checked')?.value || 'info';
+  const sev = currentSev || 'info';
   const payload = {
     token: fToken.value.trim().toUpperCase(),
     title: fTitle.value.trim(),
     description: fDesc.value.trim(),
     severity: sev,
-    deadline: fDeadline.value.trim(),
-    tags: fTags.value.split(',').map(s=>s.trim()).filter(Boolean)
+    deadline: toISO(fDeadlineLocal.value.trim()),
+    tags: gatherTags()
   };
   const r = await fetch(`/api/alerts/${encodeURIComponent(current.id)}`, {
     method:'PUT', headers:{ 'Content-Type':'application/json', ...authHeaders() }, body: JSON.stringify(payload)
@@ -166,3 +192,70 @@ async function doBackupNow(){
 if (btnBackupNow) btnBackupNow.addEventListener('click', doBackupNow);
 if (btnRefreshBackups) btnRefreshBackups.addEventListener('click', refreshBackups);
 refreshBackups();
+
+// --- Search filter ---
+if (searchInput){
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.toLowerCase();
+    filtered = alerts.filter(a =>
+      (a.token||'').toLowerCase().includes(q) ||
+      (a.title||'').toLowerCase().includes(q) ||
+      (a.severity||'').toLowerCase().includes(q)
+    );
+    renderList();
+  });
+}
+
+// --- Severity segmented control ---
+function syncSevSeg(){
+  if (!sevSeg) return;
+  sevSeg.querySelectorAll('button[data-sev]').forEach(b => {
+    const sev = b.getAttribute('data-sev');
+    b.classList.toggle('active', sev === currentSev);
+  });
+}
+if (sevSeg){
+  sevSeg.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-sev]'); if (!btn) return;
+    currentSev = btn.getAttribute('data-sev') || 'info';
+    syncSevSeg();
+  });
+}
+
+// --- Tags pills UX ---
+function renderTags(list){
+  tagsPills.innerHTML = '';
+  const uniq = Array.from(new Set(list.map(s => String(s).trim()).filter(Boolean)));
+  uniq.forEach(t => {
+    const pill = document.createElement('span');
+    pill.className = 'tag-pill'; pill.dataset.tag = t;
+    pill.textContent = t + ' ';
+    const x = document.createElement('button'); x.className='remove'; x.textContent='×';
+    x.addEventListener('click', () => {
+      pill.remove();
+    });
+    pill.appendChild(x);
+    tagsPills.appendChild(pill);
+  });
+}
+
+function toISO(localStr){
+  if (!localStr) return '';
+  // local datetime-local string -> ISO string
+  const dt = new Date(localStr);
+  if (isNaN(dt.getTime())) return '';
+  return dt.toISOString();
+}
+
+if (tagInput){
+  tagInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter'){
+      e.preventDefault();
+      const val = (tagInput.value||'').trim();
+      if (!val) return;
+      const exists = Array.from(tagsPills.querySelectorAll('.tag-pill')).some(p => p.dataset.tag === val);
+      if (!exists) renderTags([...gatherTags(), val]);
+      tagInput.value = '';
+    }
+  });
+}
