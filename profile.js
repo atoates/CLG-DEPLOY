@@ -16,7 +16,8 @@ const msgEl = document.getElementById('prof-msg');
 const avatarPresetsEl = document.getElementById('avatar-presets');
 
 let me = null;
-const ALL_TOKENS = ['BTC','ETH','USDC','MATIC','DOGE','ADA','SOL','POL','UNI','LINK'];
+// Start with a tiny seed, then enrich from /api/alerts and user watchlist
+const tokenSuggestions = new Set(['BTC','ETH','USDC','MATIC','SOL']);
 
 function setAvatar(profile){
   avatarEl.innerHTML = '';
@@ -56,7 +57,24 @@ function renderTokenDatalist(){
   const dl = document.getElementById('token-datalist');
   if (!dl) return;
   dl.innerHTML = '';
-  ALL_TOKENS.forEach(t => { const opt=document.createElement('option'); opt.value=t; dl.appendChild(opt); });
+  Array.from(tokenSuggestions).sort().forEach(t => { const opt=document.createElement('option'); opt.value=t; dl.appendChild(opt); });
+}
+
+async function refreshTokenSuggestions(){
+  try{
+    // Enrich with current alerts' tokens
+    const r = await fetch('/api/alerts');
+    if (r.ok){
+      const alerts = await r.json();
+      alerts.forEach(a => {
+        const tok = String(a.token||'').toUpperCase().trim();
+        if (tok && /^[A-Z0-9]{2,15}$/.test(tok)) tokenSuggestions.add(tok);
+      });
+    }
+  }catch(e){ /* ignore network errors; fallback seed remains */ }
+  // Ensure user's current watchlist symbols are also suggested
+  if (me && Array.isArray(me.watchlist)) me.watchlist.forEach(t => tokenSuggestions.add(String(t||'').toUpperCase().trim()))
+  renderTokenDatalist();
 }
 
 async function loadMe(){
@@ -70,7 +88,8 @@ async function loadMe(){
   setAvatar(me.profile || {});
   showAllToggle.checked = !!me.showAll;
   renderPills();
-  renderTokenDatalist();
+  // Update token suggestions after loading user state
+  await refreshTokenSuggestions();
   // Prime username input with existing value
   if (me.profile?.username) usernameInput.value = me.profile.username;
 }
@@ -93,9 +112,12 @@ addBtn.addEventListener('click', () => {
   if (!val) return;
   me.watchlist = me.watchlist || [];
   if (!me.watchlist.includes(val)) me.watchlist.push(val);
+  // Keep suggestions up to date as users add tokens
+  tokenSuggestions.add(val);
   tokenInput.value = '';
   savePrefs();
   renderPills();
+  renderTokenDatalist();
 });
 
 showAllToggle.addEventListener('change', () => {
