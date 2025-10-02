@@ -105,8 +105,12 @@ ON CONFLICT(user_id) DO UPDATE SET
 /* ---------------- Middleware ---------------- */
 app.use(express.json());
 app.use(cookieParser());
-// Admin token helpers (reuse for admin-only APIs)
+// Admin token + email helpers (reuse for admin-only APIs)
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'ali@crypto-lifeguard.com,jordan@crypto-lifeguard.com,george@crypto-lifeguard.com')
+  .split(',')
+  .map(s => s.trim().toLowerCase())
+  .filter(Boolean);
 function getAdminTokenFromReq(req){
   const auth = String(req.get('authorization') || req.get('x-admin-token') || '').trim();
   if (!auth) return '';
@@ -114,11 +118,19 @@ function getAdminTokenFromReq(req){
   return auth;
 }
 function requireAdmin(req, res, next){
+  // Option 1: Header token
   const token = getAdminTokenFromReq(req);
-  if (!ADMIN_TOKEN || !token || token !== ADMIN_TOKEN) {
-    return res.status(401).json({ error: 'unauthorized' });
+  if (ADMIN_TOKEN && token && token === ADMIN_TOKEN) return next();
+  // Option 2: Logged-in user from session and email whitelist
+  const sess = getSession(req);
+  if (sess && sess.uid) {
+    try{
+      const u = qGetUser.get(sess.uid);
+      const email = (u && u.email ? String(u.email).toLowerCase() : '');
+      if (email && ADMIN_EMAILS.includes(email)) return next();
+    }catch(e){ /* ignore */ }
   }
-  return next();
+  return res.status(401).json({ error: 'unauthorized' });
 }
 // Very small ephemeral in-memory session store
 const sessions = new Map(); // sid -> { uid }
@@ -611,14 +623,7 @@ app.get('/api/news/cryptopanic-alerts', async (req, res) => {
 // --- Admin: backup endpoint -------------------------------------------------
 // ADMIN_TOKEN already defined above for reuse
 
-app.post('/admin/sql', async (req, res) => {
-  // Accept either Authorization: Bearer <token> or X-Admin-Token
-  const auth = String(req.get('authorization') || req.get('x-admin-token') || '').trim();
-  let token = auth;
-  if (auth.toLowerCase().startsWith('bearer ')) token = auth.slice(7).trim();
-  if (!ADMIN_TOKEN || !token || token !== ADMIN_TOKEN) {
-    return res.status(401).json({ error: 'unauthorized' });
-  }
+app.post('/admin/sql', requireAdmin, async (req, res) => {
   
   const { sql } = req.body || {};
   if (!sql) {
@@ -639,14 +644,7 @@ app.post('/admin/sql', async (req, res) => {
   }
 });
 
-app.post('/admin/schema', async (req, res) => {
-  // Accept either Authorization: Bearer <token> or X-Admin-Token
-  const auth = String(req.get('authorization') || req.get('x-admin-token') || '').trim();
-  let token = auth;
-  if (auth.toLowerCase().startsWith('bearer ')) token = auth.slice(7).trim();
-  if (!ADMIN_TOKEN || !token || token !== ADMIN_TOKEN) {
-    return res.status(401).json({ error: 'unauthorized' });
-  }
+app.post('/admin/schema', requireAdmin, async (req, res) => {
   
   try {
     const userColumns = db.prepare('PRAGMA table_info(users)').all();
@@ -663,14 +661,7 @@ app.post('/admin/schema', async (req, res) => {
   }
 });
 
-app.post('/admin/migrate', async (req, res) => {
-  // Accept either Authorization: Bearer <token> or X-Admin-Token
-  const auth = String(req.get('authorization') || req.get('x-admin-token') || '').trim();
-  let token = auth;
-  if (auth.toLowerCase().startsWith('bearer ')) token = auth.slice(7).trim();
-  if (!ADMIN_TOKEN || !token || token !== ADMIN_TOKEN) {
-    return res.status(401).json({ error: 'unauthorized' });
-  }
+app.post('/admin/migrate', requireAdmin, async (req, res) => {
   
   try {
     // Check if users table has the required columns
@@ -715,14 +706,7 @@ app.post('/admin/migrate', async (req, res) => {
   }
 });
 
-app.post('/admin/backup', async (req, res) => {
-  // Accept either Authorization: Bearer <token> or X-Admin-Token
-  const auth = String(req.get('authorization') || req.get('x-admin-token') || '').trim();
-  let token = auth;
-  if (auth.toLowerCase().startsWith('bearer ')) token = auth.slice(7).trim();
-  if (!ADMIN_TOKEN || !token || token !== ADMIN_TOKEN) {
-    return res.status(401).json({ error: 'unauthorized' });
-  }
+app.post('/admin/backup', requireAdmin, async (req, res) => {
   try {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
     const iso = new Date().toISOString().replace(/[:.]/g, '-');
