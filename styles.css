@@ -48,7 +48,7 @@ body{
   position: sticky; top:0; z-index: 50;
 }
 .topbar-inner{
-  max-width: 1040px;
+  max-width: 880px;
   margin: 0 auto;
   padding: 10px 16px;
   display:flex; align-items:center; justify-content:space-between; gap: 12px;
