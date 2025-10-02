@@ -54,7 +54,8 @@ const ALERT_TAGS = {
 
 // --- State (will be hydrated from /api/me) -----------------------------------
 let selectedTokens = [];                                 // watchlist
-let showAll       = false;                               // include dismissed
+let showAll       = false;                               // include dismissed ("Show closed")
+let showAllTokens = false;                               // ignore watchlist ("Show all")
 let sevFilter     = ['critical','warning','info'];       // active severities
 let tagFilter     = [];                                  // active tag filters
 let hiddenKeys    = new Set();                           // dismissed set
@@ -83,8 +84,8 @@ const marketEmptyEl   = document.getElementById('market-empty');
 const marketNoteEl    = document.getElementById('market-note');
 
 const sevFilterWrap   = document.getElementById('sev-filter');
-const showAllWrap     = document.getElementById('showall-wrap');
-const showAllTokensWrap = document.getElementById('showall-tokens-wrap');
+const showAllWrap         = document.getElementById('showall-wrap');
+const showAllTokensWrap   = document.getElementById('showall-tokens-wrap');
 const showAllTokensToggle = document.getElementById('toggle-show-all-tokens');
 const tagFilterCard   = document.getElementById('filter-tags-card');
 const showAllToggle   = document.getElementById('toggle-show-all');
@@ -215,7 +216,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Sync UI controls to prefs
   if (showAllToggle) showAllToggle.checked = showAll;
-  if (showAllTokensToggle) showAllTokensToggle.checked = showAll;
+  // Restore top-row 'Show all' preference from localStorage (no server persistence)
+  try { showAllTokens = (localStorage.getItem('showAllTokens') === '1'); } catch(_e) {}
+  if (showAllTokensToggle) showAllTokensToggle.checked = !!showAllTokens;
   syncSevUi();
 
   // Render + load data
@@ -226,11 +229,11 @@ document.addEventListener('DOMContentLoaded', () => {
   await enrichTokensFromAlerts();
   loadMarket();
   updateFilterVisibility('alerts'); // default tab
-  // Wire the top-row 'Show all alerts' toggle to the same preference
+  // Wire the top-row 'Show all' toggle to control watchlist ignoring (local only)
   if (showAllTokensToggle){
     showAllTokensToggle.addEventListener('change', () => {
-      showAll = !!showAllTokensToggle.checked;
-      persistPrefsServerDebounced();
+      showAllTokens = !!showAllTokensToggle.checked;
+      try { localStorage.setItem('showAllTokens', showAllTokens ? '1' : '0'); } catch(_e) {}
       renderAll();
     });
   }
@@ -677,7 +680,7 @@ function applyTagFilter(list) {
 
 function getRelevantAlerts(){
   const all = [...serverAlerts, ...autoAlerts];
-  const base = showAll ? all : all.filter(a => selectedTokens.includes((a.token || '').toUpperCase()))
+  const base = showAllTokens ? all : all.filter(a => selectedTokens.includes((a.token || '').toUpperCase()))
 
   let list = applySeverityFilter(base);
   list = applyTagFilter(list);
