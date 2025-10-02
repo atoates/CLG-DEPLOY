@@ -12,6 +12,8 @@ const infoEl = document.getElementById('admin-info');
 const btnBackupNow = document.getElementById('btn-backup-now');
 const btnRefreshBackups = document.getElementById('btn-refresh-backups');
 const backupListEl = document.getElementById('backup-list');
+const btnExportUsers = document.getElementById('btn-export-users');
+const btnExportAudit = document.getElementById('btn-export-audit');
 
 const fToken = document.getElementById('f-token');
 const fTitle = document.getElementById('f-title');
@@ -169,7 +171,18 @@ async function refreshBackups(){
       row.className = 'admin-item';
       const dt = new Date(f.mtime).toLocaleString();
       const size = Math.round(f.size/1024/1024*10)/10 + ' MB';
-      row.textContent = `${f.file} — ${size} — ${dt}`;
+      const link = document.createElement('a');
+      link.href = `/admin/backups/${encodeURIComponent(f.file)}`;
+      link.textContent = `${f.file}`;
+      link.className = 'menu-btn';
+      link.style.padding = '4px 8px';
+      link.style.display = 'inline-block';
+      row.appendChild(link);
+      const meta = document.createElement('span');
+      meta.className = 'meta-line';
+      meta.style.marginLeft = '8px';
+      meta.textContent = `— ${size} — ${dt}`;
+      row.appendChild(meta);
       backupListEl.appendChild(row);
     });
   }catch(e){ backupListEl.textContent = 'Failed to load backups'; }
@@ -192,6 +205,19 @@ async function doBackupNow(){
 if (btnBackupNow) btnBackupNow.addEventListener('click', doBackupNow);
 if (btnRefreshBackups) btnRefreshBackups.addEventListener('click', refreshBackups);
 refreshBackups();
+
+// --- CSV Exports ---
+async function download(url, filename){
+  const r = await fetch(url, { headers: { ...authHeaders() }});
+  if (!r.ok) { showMsg('Download failed'); return; }
+  const blob = await r.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+if (btnExportUsers){ btnExportUsers.addEventListener('click', () => download('/admin/export/users.csv', 'users.csv')); }
+if (btnExportAudit){ btnExportAudit.addEventListener('click', () => download('/admin/export/audit.csv?days=30', 'audit-last-30-days.csv')); }
 
 // --- Search filter ---
 if (searchInput){

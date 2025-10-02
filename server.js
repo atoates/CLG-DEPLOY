@@ -806,6 +806,71 @@ app.get('/admin/backups', requireAdmin, (req, res) => {
   }
 });
 
+// Download a specific backup file by name (admin)
+app.get('/admin/backups/:file', requireAdmin, (req, res) => {
+  try{
+    const name = path.basename(String(req.params.file||''));
+    if (!name.endsWith('.db')) return res.status(400).json({ ok:false, error:'invalid_file' });
+    const p = path.join(BACKUP_DIR, name);
+    if (!fs.existsSync(p)) return res.status(404).json({ ok:false, error:'not_found' });
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+    fs.createReadStream(p).pipe(res);
+  }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
+});
+
+// Export users as CSV
+app.get('/admin/export/users.csv', requireAdmin, (req, res) => {
+  try{
+    // Try to include created_at if present
+    let rows;
+    try{
+      rows = db.prepare('SELECT id, email, name, username, avatar, created_at FROM users').all();
+    }catch{
+      rows = db.prepare('SELECT id, email, name, username, avatar FROM users').all();
+      rows.forEach(r => r.created_at = null);
+    }
+    const header = ['id','email','name','username','avatar','created_at'];
+    const lines = [header.join(',')];
+    const esc = v => {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      return '"' + s.replace(/"/g, '""') + '"';
+    };
+    rows.forEach(r => {
+      lines.push([r.id, r.email, r.name, r.username, r.avatar, r.created_at].map(esc).join(','));
+    });
+    const csv = lines.join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="users.csv"');
+    res.send(csv);
+  }catch(e){ res.status(500).send('error'); }
+});
+
+// Export recent audit logs as CSV (default 30 days)
+app.get('/admin/export/audit.csv', requireAdmin, (req, res) => {
+  try{
+    const days = Math.max(1, Math.min(365, parseInt(String(req.query.days||'30')) || 30));
+    const since = db.prepare("SELECT strftime('%s','now') - ? AS cutoff").get(days*86400).cutoff;
+    const rows = db.prepare('SELECT ts, user_id, email, event, detail FROM audit_log WHERE ts >= ? ORDER BY ts DESC').all(since);
+    const header = ['ts_iso','user_id','email','event','detail'];
+    const lines = [header.join(',')];
+    const esc = v => {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      return '"' + s.replace(/"/g, '""') + '"';
+    };
+    rows.forEach(r => {
+      const iso = new Date(r.ts*1000).toISOString();
+      lines.push([iso, r.user_id, r.email, r.event, r.detail].map(esc).join(','));
+    });
+    const csv = lines.join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="audit-last-${days}-days.csv"`);
+    res.send(csv);
+  }catch(e){ res.status(500).send('error'); }
+});
+
 // Serve static SPA (after API routes)
 const distDir = path.resolve(__dirname, 'dist');
 const distIndex = path.join(distDir, 'index.html');
