@@ -7,6 +7,7 @@ const tokenInput = document.getElementById('admin-token-input');
 const btnSaveToken = document.getElementById('btn-save-token');
 const tokenStatus = document.getElementById('token-status');
 const btnDelete = document.getElementById('btn-delete');
+const infoEl = document.getElementById('admin-info');
 
 const fToken = document.getElementById('f-token');
 const fTitle = document.getElementById('f-title');
@@ -112,3 +113,14 @@ btnDelete.addEventListener('click', async () => {
 });
 
 refreshList();
+
+// Show DB info for admins
+(async function showAdminInfo(){
+  if (!infoEl) return;
+  try{
+    const r = await fetch('/admin/info', { headers: { ...authHeaders() }});
+    if (!r.ok) { infoEl.textContent = 'Admin info unavailable'; return; }
+    const j = await r.json();
+    infoEl.textContent = `DB: ${j.databasePath} — Alerts: ${j.counts.alerts}, Users: ${j.counts.users}, Prefs: ${j.counts.user_prefs} — Restore on deploy: ${j.restoreFromFile ? 'ON' : 'OFF'}`;
+  }catch(e){ infoEl.textContent = 'Admin info unavailable'; }
+})();

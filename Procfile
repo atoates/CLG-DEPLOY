@@ -1,1 +1,1 @@
-web: node migrate.js && node restore-alerts.js && node update-tags.js && node server.js
+web: node migrate.js && node -e "process.exit(process.env.RESTORE_FROM_FILE==='true'?0:1)" && node restore-alerts.js || true && node update-tags.js && node server.js

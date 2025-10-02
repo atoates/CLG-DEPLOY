@@ -17,6 +17,7 @@ const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, 'data');
 const DB_PATH = process.env.DATABASE_PATH || path.join(DATA_DIR, 'clg.sqlite');
 // Backup dir (can be overridden by BACKUP_DIR env var)
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(DATA_DIR, 'backups');
+const RESTORE_FROM_FILE = String(process.env.RESTORE_FROM_FILE || '').toLowerCase() === 'true';
 
 // Ensure data directory exists (fallback for volume mount issues)
 try {
@@ -239,6 +240,24 @@ try {
 } catch (e) {
   console.warn('Failed to load alerts from DB; using file-backed alerts.json', e && e.message);
 }
+
+/* ---------------- Admin Info Endpoint ---------------- */
+app.get('/admin/info', requireAdmin, (req, res) => {
+  try{
+    const alertCount = db.prepare('SELECT COUNT(*) AS c FROM alerts').get().c;
+    const userCount = db.prepare("SELECT COUNT(*) AS c FROM users").get().c;
+    const prefsCount = db.prepare("SELECT COUNT(*) AS c FROM user_prefs").get().c;
+    res.json({
+      dataDir: DATA_DIR,
+      databasePath: DB_PATH,
+      backupDir: BACKUP_DIR,
+      restoreFromFile: RESTORE_FROM_FILE,
+      counts: { alerts: alertCount, users: userCount, user_prefs: prefsCount }
+    });
+  }catch(e){
+    res.status(500).json({ error: 'failed', message: e && e.message });
+  }
+});
 
 /* ---------------- User prefs API ---------------- */
 app.get('/api/me', (req, res) => {
