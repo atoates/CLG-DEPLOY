@@ -37,7 +37,9 @@
         <div>
           <div class="row" style="margin-bottom:8px">
             <button id="btn-new" class="btn">+ New alert</button>
-            <span class="note">Requires ADMIN_TOKEN</span>
+            <input id="admin-token-input" class="input" placeholder="ADMIN_TOKEN" style="max-width:240px" />
+            <button id="btn-save-token" class="btn" type="button">Use token</button>
+            <span class="note" id="token-status">No token</span>
           </div>
           <div id="list" class="admin-list"></div>
         </div>

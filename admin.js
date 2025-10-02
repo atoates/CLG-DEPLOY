@@ -3,6 +3,9 @@ const listEl = document.getElementById('list');
 const form = document.getElementById('editor');
 const msgEl = document.getElementById('msg');
 const btnNew = document.getElementById('btn-new');
+const tokenInput = document.getElementById('admin-token-input');
+const btnSaveToken = document.getElementById('btn-save-token');
+const tokenStatus = document.getElementById('token-status');
 const btnDelete = document.getElementById('btn-delete');
 
 const fToken = document.getElementById('f-token');
@@ -14,7 +17,16 @@ const fTags = document.getElementById('f-tags');
 let current = null;
 let alerts = [];
 
-const ADMIN_TOKEN = localStorage.getItem('ADMIN_TOKEN') || '';
+let ADMIN_TOKEN = localStorage.getItem('ADMIN_TOKEN') || '';
+tokenInput.value = ADMIN_TOKEN;
+tokenStatus.textContent = ADMIN_TOKEN ? 'Token set' : 'No token';
+btnSaveToken.addEventListener('click', () => {
+  ADMIN_TOKEN = tokenInput.value.trim();
+  if (ADMIN_TOKEN) localStorage.setItem('ADMIN_TOKEN', ADMIN_TOKEN);
+  else localStorage.removeItem('ADMIN_TOKEN');
+  tokenStatus.textContent = ADMIN_TOKEN ? 'Token set' : 'No token';
+  showMsg(ADMIN_TOKEN ? 'Saved token' : 'Cleared token');
+});
 
 function authHeaders(){
   return ADMIN_TOKEN ? { 'Authorization': 'Bearer ' + ADMIN_TOKEN } : {};
