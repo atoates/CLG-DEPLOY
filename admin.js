@@ -177,9 +177,7 @@ async function refreshBackups(){
       const link = document.createElement('a');
       link.href = `/admin/backups/${encodeURIComponent(f.file)}`;
       link.textContent = `${f.file}`;
-      link.className = 'menu-btn';
-      link.style.padding = '4px 8px';
-      link.style.display = 'inline-block';
+      link.className = 'backup-link';
       row.appendChild(link);
       const meta = document.createElement('span');
       meta.className = 'meta-line';
