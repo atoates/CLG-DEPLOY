@@ -794,17 +794,7 @@ function renderAlerts(){
     const desc = document.createElement('div');
     desc.className = 'alert-desc';
     desc.textContent = a.description || '';
-
-    // Optional further information (longer text)
-    if (a.further_info) {
-      const more = document.createElement('div');
-      more.className = 'alert-desc';
-      more.textContent = a.further_info;
-      text.appendChild(desc);
-      text.appendChild(more);
-    } else {
-      text.appendChild(desc);
-    }
+    text.appendChild(desc);
 
     const metaWrap = document.createElement('div');
     metaWrap.className = 'alert-meta';
@@ -814,26 +804,63 @@ function renderAlerts(){
     metaChip.textContent = fmtTimeLeft(msLeft);
     metaWrap.appendChild(metaChip);
 
-    // Optional source chip with icon + link
-    if (a.source_type || a.source_url) {
-      const src = document.createElement('a');
-      src.className = 'source-chip';
-      const st = ALERT_SOURCE_TYPES[a.source_type] || null;
-      const icon = st ? st.icon : '🔗';
-      const label = st ? st.label : 'Source';
-      src.textContent = `${icon} ${label}`;
-      if (a.source_url) {
-        try{
-          const u = new URL(a.source_url);
-          src.href = u.href;
-          src.target = '_blank';
-          src.rel = 'noopener noreferrer';
-        }catch(_e){}
-      }
-      metaWrap.appendChild(src);
-    }
+    text.appendChild(metaWrap);
 
-  text.appendChild(metaWrap);
+    // Read more: shows further_info and source details when expanded
+    const hasMore = !!(a.further_info && a.further_info.trim()) || !!(a.source_type || a.source_url);
+    if (hasMore) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'more-toggle';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.textContent = 'Read more';
+
+      const more = document.createElement('div');
+      more.className = 'more-content';
+      more.hidden = true;
+
+      // Further info block
+      if (a.further_info && a.further_info.trim()){
+        const moreInfo = document.createElement('div');
+        moreInfo.className = 'more-info';
+        moreInfo.textContent = a.further_info;
+        more.appendChild(moreInfo);
+      }
+
+      // Source details block (chip + optional external link)
+      if (a.source_type || a.source_url){
+        const sourceRow = document.createElement('div');
+        sourceRow.className = 'source-row';
+        const st = ALERT_SOURCE_TYPES[a.source_type] || null;
+        const chip = document.createElement('span');
+        chip.className = 'source-chip';
+        chip.textContent = `${st ? st.icon : '🔗'} ${st ? st.label : 'Source'}`;
+        sourceRow.appendChild(chip);
+        if (a.source_url){
+          try{
+            const u = new URL(a.source_url);
+            const link = document.createElement('a');
+            link.className = 'source-link';
+            link.href = u.href;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = 'Open link';
+            sourceRow.appendChild(link);
+          }catch(_e){}
+        }
+        more.appendChild(sourceRow);
+      }
+
+      toggle.addEventListener('click', () => {
+        const nowOpen = more.hidden;
+        more.hidden = !nowOpen;
+        toggle.setAttribute('aria-expanded', String(nowOpen));
+        toggle.textContent = nowOpen ? 'Read less' : 'Read more';
+      });
+
+      text.appendChild(toggle);
+      text.appendChild(more);
+    }
 
     left.appendChild(icon);
     left.appendChild(text);

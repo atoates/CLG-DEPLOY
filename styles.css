@@ -556,6 +556,44 @@ body{
 }
 .source-chip:hover{ filter:brightness(0.96); }
 
+/* Read more UI for alert cards */
+.more-toggle {
+  margin-top: 6px;
+  background: transparent;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+}
+
+.more-toggle:hover {
+  text-decoration: underline;
+}
+
+.more-content {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed rgba(0,0,0,0.08);
+}
+
+.more-info {
+  white-space: pre-wrap;
+  line-height: 1.35;
+  margin-bottom: 6px;
+}
+
+.source-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.source-link {
+  color: #2563eb;
+  font-size: 12px;
+}
+
 /* Right-side dismiss column with divider */
 .dismiss-col{
   grid-column: 3 / 4;

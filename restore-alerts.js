@@ -24,6 +24,20 @@ CREATE TABLE IF NOT EXISTS alerts (
   source_url TEXT
 );`);
 
+// Ensure new columns exist (for existing tables)
+try{
+  const cols = db.prepare('PRAGMA table_info(alerts)').all().map(c => c.name);
+  const addStmts = [];
+  if (!cols.includes('further_info')) addStmts.push("ALTER TABLE alerts ADD COLUMN further_info TEXT");
+  if (!cols.includes('source_type')) addStmts.push("ALTER TABLE alerts ADD COLUMN source_type TEXT");
+  if (!cols.includes('source_url')) addStmts.push("ALTER TABLE alerts ADD COLUMN source_url TEXT");
+  if (addStmts.length){
+    console.log('Adding missing alert columns:', addStmts);
+    addStmts.forEach(sql => db.exec(sql));
+    console.log('Alert columns updated');
+  }
+}catch(e){ console.warn('Column check failed', e && e.message ? e.message : e); }
+
 // Read alerts from JSON
 console.log('Reading alerts from alerts.json...');
 const alerts = JSON.parse(fs.readFileSync('alerts.json', 'utf8'));
@@ -39,10 +53,35 @@ INSERT OR REPLACE INTO alerts (id, token, title, description, severity, deadline
 VALUES (@id, @token, @title, @description, @severity, @deadline, @tags, @further_info, @source_type, @source_url)
 `);
 
+// Helper: normalize provided source type labels to enum values
+function normalizeSourceType(val){
+  if (!val) return '';
+  const s = String(val).trim().toLowerCase();
+  if (s === 'trusted source') return 'trusted-source';
+  if (s === 'social media') return 'social-media';
+  if (s === 'dev. team' || s === 'dev team' || s === 'developer' || s === 'dev-team') return 'dev-team';
+  if (s === 'mainstream media' || s === 'main stream media' || s === 'main-stream media') return 'mainstream-media';
+  if (s === 'anonymous') return 'anonymous';
+  return '';
+}
+
+function safeUrl(u){
+  if (!u) return '';
+  try{
+    const url = new URL(String(u));
+    if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+  }catch(_e){}
+  return '';
+}
+
 // Insert all alerts
 const tx = db.transaction((alerts) => {
   alerts.forEach((alert, index) => {
     const id = `restored_${index}_${Date.now()}`;
+    const further_info = alert.further_info || alert['more info'] || '';
+    const source_url = alert.source_url || alert.Link || '';
+    const source_type = normalizeSourceType(alert.source_type || alert.Source || '');
+    const tags = Array.isArray(alert.tags) ? alert.tags : [];
     insert.run({
       id,
       token: alert.token,
@@ -50,10 +89,10 @@ const tx = db.transaction((alerts) => {
       description: alert.description || '',
       severity: alert.severity || 'info',
       deadline: alert.deadline,
-      tags: JSON.stringify(alert.tags || []),
-      further_info: alert.further_info || '',
-      source_type: alert.source_type || '',
-      source_url: alert.source_url || ''
+      tags: JSON.stringify(tags),
+      further_info,
+      source_type,
+      source_url: safeUrl(source_url)
     });
   });
 });

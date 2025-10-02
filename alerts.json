@@ -3,392 +3,726 @@
     "token": "ETH",
     "severity": "warning",
     "title": "Fusaka Hard Fork Approaching",
-    "description": "Ethereum's Fusaka upgrade is set for December 3; update clients to avoid network issues.",
+    "description": "Ethereum's Fusaka upgrade is scheduled for mainnet activation; ensure client updates to maintain compatibility.",
     "deadline": "2025-12-03T00:00:00.000Z",
-    "tags": ["fork", "community"]
+    "tags": ["fork", "community"],
+    "more info": "The Fusaka hard fork, following the Pectra upgrade, aims to enhance Ethereum's scalability and efficiency by introducing 12 EIPs. Key features include PeerDAS for data availability sampling, which reduces costs for institutions and improves node performance. This upgrade is crucial for boosting transaction throughput and cutting operational expenses, making Ethereum more accessible for enterprise use.",
+    "Link": "https://www.coindesk.com/tech/2025/10/01/ethereum-s-fusaka-upgrade-passes-holesky-test-moves-closer-to-mainnet",
+    "Source": "Trusted source"
   },
   {
-    "token": "BTC",
+    "token": "ETH",
     "severity": "info",
-    "title": "Potential Hard Fork Discussion",
-    "description": "Developer Luke Dashjr proposes hard fork for censorship resistance; monitor community debates.",
-    "deadline": "2025-11-15T00:00:00.000Z",
-    "tags": ["fork", "news"]
+    "title": "Fusaka Testnet Launch on Sepolia",
+    "description": "Participate in the Sepolia testnet for Fusaka to prepare for the upcoming hard fork.",
+    "deadline": "2025-10-14T00:00:00.000Z",
+    "tags": ["fork", "news"],
+    "more info": "The Sepolia testnet is the next phase in testing the Fusaka upgrade, focusing on stability and performance improvements. It allows developers and validators to simulate the mainnet environment, identifying potential issues before full deployment. This step is vital for ensuring a smooth transition and maintaining network integrity.",
+    "Link": "https://nownodes.io/blog/ethereums-fusaka-hard-fork-why-december-2025-will-be-a-turning-point/",
+    "Source": "Trusted source"
+  },
+  {
+    "token": "ETH",
+    "severity": "info",
+    "title": "Fusaka Testnet on Hoodi",
+    "description": "Hoodi testnet activation for Fusaka upgrade; no immediate action required but monitor for updates.",
+    "deadline": "2025-10-28T00:00:00.000Z",
+    "tags": ["fork", "community"],
+    "more info": "The Hoodi testnet will be the final testing ground before Fusaka's mainnet launch, incorporating feedback from previous testnets. It emphasizes security enhancements and cost reductions, paving the way for broader adoption of Ethereum's layer-2 solutions.",
+    "Link": "https://cointelegraph.com/explained/ethereums-fusaka-upgrade-set-for-november-what-you-need-to-know",
+    "Source": "Trusted source"
   },
   {
     "token": "SOL",
     "severity": "warning",
-    "title": "Bhilai Hard Fork Implementation",
-    "description": "Solana's Bhilai upgrade enhances throughput; validators should prepare for changes.",
-    "deadline": "2025-10-15T00:00:00.000Z",
-    "tags": ["fork", "community"]
+    "title": "Alpenglow Upgrade Proposal",
+    "description": "Solana's Alpenglow upgrade approved; validators should prepare for implementation.",
+    "deadline": "2025-12-01T00:00:00.000Z",
+    "tags": ["fork", "community"],
+    "more info": "Alpenglow introduces Votor and Rotor to replace existing consensus mechanisms, aiming for unprecedented speed. Approved by 98.94% of stakeholders, this upgrade could make Solana faster than traditional web services, with a testnet planned for December 2025 and mainnet in Q1 2026.",
+    "Link": "https://www.coindesk.com/tech/2025/09/02/solana-set-for-major-overhaul-after-98-votes-to-approve-historic-alpenglow-upgrade",
+    "Source": "Trusted source"
   },
   {
-    "token": "MATIC",
+    "token": "SOL",
+    "severity": "info",
+    "title": "Alpenglow Testnet Deployment",
+    "description": "Testnet for Solana's Alpenglow upgrade; check for compatibility in dApps.",
+    "deadline": "2025-12-15T00:00:00.000Z",
+    "tags": ["news", "fork"],
+    "more info": "The Alpenglow testnet at Breakpoint conference will demonstrate enhanced throughput and reduced turbulence. This upgrade addresses past congestion issues, incorporating priority fees and QUIC for better network stability.",
+    "Link": "https://cointelegraph.com/explained/solanas-alpenglow-upgrade-could-make-it-faster-than-google-heres-how",
+    "Source": "Trusted source"
+  },
+  {
+    "token": "POL",
     "severity": "critical",
-    "title": "Final MATIC to POL Migration Phase",
-    "description": "Complete migration to POL to prevent token devaluation; last chance for holders.",
+    "title": "POL Migration Completion Reminder",
+    "description": "Ensure all MATIC tokens are migrated to POL to avoid any potential issues.",
     "deadline": "2025-10-31T23:59:00.000Z",
-    "tags": ["migration", "price-change"]
+    "tags": ["migration", "price-change"],
+    "more info": "With 99% of MATIC migrated to POL, this upgrade enhances Polygon's gas and staking capabilities. Holders should use the migration tools to complete the process, ensuring continued utility in the ecosystem.",
+    "Link": "https://polygon.technology/blog/matic-to-pol-migration-is-99-complete-everything-you-need-to-know",
+    "Source": "Dev. Team"
   },
   {
-    "token": "OMNI",
+    "token": "POL",
     "severity": "warning",
-    "title": "Rebrand to Nomina Token Swap",
-    "description": "Omni tokens will swap to Nomina; ensure wallet compatibility for migration.",
-    "deadline": "2025-10-20T00:00:00.000Z",
-    "tags": ["migration", "news"]
+    "title": "Coinbase POL Upgrade Support",
+    "description": "Coinbase will support the POL upgrade; review holdings.",
+    "deadline": "2025-10-17T00:00:00.000Z",
+    "tags": ["migration", "news"],
+    "more info": "Coinbase's support for the POL upgrade from October 14-17 ensures seamless token swaps. This follows the near-complete migration, boosting confidence in Polygon's network evolution.",
+    "Link": "https://x.com/0xPolygon/status/1966873901054521719",
+    "Source": "Social Media"
   },
   {
     "token": "UXLINK",
     "severity": "critical",
-    "title": "Contract Migration Required",
-    "description": "UXLINK contract swap on exchanges; migrate tokens to avoid loss.",
+    "title": "UXLINK Contract Migration",
+    "description": "Complete UXLINK token migration to new contract to prevent loss.",
     "deadline": "2025-10-10T10:00:00.000Z",
-    "tags": ["migration", "community"]
+    "tags": ["migration", "community"],
+    "more info": "Bybit and OKX are supporting the UXLINK contract swap, with migrations occurring between September 30 and October 1. Users should ensure deposits are made before deadlines to participate in the automatic swap.",
+    "Link": "https://announcements.bybit.com/en/article/bybit-will-support-uxlink-uxlink-contract-swap-blt2e2791cba19dd44f/",
+    "Source": "Trusted source"
+  },
+  {
+    "token": "OMNI",
+    "severity": "warning",
+    "title": "Omni to Nomina Token Swap",
+    "description": "Migrate Omni tokens to Nomina; check wallet compatibility.",
+    "deadline": "2025-10-20T00:00:00.000Z",
+    "tags": ["migration", "news"],
+    "more info": "The rebrand to Nomina includes a token swap, refreshing the project's vision. All OMNI tokens will be exchanged, with integrations rolling out on exchanges.",
+    "Link": "https://www.coincarp.com/currencies/announcement/",
+    "Source": "Trusted source"
+  },
+  {
+    "token": "TTM",
+    "severity": "info",
+    "title": "TOTHEMOON Token Migration",
+    "description": "N3 to Base token migration open; incentives for early movers.",
+    "deadline": "2026-09-24T00:00:00.000Z",
+    "tags": ["migration", "community"],
+    "more info": "The one-year migration window unifies TTM tokens, deprecating resource tokens. Early migration rewards aim to accelerate adoption.",
+    "Link": "https://neonewstoday.com/metaverse/tothemoon-opens-n3-to-base-token-migration-deprecates-resource-tokens-for-ttm-unification/",
+    "Source": "Trusted source"
+  },
+  {
+    "token": "CFG",
+    "severity": "critical",
+    "title": "Centrifuge CFG Migration to Ethereum",
+    "description": "Migrate CFG tokens to Ethereum-based version; trading pauses during process.",
+    "deadline": "2025-10-15T00:00:00.000Z",
+    "tags": ["migration", "fork"],
+    "more info": "All CFG balances will be migrated 1:1 to the new Ethereum token. Funding and trading pause on September 29, resuming post-migration.",
+    "Link": "https://support.kraken.com/articles/centrifuge-token-migration-to-ethereum",
+    "Source": "Trusted source"
+  },
+  {
+    "token": "CFX",
+    "severity": "warning",
+    "title": "Conflux Hard Fork",
+    "description": "Upcoming hard fork for Conflux; update nodes.",
+    "deadline": "2025-10-15T00:00:00.000Z",
+    "tags": ["fork", "news"],
+    "more info": "Conflux faces a hard fork in early September, part of altcoin updates including token unlocks. This aims to improve throughput parameters.",
+    "Link": "https://cryptorank.io/news/feed/eda3c-3-altcoins-face-12m-unlocks-hard-forks-in-early-september",
+    "Source": "Trusted source"
+  },
+  {
+    "token": "ONDO",
+    "severity": "info",
+    "title": "Ondo Token Unlock",
+    "description": "Monitor Ondo token unlock; potential market impact.",
+    "deadline": "2025-10-10T00:00:00.000Z",
+    "tags": ["price-change", "news"],
+    "more info": "Ondo is set for a token unlock in September, which could influence price dynamics. Holders should consider exposure limits.",
+    "Link": "https://cryptorank.io/news/feed/eda3c-3-altcoins-face-12m-unlocks-hard-forks-in-early-september",
+    "Source": "Trusted source"
+  },
+  {
+    "token": "IMX",
+    "severity": "warning",
+    "title": "Immutable Hard Fork",
+    "description": "Prepare for Immutable hard fork; client updates recommended.",
+    "deadline": "2025-10-20T00:00:00.000Z",
+    "tags": ["fork", "community"],
+    "more info": "Immutable's hard fork focuses on stability enhancements, part of broader altcoin upgrades in 2025.",
+    "Link": "https://cryptorank.io/news/feed/eda3c-3-altcoins-face-12m-unlocks-hard-forks-in-early-september",
+    "Source": "Trusted source"
+  },
+  {
+    "token": "BTC",
+    "severity": "info",
+    "title": "Bitcoin Hard Fork Discussion",
+    "description": "Ongoing debates on potential Bitcoin hard fork for censorship resistance.",
+    "deadline": "2025-11-15T00:00:00.000Z",
+    "tags": ["fork", "news"],
+    "more info": "Developer Luke Dashjr proposes a hard fork to enhance censorship resistance, sparking community discussions on Bitcoin's future direction.",
+    "Link": "https://x.com/coinidol/status/1973537170704003425",
+    "Source": "Social Media"
   },
   {
     "token": "ADA",
-    "severity": "info",
-    "title": "Governance Parameter Update",
-    "description": "Cardano vote on protocol parameters; participate to influence changes.",
+    "severity": "warning",
+    "title": "Cardano Chang Hard Fork",
+    "description": "Cardano's Chang upgrade to enhance governance; participate in voting.",
     "deadline": "2025-11-01T00:00:00.000Z",
-    "tags": ["community", "fork"]
+    "tags": ["fork", "community"],
+    "more info": "The Chang hard fork introduces improved governance and scalability, with 65% of ADA staked, signaling strong community support.",
+    "Link": "https://x.com/news_crpto20658/status/1973439674149675140",
+    "Source": "Social Media"
   },
   {
     "token": "BNB",
-    "severity": "warning",
-    "title": "BNB Chain Upgrade",
-    "description": "Upcoming BNB Chain protocol upgrade; update nodes for compatibility.",
-    "deadline": "2025-10-25T00:00:00.000Z",
-    "tags": ["fork", "news"]
-  },
-  {
-    "token": "XRP",
     "severity": "info",
-    "title": "Ripple Protocol Amendment",
-    "description": "New amendment vote; no immediate action but monitor for impacts.",
-    "deadline": "2025-11-10T00:00:00.000Z",
-    "tags": ["news", "community"]
+    "title": "BNB Chain Gas Fee Reduction",
+    "description": "Proposal to reduce BNB Chain gas fees; monitor vote.",
+    "deadline": "2025-10-25T00:00:00.000Z",
+    "tags": ["news", "price-change"],
+    "more info": "Validators propose halving gas fees to 0.05 GWEI and speeding up block intervals, potentially boosting DeFi activity on BNB Chain.",
+    "Link": "https://x.com/cointelegraph/status/1971130705699766691",
+    "Source": "Social Media"
   },
   {
     "token": "DOT",
     "severity": "warning",
     "title": "Polkadot Runtime Upgrade",
-    "description": "Polkadot parachain upgrades; ensure stakes are adjusted if needed.",
+    "description": "Upcoming runtime upgrade for Polkadot; adjust stakes if needed.",
     "deadline": "2025-10-18T00:00:00.000Z",
-    "tags": ["fork", "community"]
+    "tags": ["fork", "community"],
+    "more info": "This upgrade enhances parachain functionality, ensuring better interoperability within the Polkadot ecosystem.",
+    "Link": "https://incrypted.com/en/calendar/updates/",
+    "Source": "Trusted source"
   },
   {
     "token": "AVAX",
     "severity": "critical",
     "title": "Avalanche Subnet Migration",
-    "description": "Migrate assets to new subnets to avoid isolation from network.",
+    "description": "Migrate assets to new Avalanche subnets to maintain connectivity.",
     "deadline": "2025-11-05T00:00:00.000Z",
-    "tags": ["migration", "price-change"]
+    "tags": ["migration", "news"],
+    "more info": "Subnet migrations aim to optimize network performance, preventing isolation and ensuring seamless operations.",
+    "Link": "https://www.youhodler.com/blog/crypto-to-invest-in-october-2025",
+    "Source": "Trusted source"
   },
   {
     "token": "LINK",
     "severity": "info",
-    "title": "Chainlink Oracle Update",
-    "description": "New oracle feeds rollout; check integrations for compatibility.",
+    "title": "Chainlink Oracle Feed Upgrade",
+    "description": "Performance improvements to Chainlink oracles; no action needed.",
     "deadline": "2025-10-30T00:00:00.000Z",
-    "tags": ["news", "community"]
+    "tags": ["news", "community"],
+    "more info": "Minor upgrades enhance oracle reliability, supporting better data feeds for DeFi applications.",
+    "Link": "https://finance.yahoo.com/news/fusaka-upgrade-ethereum-biggest-scaling-163235904.html",
+    "Source": "Main stream media"
   },
   {
     "token": "UNI",
     "severity": "warning",
-    "title": "Uniswap Governance Proposal",
-    "description": "Vote on fee switch; potential impact on liquidity providers.",
+    "title": "Uniswap Fee Switch Proposal",
+    "description": "Governance vote on Uniswap fee switch; potential impact on LPs.",
     "deadline": "2025-10-22T00:00:00.000Z",
-    "tags": ["community", "price-change"]
+    "tags": ["community", "price-change"],
+    "more info": "The proposal could alter liquidity provider rewards, affecting yield strategies on Uniswap.",
+    "Link": "https://www.digitaljournal.com/pr/news/insights-news-wire/8-top-cryptos-join-october-1721219716.html",
+    "Source": "Trusted source"
   },
   {
     "token": "DOGE",
     "severity": "info",
     "title": "Dogecoin Core Update",
-    "description": "New version release; optional upgrade for enhanced features.",
+    "description": "New Dogecoin core version release; optional upgrade.",
     "deadline": "2025-11-02T00:00:00.000Z",
-    "tags": ["news", "community"]
+    "tags": ["news", "community"],
+    "more info": "The update includes security fixes and enhanced features, improving wallet functionality.",
+    "Link": "https://bingx.com/en/learn/what-are-the-top-token-unlocks-in-october-2025",
+    "Source": "Trusted source"
   },
   {
     "token": "USDC",
     "severity": "warning",
-    "title": "Circle Issuer Protocol Change",
-    "description": "Update to USDC smart contracts; redeem or hold accordingly.",
+    "title": "USDC Protocol Change",
+    "description": "Update to USDC smart contracts; review balances.",
     "deadline": "2025-10-28T00:00:00.000Z",
-    "tags": ["fork", "news"]
+    "tags": ["fork", "news"],
+    "more info": "Circle's issuer changes aim to improve stability and compliance, affecting redeemable balances.",
+    "Link": "https://markets.financialcontent.com/wral/article/marketminute-2025-9-28-solanas-ascent-protocol-upgrades-and-etf-speculation-set-stage-for-2025-altcoin-rally",
+    "Source": "Trusted source"
   },
   {
     "token": "BTC",
     "severity": "critical",
-    "title": "Quantum-Resistant Signature Upgrade",
-    "description": "Bitcoin may need hard fork for quantum resistance; prepare wallets.",
+    "title": "Bitcoin Quantum-Resistant Upgrade Discussion",
+    "description": "Community discussions on hard fork for quantum resistance.",
     "deadline": "2025-12-31T00:00:00.000Z",
-    "tags": ["fork", "hack"]
-  },
-  {
-    "token": "ETH",
-    "severity": "info",
-    "title": "Fusaka Testnet Launch",
-    "description": "Participate in Fusaka testnet to prepare for mainnet upgrade.",
-    "deadline": "2025-10-14T00:00:00.000Z",
-    "tags": ["fork", "community"]
+    "tags": ["fork", "hack"],
+    "more info": "Proposals for quantum-resistant signatures may require a hard fork, preparing Bitcoin for future threats.",
+    "Link": "https://99bitcoins.com/cryptocurrency/bitcoin/bitcoin-forks/",
+    "Source": "Trusted source"
   },
   {
     "token": "SOL",
     "severity": "warning",
     "title": "Solana Validator Upgrade",
-    "description": "Mandatory upgrade for validators to maintain network stability.",
+    "description": "Mandatory upgrade for Solana validators.",
     "deadline": "2025-10-20T00:00:00.000Z",
-    "tags": ["fork", "community"]
-  },
-  {
-    "token": "POL",
-    "severity": "info",
-    "title": "Polygon Bridge Enhancements",
-    "description": "New bridge features; review for cross-chain migrations.",
-    "deadline": "2025-11-15T00:00:00.000Z",
-    "tags": ["migration", "news"]
+    "tags": ["fork", "community"],
+    "more info": "This upgrade enhances validator performance, contributing to network stability.",
+    "Link": "https://medium.com/the-amc-blog/solana-2025-can-firedancer-turn-speed-into-trust-305e40a88962",
+    "Source": "Social Media"
   },
   {
     "token": "HBAR",
     "severity": "warning",
     "title": "Hedera Consensus Update",
-    "description": "Protocol update for throughput; update nodes promptly.",
+    "description": "Protocol update for Hedera throughput; update nodes.",
     "deadline": "2025-10-25T00:00:00.000Z",
-    "tags": ["fork", "community"]
+    "tags": ["fork", "community"],
+    "more info": "The update improves consensus mechanisms, increasing transaction speeds.",
+    "Link": "https://incrypted.com/en/calendar/updates/",
+    "Source": "Trusted source"
   },
   {
     "token": "SUI",
     "severity": "info",
     "title": "Sui Network Optimization",
-    "description": "Upcoming optimizations; no action required but monitor.",
+    "description": "Upcoming optimizations for Sui; monitor impacts.",
     "deadline": "2025-11-01T00:00:00.000Z",
-    "tags": ["news", "community"]
+    "tags": ["news", "community"],
+    "more info": "Optimizations focus on sharding and efficiency, no urgent action required.",
+    "Link": "https://www.antiersolutions.com/blogs/solana-upgrades-2025-a-detailed-guide-from-alpenglow-to-firedancer-more/",
+    "Source": "Trusted source"
   },
   {
     "token": "ENA",
     "severity": "warning",
     "title": "Ethena Protocol Adjustment",
-    "description": "Changes to staking rewards; review positions.",
+    "description": "Changes to Ethena staking rewards; review positions.",
     "deadline": "2025-10-30T00:00:00.000Z",
-    "tags": ["price-change", "community"]
+    "tags": ["price-change", "community"],
+    "more info": "Adjustments aim to balance yields, potentially affecting holder returns.",
+    "Link": "https://bingx.com/en/learn/what-are-the-top-token-unlocks-in-october-2025",
+    "Source": "Trusted source"
   },
   {
     "token": "ATOM",
     "severity": "critical",
     "title": "Cosmos Hub Upgrade",
-    "description": "Major hub upgrade; migrate IBC assets if affected.",
+    "description": "Major Cosmos Hub upgrade; migrate IBC assets.",
     "deadline": "2025-11-10T00:00:00.000Z",
-    "tags": ["fork", "migration"]
+    "tags": ["fork", "migration"],
+    "more info": "The upgrade enhances inter-blockchain communication, requiring asset migrations for compatibility.",
+    "Link": "https://www.ainvest.com/news/strategic-entry-points-october-2025-high-potential-blockchain-presales-investment-rationale-2509/",
+    "Source": "Trusted source"
   },
   {
     "token": "ALGO",
     "severity": "info",
     "title": "Algorand State Proofs Update",
-    "description": "New state proofs integration; check dApps.",
+    "description": "New state proofs integration for Algorand; check dApps.",
     "deadline": "2025-10-18T00:00:00.000Z",
-    "tags": ["news", "community"]
+    "tags": ["news", "community"],
+    "more info": "This update improves cross-chain verification, enhancing Algorand's interoperability.",
+    "Link": "https://www.youhodler.com/blog/crypto-to-invest-in-october-2025",
+    "Source": "Trusted source"
   },
   {
     "token": "XTZ",
     "severity": "warning",
     "title": "Tezos Adaptive Inflation Vote",
-    "description": "Governance vote on inflation; stake to vote.",
+    "description": "Governance vote on Tezos inflation; stake to participate.",
     "deadline": "2025-11-05T00:00:00.000Z",
-    "tags": ["community", "price-change"]
+    "tags": ["community", "price-change"],
+    "more info": "The vote could adjust inflation rates, impacting staking rewards.",
+    "Link": "https://en.cryptonomist.ch/2025/10/01/5-best-crypto-presales-to-buy-in-october-2025/",
+    "Source": "Trusted source"
   },
   {
     "token": "NEAR",
     "severity": "info",
-    "title": "NEAR Protocol Sharding Phase",
-    "description": "Next sharding phase rollout; monitor for impacts.",
+    "title": "NEAR Sharding Phase Rollout",
+    "description": "Next sharding phase for NEAR; monitor for changes.",
     "deadline": "2025-10-22T00:00:00.000Z",
-    "tags": ["fork", "news"]
+    "tags": ["fork", "news"],
+    "more info": "Sharding improves scalability, allowing higher transaction volumes.",
+    "Link": "https://news.bitcoin.com/best-bitcoin-crypto-wallets-october-2025/",
+    "Source": "Trusted source"
   },
   {
     "token": "TRX",
     "severity": "warning",
     "title": "Tron Great Voyage Upgrade",
-    "description": "Protocol upgrade for DeFi; update wallets.",
+    "description": "Protocol upgrade for Tron DeFi; update wallets.",
     "deadline": "2025-11-02T00:00:00.000Z",
-    "tags": ["fork", "community"]
+    "tags": ["fork", "community"],
+    "more info": "The upgrade enhances DeFi capabilities, improving user experience.",
+    "Link": "https://www.coindesk.com/tech/2025/10/01/ethereum-s-fusaka-upgrade-passes-holesky-test-moves-closer-to-mainnet",
+    "Source": "Trusted source"
   },
   {
     "token": "LTC",
     "severity": "critical",
     "title": "Litecoin MWEB Extension",
-    "description": "Privacy extension activation; opt-in to avoid issues.",
+    "description": "Privacy extension activation for Litecoin; opt-in required.",
     "deadline": "2025-10-28T00:00:00.000Z",
-    "tags": ["fork", "privacy"]
+    "tags": ["fork", "privacy"],
+    "more info": "MWEB adds privacy features to transactions, enhancing user anonymity.",
+    "Link": "https://onekey.so/blog/ecosystem/overview-of-bitcoin-forks/",
+    "Source": "Trusted source"
   },
   {
     "token": "EOS",
     "severity": "info",
     "title": "EOS Leap Upgrade",
-    "description": "New consensus model; no urgent action.",
+    "description": "New consensus model for EOS; no urgent action.",
     "deadline": "2025-11-15T00:00:00.000Z",
-    "tags": ["news", "community"]
+    "tags": ["news", "community"],
+    "more info": "Leap introduces improved consensus, boosting network efficiency.",
+    "Link": "https://www.fidelitydigitalassets.com/research-and-insights/ethereums-pectra-upgrade-what-should-investors-know",
+    "Source": "Trusted source"
   },
   {
     "token": "FIL",
     "severity": "warning",
     "title": "Filecoin Network Upgrade",
-    "description": "Storage provider upgrades; ensure compliance.",
+    "description": "Storage provider upgrades for Filecoin; ensure compliance.",
     "deadline": "2025-10-25T00:00:00.000Z",
-    "tags": ["fork", "community"]
+    "tags": ["fork", "community"],
+    "more info": "The upgrade optimizes storage protocols, improving data retrieval.",
+    "Link": "https://ethroadmap.com/",
+    "Source": "Trusted source"
   },
   {
     "token": "VET",
     "severity": "info",
-    "title": "VeChain Authority Masternode Update",
-    "description": "Masternode requirements change; review holdings.",
+    "title": "VeChain Masternode Update",
+    "description": "Changes to VeChain masternode requirements; review holdings.",
     "deadline": "2025-11-01T00:00:00.000Z",
-    "tags": ["news", "community"]
+    "tags": ["news", "community"],
+    "more info": "Updated requirements aim to enhance network security and participation.",
+    "Link": "https://support.paxos.com/hc/en-us/articles/37221865480724-Ethereum-Pectra-Upgrade-on-May-7-2025",
+    "Source": "Trusted source"
   },
   {
     "token": "ICP",
     "severity": "warning",
     "title": "Internet Computer Canister Upgrade",
-    "description": "Canister smart contract updates; migrate if necessary.",
+    "description": "Canister updates for ICP; migrate if necessary.",
     "deadline": "2025-10-30T00:00:00.000Z",
-    "tags": ["migration", "fork"]
+    "tags": ["migration", "fork"],
+    "more info": "Upgrades improve smart contract functionality on ICP.",
+    "Link": "https://medium.com/@connect.hashblock/solana-programs-2025-the-upgrades-that-matter-3625c95f9e8e",
+    "Source": "Social Media"
   },
   {
     "token": "APT",
     "severity": "critical",
     "title": "Aptos Move VM Update",
-    "description": "VM changes may break contracts; update dApps.",
+    "description": "VM changes for Aptos; update dApps to avoid breaks.",
     "deadline": "2025-11-10T00:00:00.000Z",
-    "tags": ["fork", "exploit"]
+    "tags": ["fork", "exploit"],
+    "more info": "The update may require contract modifications to prevent exploits.",
+    "Link": "https://cryptodnes.bg/en/solana-upgrade-proposal-aims-to-scrap-fixed-compute-unit-limits/",
+    "Source": "Trusted source"
   },
   {
     "token": "ARB",
     "severity": "info",
     "title": "Arbitrum Stylus Launch",
-    "description": "New VM support; optional for users.",
+    "description": "New VM support for Arbitrum; optional for users.",
     "deadline": "2025-10-18T00:00:00.000Z",
-    "tags": ["news", "community"]
+    "tags": ["news", "community"],
+    "more info": "Stylus adds compatibility for more programming languages.",
+    "Link": "https://www.antiersolutions.com/blogs/solana-upgrades-2025-a-detailed-guide-from-alpenglow-to-firedancer-more/",
+    "Source": "Trusted source"
   },
   {
     "token": "OP",
     "severity": "warning",
     "title": "Optimism Bedrock Upgrade",
-    "description": "Layer 2 upgrade; check bridged assets.",
+    "description": "Layer 2 upgrade for Optimism; check bridged assets.",
     "deadline": "2025-11-05T00:00:00.000Z",
-    "tags": ["fork", "migration"]
+    "tags": ["fork", "migration"],
+    "more info": "Bedrock improves rollup efficiency, reducing costs.",
+    "Link": "https://medium.com/the-amc-blog/solana-2025-can-firedancer-turn-speed-into-trust-305e40a88962",
+    "Source": "Social Media"
   },
   {
     "token": "MKR",
     "severity": "info",
     "title": "MakerDAO Endgame Phase",
-    "description": "Governance restructuring; monitor proposals.",
+    "description": "Governance restructuring for MakerDAO; monitor proposals.",
     "deadline": "2025-10-22T00:00:00.000Z",
-    "tags": ["community", "news"]
+    "tags": ["community", "news"],
+    "more info": "Endgame phase aims for decentralized governance evolution.",
+    "Link": "https://cointelegraph.com/explained/solanas-alpenglow-upgrade-could-make-it-faster-than-google-heres-how",
+    "Source": "Trusted source"
   },
   {
     "token": "AAVE",
     "severity": "warning",
     "title": "Aave V4 Protocol Changes",
-    "description": "New risk parameters; adjust loans.",
+    "description": "New risk parameters for Aave; adjust loans.",
     "deadline": "2025-11-02T00:00:00.000Z",
-    "tags": ["price-change", "community"]
+    "tags": ["price-change", "community"],
+    "more info": "V4 introduces advanced risk management tools.",
+    "Link": "https://solanacompass.com/learn/Lightspeed/whats-coming-for-solana-in-2025",
+    "Source": "Trusted source"
   },
   {
     "token": "COMP",
     "severity": "critical",
     "title": "Compound V3 Migration",
-    "description": "Migrate positions to V3 to avoid liquidation risks.",
+    "description": "Migrate positions to Compound V3 to avoid risks.",
     "deadline": "2025-10-28T00:00:00.000Z",
-    "tags": ["migration", "exploit"]
+    "tags": ["migration", "exploit"],
+    "more info": "V3 enhances security and efficiency for lending.",
+    "Link": "https://www.youtube.com/watch?v=D-smG2QQeKI&vl=en-US",
+    "Source": "Social Media"
   },
   {
     "token": "SNX",
     "severity": "info",
     "title": "Synthetix Perps V3",
-    "description": "New perpetuals engine; optional migration.",
+    "description": "New perpetuals engine for Synthetix; optional migration.",
     "deadline": "2025-11-15T00:00:00.000Z",
-    "tags": ["news", "community"]
+    "tags": ["news", "community"],
+    "more info": "V3 improves perpetual futures trading on Synthetix.",
+    "Link": "https://polygon.technology/blog",
+    "Source": "Dev. Team"
   },
   {
     "token": "CRV",
     "severity": "warning",
     "title": "Curve DAO Tokenomics Update",
-    "description": "Vote on emissions; impact on yields.",
+    "description": "Vote on Curve emissions; impact on yields.",
     "deadline": "2025-10-25T00:00:00.000Z",
-    "tags": ["community", "price-change"]
+    "tags": ["community", "price-change"],
+    "more info": "Update could alter reward distributions for liquidity providers.",
+    "Link": "https://x.com/0xPolygon/status/1966873901054521719",
+    "Source": "Social Media"
   },
   {
     "token": "BAL",
     "severity": "info",
     "title": "Balancer Pool Rebalancing",
-    "description": "Protocol rebalance; check liquidity positions.",
+    "description": "Protocol rebalance for Balancer; check positions.",
     "deadline": "2025-11-01T00:00:00.000Z",
-    "tags": ["news", "community"]
+    "tags": ["news", "community"],
+    "more info": "Rebalancing optimizes pool efficiency and yields.",
+    "Link": "https://www.giottus.com/blog/polygon-price-prediction",
+    "Source": "Trusted source"
   },
   {
     "token": "YFI",
     "severity": "warning",
     "title": "Yearn Finance Strategy Migration",
-    "description": "Migrate vaults to new strategies for optimal yields.",
+    "description": "Migrate Yearn vaults to new strategies.",
     "deadline": "2025-10-30T00:00:00.000Z",
-    "tags": ["migration", "community"]
+    "tags": ["migration", "community"],
+    "more info": "New strategies aim for higher yields and risk management.",
+    "Link": "https://support.gemini.com/hc/en-us/articles/40163118876443-MATIC-to-POL-Migration",
+    "Source": "Trusted source"
   },
   {
     "token": "ZEC",
     "severity": "critical",
     "title": "Zcash Halo Upgrade",
-    "description": "Privacy protocol change; update for shielded transactions.",
+    "description": "Privacy protocol change for Zcash; update for shielded txs.",
     "deadline": "2025-11-10T00:00:00.000Z",
-    "tags": ["fork", "privacy"]
+    "tags": ["fork", "privacy"],
+    "more info": "Halo enhances privacy without trusted setups.",
+    "Link": "https://coincentral.com/polygon-completes-99-of-matic-to-pol-migration-for-native-token-upgrade/",
+    "Source": "Trusted source"
   },
   {
     "token": "DASH",
     "severity": "info",
-    "title": "Dash Evolution Platform",
-    "description": "Platform launch; no immediate action.",
+    "title": "Dash Evolution Platform Launch",
+    "description": "Dash platform launch; no immediate action.",
     "deadline": "2025-10-18T00:00:00.000Z",
-    "tags": ["news", "community"]
+    "tags": ["news", "community"],
+    "more info": "Evolution adds user-friendly features for Dash.",
+    "Link": "https://coinmarketcap.com/cmc-ai/polygon-ecosystem-token/latest-updates/",
+    "Source": "Trusted source"
   },
   {
     "token": "ETC",
     "severity": "warning",
     "title": "Ethereum Classic Spiral Upgrade",
-    "description": "Network upgrade; ensure miner compatibility.",
+    "description": "Network upgrade for ETC; ensure miner compatibility.",
     "deadline": "2025-11-05T00:00:00.000Z",
-    "tags": ["fork", "community"]
+    "tags": ["fork", "community"],
+    "more info": "Spiral improves ETC's consensus rules.",
+    "Link": "https://blog.bitstamp.net/post/everything-you-need-to-know-about-matic-to-pol-migration/",
+    "Source": "Trusted source"
   },
   {
     "token": "BSV",
     "severity": "info",
     "title": "Bitcoin SV Teranode Test",
-    "description": "Scaling testnet; monitor for mainnet implications.",
+    "description": "Scaling testnet for BSV; monitor mainnet implications.",
     "deadline": "2025-10-22T00:00:00.000Z",
-    "tags": ["news", "fork"]
+    "tags": ["news", "fork"],
+    "more info": "Teranode aims for massive scalability on BSV.",
+    "Link": "https://www.bitpanda.com/academy/en/lessons/forecast-for-the-polygon-pol-price-in-2025-will-matic-rise",
+    "Source": "Trusted source"
   },
   {
     "token": "BCH",
     "severity": "warning",
     "title": "Bitcoin Cash Chip Upgrade",
-    "description": "Consensus rule changes; update nodes.",
+    "description": "Consensus rule changes for BCH; update nodes.",
     "deadline": "2025-11-02T00:00:00.000Z",
-    "tags": ["fork", "community"]
+    "tags": ["fork", "community"],
+    "more info": "Chip upgrade enhances BCH's functionality.",
+    "Link": "https://www.okx.com/en-us/learn/migration-portal-blockchain-token-migrations",
+    "Source": "Trusted source"
   },
   {
     "token": "KSM",
     "severity": "critical",
     "title": "Kusama Parachain Auction Changes",
-    "description": "New auction rules; bid or migrate leases.",
+    "description": "New auction rules for Kusama; bid or migrate leases.",
     "deadline": "2025-10-28T00:00:00.000Z",
-    "tags": ["migration", "price-change"]
+    "tags": ["migration", "price-change"],
+    "more info": "Changes aim to improve parachain allocation.",
+    "Link": "https://help.coinbase.com/en/coinbase/trading-and-funding/sending-or-receiving-cryptocurrency/token-migrations",
+    "Source": "Trusted source"
   },
   {
     "token": "GLMR",
     "severity": "info",
     "title": "Moonbeam Runtime Update",
-    "description": "EVM compatibility enhancements; check contracts.",
+    "description": "EVM compatibility enhancements for Moonbeam; check contracts.",
     "deadline": "2025-11-15T00:00:00.000Z",
-    "tags": ["news", "community"]
+    "tags": ["news", "community"],
+    "more info": "Update boosts Moonbeam's Ethereum compatibility.",
+    "Link": "https://medium.com/@LAMINA1/lamina1-x-anotherworld-token-migration-guide-919ca6232994",
+    "Source": "Social Media"
+  },
+  {
+    "token": "XRP",
+    "severity": "info",
+    "title": "Ripple Protocol Amendment Vote",
+    "description": "New amendment vote for XRP; monitor impacts.",
+    "deadline": "2025-11-10T00:00:00.000Z",
+    "tags": ["news", "community"],
+    "more info": "The amendment could introduce new features to the XRP ledger.",
+    "Link": "https://www.coincarp.com/currencies/announcement/",
+    "Source": "Trusted source"
+  },
+  {
+    "token": "PI",
+    "severity": "warning",
+    "title": "Pi Network Protocol Upgrade to V23",
+    "description": "Upgrade to enable smart contracts on Pi Network; participate in vote.",
+    "deadline": "2025-12-01T00:00:00.000Z",
+    "tags": ["fork", "community"],
+    "more info": "Adapting from Stellar V23, this upgrade introduces Soroban for smart contracts, transforming Pi into a full dApp platform.",
+    "Link": "https://x.com/shrh56108161/status/1964984921279385857",
+    "Source": "Social Media"
+  },
+  {
+    "token": "PI",
+    "severity": "info",
+    "title": "Pi Network Blockchain Vote",
+    "description": "Vote on upgrading Pi protocol from V19 to V23.",
+    "deadline": "2025-11-15T00:00:00.000Z",
+    "tags": ["news", "community"],
+    "more info": "Involving nodes, exchanges, and institutions, this vote enables smart contracts and cross-chain features.",
+    "Link": "https://x.com/USA87500790/status/1965572866050834506",
+    "Source": "Social Media"
+  },
+  {
+    "token": "MOVE",
+    "severity": "critical",
+    "title": "Movement Network L2 to L1 Migration",
+    "description": "Seamless migration to sovereign L1; no action required but monitor.",
+    "deadline": "2025-12-31T00:00:00.000Z",
+    "tags": ["migration", "fork"],
+    "more info": "Movement upgrades from L2 to L1 without hard fork, preserving all data, focusing on mobile wallets and RWAs.",
+    "Link": "https://x.com/destingerrard/status/1973063676509696143",
+    "Source": "Social Media"
+  },
+  {
+    "token": "BRC20",
+    "severity": "warning",
+    "title": "BRC-20 Protocol Upgrades",
+    "description": "Major upgrades to BRC-20 including swap module.",
+    "deadline": "2025-12-01T00:00:00.000Z",
+    "tags": ["fork", "news"],
+    "more info": "Introduces single-step transfers, programmable modules, and swaps, first significant upgrade for BRC-20.",
+    "Link": "https://x.com/unisat_wallet/status/1892537813541007660",
+    "Source": "Social Media"
+  },
+  {
+    "token": "XPL",
+    "severity": "info",
+    "title": "XPL Token Launchpool",
+    "description": "Stake to earn XPL in launchpool; check eligibility.",
+    "deadline": "2025-10-17T00:00:00.000Z",
+    "tags": ["news", "community"],
+    "more info": "Multiple exchanges hosting XPL launchpools with millions in rewards for stakers.",
+    "Link": "https://x.com/AlvinMaven/status/1971383104960188916",
+    "Source": "Social Media"
+  },
+  {
+    "token": "XLM",
+    "severity": "warning",
+    "title": "Stellar Protocol 23 Upgrade",
+    "description": "Upgrade introduces Soroban smart contracts; update clients.",
+    "deadline": "2025-11-01T00:00:00.000Z",
+    "tags": ["fork", "community"],
+    "more info": "Protocol 23 enables scalable dApps on Stellar, boosting DeFi and GameFi.",
+    "Link": "https://x.com/Ketan_Patell/status/1953468268632580147",
+    "Source": "Social Media"
+  },
+  {
+    "token": "IDOS",
+    "severity": "info",
+    "title": "idOS Identity Layer Update",
+    "description": "Enhancements to interoperable identity; no action needed.",
+    "deadline": "2025-10-25T00:00:00.000Z",
+    "tags": ["news", "privacy"],
+    "more info": "idOS provides composable identity for Web3, solving KYC friction across chains.",
+    "Link": "https://x.com/PromptFi_AI/status/1971870724055777453",
+    "Source": "Social Media"
+  },
+  {
+    "token": "IOTA",
+    "severity": "warning",
+    "title": "IOTA Infrastructure Upgrade",
+    "description": "Upgrade for IOTA's DAG architecture; monitor dApps.",
+    "deadline": "2025-11-10T00:00:00.000Z",
+    "tags": ["fork", "news"],
+    "more info": "Focuses on scalability for IoT and enterprises, enabling feeless micro-transactions.",
+    "Link": "https://x.com/PromptFi_AI/status/1971870724055777453",
+    "Source": "Social Media"
+  },
+  {
+    "token": "CREEK",
+    "severity": "info",
+    "title": "Creek Gold Yield Engine Launch",
+    "description": "New yield strategies on Sui for gold-backed assets.",
+    "deadline": "2025-10-30T00:00:00.000Z",
+    "tags": ["news", "price-change"],
+    "more info": "Bridges gold with DeFi, allowing yield on traditional assets.",
+    "Link": "https://x.com/PromptFi_AI/status/1971870724055777453",
+    "Source": "Social Media"
+  },
+  {
+    "token": "TEN",
+    "severity": "warning",
+    "title": "TEN Protocol Privacy Update",
+    "description": "Enhancements to confidential computations on TEN.",
+    "deadline": "2025-11-15T00:00:00.000Z",
+    "tags": ["privacy", "fork"],
+    "more info": "Uses TEEs for private data processing, targeting institutional use.",
+    "Link": "https://x.com/drjantit/status/1970445341523599547",
+    "Source": "Social Media"
   }
 ]
