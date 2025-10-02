@@ -110,6 +110,7 @@ function persistPrefsServerDebounced(){
 document.addEventListener('DOMContentLoaded', () => {
   const userMenuBtn = document.getElementById('user-menu-btn');
   const userMenu = document.getElementById('user-menu');
+  const logoutItem = document.getElementById('menu-logout');
 
   if (userMenuBtn && userMenu) {
     userMenuBtn.addEventListener('click', (e) => {
@@ -140,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
       userMenuBtn.setAttribute('aria-expanded', 'false');
       
       // Real actions
-      if (action === 'login' || action === 'signup') window.location.href = '/signup';
+  if (action === 'login') window.location.href = '/signup';
       if (action === 'settings' || action === 'profile') window.location.href = '/profile';
       if (action === 'help') window.open('https://github.com/atoates/CLG-DEPLOY', '_blank');
       if (action === 'logout') {
@@ -161,6 +162,11 @@ document.addEventListener('DOMContentLoaded', () => {
       sevFilter      = Array.isArray(me.severity) ? me.severity : ['critical','warning','info'];
       showAll        = !!me.showAll;
       hiddenKeys     = new Set(Array.isArray(me.dismissed) ? me.dismissed : []);
+
+      // Control visibility of logout in menu
+      try{
+        if (logoutItem) logoutItem.hidden = !me.loggedIn;
+      }catch(_e){}
 
       // If logged in, replace the Account dropdown with avatar + name button to Profile
       if (me.loggedIn) {
@@ -230,6 +236,23 @@ function renderDatalist(){
     tokenDatalist.appendChild(opt);
   });
 }
+
+// Add-all control: adds entire suggestions list to watchlist
+document.addEventListener('DOMContentLoaded', () => {
+  const addAllBtn = document.getElementById('add-all-btn');
+  if (addAllBtn){
+    addAllBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const list = Array.from(new Set(ALL_TOKENS.map(s=>String(s).toUpperCase())));
+      // merge into selectedTokens
+      const set = new Set(selectedTokens.map(s=>String(s).toUpperCase()));
+      list.forEach(t => set.add(t));
+      selectedTokens = Array.from(set);
+      persistPrefsServerDebounced();
+      renderAll();
+    });
+  }
+});
 
 async function enrichTokensFromAlerts(){
   try{

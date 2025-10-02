@@ -31,13 +31,12 @@
             Account ▾
           </button>
           <div id="user-menu" class="menu" hidden>
-            <button class="menu-item" data-action="login">Log in</button>
-            <button class="menu-item" data-action="signup">Sign up</button>
+            <button class="menu-item" data-action="login">Log in / Sign up</button>
             <hr />
             <button class="menu-item" data-action="settings">Settings</button>
             <button class="menu-item" data-action="help">Help</button>
             <hr />
-            <button class="menu-item" data-action="logout">Log out</button>
+            <button class="menu-item" data-action="logout" id="menu-logout" hidden>Log out</button>
           </div>
         </div>
       </div>
@@ -50,7 +49,8 @@
       <div class="token-select-row">
   <input id="token-input" class="input" type="text" placeholder="Type a token symbol (e.g., BTC, ETH, MATIC) and press Enter…" list="token-datalist" aria-label="Add token" autocomplete="on" autocapitalize="characters" spellcheck="false" />
         <datalist id="token-datalist"></datalist>
-        <button id="add-token-btn" class="btn">Add to watchlist</button>
+        <button id="add-token-btn" class="btn">Add</button>
+        <button id="add-all-btn" class="btn gray" title="Add all suggested tokens to your watchlist">Add all</button>
       </div>
       <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
     </section>
