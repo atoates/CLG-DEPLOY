@@ -105,6 +105,21 @@ ON CONFLICT(user_id) DO UPDATE SET
 /* ---------------- Middleware ---------------- */
 app.use(express.json());
 app.use(cookieParser());
+// Admin token helpers (reuse for admin-only APIs)
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+function getAdminTokenFromReq(req){
+  const auth = String(req.get('authorization') || req.get('x-admin-token') || '').trim();
+  if (!auth) return '';
+  if (auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
+  return auth;
+}
+function requireAdmin(req, res, next){
+  const token = getAdminTokenFromReq(req);
+  if (!ADMIN_TOKEN || !token || token !== ADMIN_TOKEN) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  return next();
+}
 // Very small ephemeral in-memory session store
 const sessions = new Map(); // sid -> { uid }
 const oauthStates = new Map(); // state -> { timestamp, used }
@@ -308,6 +323,60 @@ app.post('/api/alerts', (req, res) => {
   };
   alerts.push(item); persistAlerts();
   res.status(201).json(item);
+});
+
+// Get a single alert (admin only for now)
+app.get('/api/alerts/:id', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const item = alerts.find(a => a.id === id);
+  if (!item) return res.status(404).json({ error: 'not_found' });
+  res.json(item);
+});
+
+// Update an alert (admin only)
+app.put('/api/alerts/:id', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const idx = alerts.findIndex(a => a.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'not_found' });
+
+  const payload = req.body || {};
+  // Validate/normalize fields if present
+  if (payload.token != null) {
+    payload.token = String(payload.token).toUpperCase();
+  }
+  if (payload.severity != null) {
+    const allowed = ['critical','warning','info'];
+    if (!allowed.includes(payload.severity)) return res.status(400).json({ error:'invalid_severity' });
+  }
+  if (payload.deadline != null) {
+    const iso = new Date(payload.deadline).toISOString();
+    if (!iso || iso === 'Invalid Date') return res.status(400).json({ error:'invalid_deadline' });
+    payload.deadline = iso;
+  }
+  if (payload.tags != null) {
+    const validTags = [
+      'price-change', 'migration', 'hack', 'fork', 'scam',
+      'airdrop', 'whale', 'news', 'community', 'exploit'
+    ];
+    const cleaned = Array.isArray(payload.tags)
+      ? payload.tags.filter(t => typeof t === 'string' && validTags.includes(t))
+      : [];
+    payload.tags = cleaned;
+  }
+  // Apply changes
+  const old = alerts[idx];
+  const updated = { ...old, ...payload };
+  alerts[idx] = updated; persistAlerts();
+  res.json(updated);
+});
+
+// Delete an alert (admin only)
+app.delete('/api/alerts/:id', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const idx = alerts.findIndex(a => a.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'not_found' });
+  const removed = alerts.splice(idx, 1)[0]; persistAlerts();
+  res.json({ ok:true, removedId: removed.id });
 });
 
 /* ---------------- Market (Polygon free EOD) ---------------- */
@@ -540,7 +609,7 @@ app.get('/api/news/cryptopanic-alerts', async (req, res) => {
 
 
 // --- Admin: backup endpoint -------------------------------------------------
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+// ADMIN_TOKEN already defined above for reuse
 
 app.post('/admin/sql', async (req, res) => {
   // Accept either Authorization: Bearer <token> or X-Admin-Token
@@ -690,6 +759,7 @@ app.use(express.static(__dirname));
 // Also serve standalone pages explicitly
 app.get('/signup', (_req,res) => res.sendFile(path.join(__dirname, 'signup.html')));
 app.get('/profile', (_req,res) => res.sendFile(path.join(__dirname, 'profile.html')));
+app.get('/admin', (_req,res) => res.sendFile(path.join(__dirname, 'admin.html')));
 
 // Mask paths for logging (basic)
 function maskPath(p){

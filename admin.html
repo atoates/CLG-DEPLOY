@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — Alerts Dashboard</title>
+  <link rel="stylesheet" href="/styles.css?v=20251002" />
+  <style>
+    .admin-grid{ display:grid; grid-template-columns: 280px 1fr; gap:16px; }
+    .admin-list{ max-height: calc(100vh - 220px); overflow:auto; }
+    .admin-item{ padding:8px 10px; border:1px solid rgba(2,6,23,0.08); border-radius:10px; margin-bottom:8px; cursor:pointer; }
+    .admin-item.active{ outline: 2px solid var(--ocean-blue); }
+    .field{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+    .field label{ font-size:12px; font-weight:800; color:#334155; }
+    .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .pill{ background:#eef6ff; border-color:#d9ecff; }
+    .token{ width:120px; }
+    .actions{ display:flex; gap:8px; }
+    .danger{ background:#dc2626; }
+    .note{ font-size:12px; color:#475569; }
+  </style>
+  <script type="module" src="/admin.js"></script>
+</head>
+<body>
+  <header class="topbar"><div class="topbar-inner">
+    <div class="brand-wrap">
+      <img class="brand-logo" src="https://i.postimg.cc/Fz0xdDzd/Crypto-Lifeguard-Logo-Striking-Impact-background.png" alt="Logo" />
+      <div class="brand-text"><h1 class="brand-title">Crypto Lifeguard</h1><p class="brand-tagline">Admin dashboard</p></div>
+    </div>
+    <div class="actions"><a class="menu-btn" href="/">Home</a></div>
+  </div></header>
+
+  <main class="container">
+    <section class="card">
+      <h2 class="section-title">Alerts</h2>
+      <div class="admin-grid">
+        <div>
+          <div class="row" style="margin-bottom:8px">
+            <button id="btn-new" class="btn">+ New alert</button>
+            <span class="note">Requires ADMIN_TOKEN</span>
+          </div>
+          <div id="list" class="admin-list"></div>
+        </div>
+        <div>
+          <form id="editor">
+            <div class="field"><label>Token</label><input id="f-token" class="input token" placeholder="e.g. ETH" /></div>
+            <div class="field"><label>Severity</label>
+              <div class="row">
+                <label><input type="radio" name="sev" value="critical" /> Critical</label>
+                <label><input type="radio" name="sev" value="warning" /> Warning</label>
+                <label><input type="radio" name="sev" value="info" /> Info</label>
+              </div>
+            </div>
+            <div class="field"><label>Title</label><input id="f-title" class="input" /></div>
+            <div class="field"><label>Description</label><textarea id="f-desc" class="input" rows="4"></textarea></div>
+            <div class="field"><label>Deadline (ISO)</label><input id="f-deadline" class="input" placeholder="2025-10-15T12:00:00.000Z" /></div>
+            <div class="field"><label>Tags (comma-separated)</label><input id="f-tags" class="input" placeholder="news, community" /></div>
+            <div class="actions">
+              <button id="btn-save" class="btn" type="submit">Save</button>
+              <button id="btn-delete" class="btn danger" type="button">Delete</button>
+            </div>
+            <p id="msg" class="note"></p>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer muted"><span>© 2025 Crypto Lifeguard — demo build</span></footer>
+</body>
+</html>
