@@ -483,6 +483,98 @@ app.delete('/api/alerts/:id', requireAdmin, (req, res) => {
   res.json({ ok:true, removedId: removed.id });
 });
 
+// Bulk create alerts (admin only)
+app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
+  const { alerts: alertsToCreate } = req.body || {};
+  
+  if (!Array.isArray(alertsToCreate) || alertsToCreate.length === 0) {
+    return res.status(400).json({ error: 'alerts array is required and must not be empty' });
+  }
+
+  const validTags = [
+    'price-change', 'migration', 'hack', 'fork', 'scam',
+    'airdrop', 'whale', 'news', 'community', 'exploit'
+  ];
+
+  const createdAlerts = [];
+  const errors = [];
+
+  alertsToCreate.forEach((alertData, index) => {
+    try {
+      const { token, title, description, severity, deadline, tags, further_info, source_type, source_url } = alertData;
+      
+      // Validate required fields
+      if (!token || !title || !deadline) {
+        errors.push(`Alert ${index + 1}: token, title, deadline are required`);
+        return;
+      }
+
+      // Validate and normalize fields
+      const finalSeverity = ['critical','warning','info'].includes(severity) ? severity : 'info';
+      
+      // Handle tags
+      let finalTags;
+      if (Array.isArray(tags)) {
+        const sanitizedTags = tags.filter(t => typeof t === 'string' && validTags.includes(t));
+        finalTags = sanitizedTags.length > 0 ? sanitizedTags : JSON.parse(getDefaultTags(finalSeverity));
+      } else {
+        finalTags = JSON.parse(getDefaultTags(finalSeverity));
+      }
+
+      // Validate source metadata
+      const srcType = source_type && SOURCE_TYPES.includes(String(source_type)) ? String(source_type) : '';
+      const srcUrl = source_url && /^https?:\/\//i.test(String(source_url)) ? String(source_url) : '';
+
+      // Validate deadline
+      const deadlineDate = new Date(deadline);
+      if (isNaN(deadlineDate.getTime())) {
+        errors.push(`Alert ${index + 1}: Invalid deadline format`);
+        return;
+      }
+
+      const item = {
+        id: `a_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+        token: String(token).toUpperCase(),
+        title: String(title),
+        description: String(description || ''),
+        severity: finalSeverity,
+        deadline: deadlineDate.toISOString(),
+        tags: finalTags,
+        further_info: String(further_info || ''),
+        source_type: srcType,
+        source_url: srcUrl
+      };
+
+      alerts.push(item);
+      createdAlerts.push(item);
+
+    } catch (error) {
+      errors.push(`Alert ${index + 1}: ${error.message}`);
+    }
+  });
+
+  // Persist if any alerts were created
+  if (createdAlerts.length > 0) {
+    persistAlerts();
+  }
+
+  const response = {
+    imported: createdAlerts.length,
+    errors: errors.length,
+    total: alertsToCreate.length
+  };
+
+  if (errors.length > 0) {
+    response.errorDetails = errors;
+  }
+
+  if (createdAlerts.length === 0) {
+    return res.status(400).json({ ...response, error: 'No alerts could be created' });
+  }
+
+  res.status(201).json(response);
+});
+
 /* ---------------- Market (Polygon free EOD) ---------------- */
 function mapSymbolToPolygon(sym){
   const m={ BTC:'X:BTCUSD', ETH:'X:ETHUSD', USDC:'X:USDCUSD', MATIC:'X:MATICUSD',

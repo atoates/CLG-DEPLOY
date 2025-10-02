@@ -195,13 +195,33 @@
           </div>
           <hr />
           <div class="field">
-            <label>Exports</label>
-            <div class="row">
-              <button id="btn-export-users" class="btn" type="button">Export users.csv</button>
-              <button id="btn-export-audit" class="btn" type="button">Export audit.csv</button>
-              <button id="btn-export-alerts" class="btn" type="button">Export alerts.csv</button>
+            <label>Bulk Import Alerts</label>
+            <div class="csv-upload-container">
+              <div class="upload-area" id="csv-upload-area">
+                <input type="file" id="csv-file-input" accept=".csv" hidden />
+                <div class="upload-content">
+                  <div class="upload-icon">📂</div>
+                  <p class="upload-text">
+                    <strong>Click to upload</strong> or drag and drop your CSV file here
+                  </p>
+                  <p class="upload-hint">
+                    Supported format: CSV with columns: token, title, description, severity, deadline, tags, further_info, source_type, source_url
+                  </p>
+                </div>
+              </div>
+              <div class="csv-actions">
+                <button id="csv-template-btn" class="btn" type="button">📥 Download CSV Template</button>
+                <button id="csv-import-btn" class="btn" type="button" disabled>⬆️ Import Alerts</button>
+              </div>
+              <div id="csv-preview-section" class="csv-preview" hidden>
+                <h4>Preview (first 5 rows):</h4>
+                <div class="csv-table-container">
+                  <table id="csv-preview-table" class="csv-preview-table"></table>
+                </div>
+              </div>
+              <div id="csv-status" class="csv-status" hidden></div>
             </div>
-            <div class="muted">Audit export defaults to last 30 days.</div>
+            <div class="muted">Upload a CSV file to bulk import multiple alerts at once. Download the template to see the required format.</div>
           </div>
         </div>
       </section>
