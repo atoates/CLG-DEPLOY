@@ -77,6 +77,7 @@ const marketNoteEl    = document.getElementById('market-note');
 
 const sevFilterWrap   = document.getElementById('sev-filter');
 const showAllWrap     = document.getElementById('showall-wrap');
+const tagFilterCard   = document.getElementById('filter-tags-card');
 const showAllToggle   = document.getElementById('toggle-show-all');
 
 const sevButtons      = document.querySelectorAll('.sev-btn');
@@ -270,6 +271,7 @@ function updateFilterVisibility(tab){
   const visible = (tab === 'alerts');
   if (sevFilterWrap) sevFilterWrap.hidden = !visible;
   if (showAllWrap)   showAllWrap.hidden   = !visible;
+  if (tagFilterCard) tagFilterCard.hidden = !visible;
 }
 
 // --- Token Add ---------------------------------------------------------------
