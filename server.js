@@ -639,7 +639,7 @@ function mapSymbolToPolygon(sym){
 
 app.get('/api/market/snapshot', async (req, res) => {
   const symbols = String(req.query.symbols||'').split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
-  if (!symbols.length) return res.json({ items:[], note:'No symbols selected.' });
+  if (!symbols.length) return res.json({ items:[], note:'No symbols selected.', provider: CMC_API_KEY ? 'cmc' : (POLYGON_KEY ? 'polygon' : 'none') });
 
   // Prefer CMC if configured
   if (CMC_API_KEY) {
@@ -652,7 +652,7 @@ app.get('/api/market/snapshot', async (req, res) => {
       const cacheKey = `stats:${ids.join(',')}:${MARKET_CURRENCY}`;
       const hit = cmcStatsCache.get(cacheKey);
       if (hit && Date.now() - hit.t < CMC_STATS_TTL_MS) {
-        return res.json({ items: hit.data, note: `CoinMarketCap price-performance (~60s) — ${MARKET_CURRENCY}` });
+        return res.json({ items: hit.data, note: `CoinMarketCap price-performance (~60s) — ${MARKET_CURRENCY}` , provider: 'cmc' });
       }
 
       const params = new URLSearchParams({
@@ -685,12 +685,12 @@ app.get('/api/market/snapshot', async (req, res) => {
         };
       });
       cmcStatsCache.set(cacheKey, { t: Date.now(), data: items });
-      return res.json({ items, note: `CoinMarketCap price-performance (~60s) — ${MARKET_CURRENCY}` });
+      return res.json({ items, note: `CoinMarketCap price-performance (~60s) — ${MARKET_CURRENCY}`, provider: 'cmc' });
     }catch(e){
       // Fall through to Polygon if configured, else return error items
       if (!POLYGON_KEY) {
         const items = symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'cmc-failed' }));
-        return res.json({ items, note: 'CoinMarketCap fetch failed; no fallback API configured.' });
+        return res.json({ items, note: 'CoinMarketCap fetch failed; no fallback API configured.', provider: 'cmc' });
       }
     }
   }
@@ -719,7 +719,7 @@ app.get('/api/market/snapshot', async (req, res) => {
       items.push({ token:sym, lastPrice:null, dayChangePct:null, change30mPct:null, error:'fetch-failed' });
     }
   }
-  res.json({ items, note });
+  res.json({ items, note, provider: POLYGON_KEY ? 'polygon' : 'none' });
 });
 
 app.get('/api/market/auto-alerts', async (req, res) => {

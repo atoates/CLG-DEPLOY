@@ -76,6 +76,7 @@ let tagPillsExpanded = false;                            // expanded view for se
 let serverAlerts = [];
 let autoAlerts   = [];
 let marketItems  = [];
+let marketProvider = 'none'; // 'cmc' | 'polygon' | 'none'
 
 // --- DOM ---------------------------------------------------------------------
 const tokenInput      = document.getElementById('token-input');
@@ -967,6 +968,7 @@ async function loadMarket(){
     const res = await fetch(`/api/market/snapshot?symbols=${encodeURIComponent(symbols)}`);
     const json = await res.json();
     marketItems = json.items || [];
+    marketProvider = json.provider || 'none';
     if (marketNoteEl) marketNoteEl.textContent = json.note || 'End-of-day aggregates (free tier).';
   }catch(e){
     console.error('snapshot error', e);
@@ -1011,11 +1013,12 @@ function renderMarket(){
     const chips = document.createElement('div');
     chips.className = 'mk-row';
 
-    const eodVal = typeof it.dayChangePct === 'number' ? it.dayChangePct : null;
-    const eod = document.createElement('span');
-    eod.className = 'mk-chip ' + (eodVal === null ? 'neutral' : (eodVal >= 0 ? 'chg-pos' : 'chg-neg'));
-    eod.textContent = `EOD ${pctFmt(eodVal)}`;
-    chips.appendChild(eod);
+  const changeVal = typeof it.dayChangePct === 'number' ? it.dayChangePct : null;
+  const changeChip = document.createElement('span');
+  changeChip.className = 'mk-chip ' + (changeVal === null ? 'neutral' : (changeVal >= 0 ? 'chg-pos' : 'chg-neg'));
+  const label = marketProvider === 'cmc' ? '24h' : 'EOD';
+  changeChip.textContent = `${label} ${pctFmt(changeVal)}`;
+  chips.appendChild(changeChip);
 
     if (typeof it.change30mPct === 'number'){
       const m30 = document.createElement('span');

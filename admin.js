@@ -176,7 +176,10 @@ refreshList();
     const r = await fetch('/admin/info', { headers: { ...authHeaders() }});
     if (!r.ok) { infoEl.textContent = 'Admin info unavailable'; return; }
     const j = await r.json();
-    infoEl.textContent = `DB: ${j.databasePath} — Alerts: ${j.counts.alerts}, Users: ${j.counts.users}, Prefs: ${j.counts.user_prefs} — Restore on deploy: ${j.restoreFromFile ? 'ON' : 'OFF'}`;
+    const mk = j.market || {};
+    const provider = mk.provider || 'none';
+    const currency = mk.currency || 'USD';
+    infoEl.textContent = `DB: ${j.databasePath} — Alerts: ${j.counts.alerts}, Users: ${j.counts.users}, Prefs: ${j.counts.user_prefs} — Market: ${provider.toUpperCase()} ${currency} — Restore on deploy: ${j.restoreFromFile ? 'ON' : 'OFF'}`;
   }catch(e){ infoEl.textContent = 'Admin info unavailable'; }
 })();
 
