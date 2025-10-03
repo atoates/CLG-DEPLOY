@@ -550,67 +550,6 @@ button#user-menu-btn.menu-btn{
   margin-top: 0;
 }
 
-.selected-tag-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--ocean-blue);
-  color: white;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-  animation: slideIn 0.2s ease;
-  transition: opacity .18s ease, transform .18s ease, max-width .18s ease, margin .18s ease;
-}
-
-.selected-tag-pill .remove-tag {
-  background: none;
-  border: none;
-  color: white;
-  cursor: pointer;
-  padding: 0;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  line-height: 1;
-  transition: background-color 0.2s ease;
-}
-
-.selected-tag-pill .remove-tag:hover {
-  background: rgba(255,255,255,0.2);
-}
-
-/* Fade-out on remove */
-.selected-tag-pill.removing {
-  opacity: 0;
-  transform: translateY(-6px);
-  margin-right: 0;
-}
-
-/* "+N more" collapsed pill */
-.toggle-more-pill {
-  background: #e2e8f0;
-  color: #0f172a;
-  border: 1px solid rgba(2,6,23,0.12);
-  cursor: pointer;
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 /* Legacy styles for backward compatibility */
 .tag-filters {
   display: flex;
