@@ -482,6 +482,9 @@ function initializeTagFilters() {
   const resetTagsBtn = document.getElementById('reset-tags');
   const selectedTagsDisplay = document.getElementById('selected-tags-display');
   
+  // Also handle the new popup clear button (if the old reset-tags doesn't exist)
+  const popupClearBtn = resetTagsBtn || document.querySelector('.btn-clear-tags-popup');
+  
   // Get all unique tags from combined alerts (serverAlerts + autoAlerts)
   const allTags = new Set();
   const combinedAlerts = [...serverAlerts, ...autoAlerts];
@@ -550,7 +553,10 @@ function initializeTagFilters() {
     dropdownOptions.dataset.bound = '1';
   }
   
-  resetTagsBtn.addEventListener('click', resetTagFilters);
+  // Handle reset/clear button (use the popup button now)
+  if (popupClearBtn) {
+    popupClearBtn.addEventListener('click', resetTagFilters);
+  }
   
   // Initialize display
   updateSelectedTagsDisplay();

@@ -59,27 +59,7 @@
       <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
     </section>
 
-    <!-- Dedicated card for tag filters for clearer alignment -->
-  <section id="filter-tags-card" class="card filter-tags-card" aria-label="Tag filters">
-      <div class="tag-filters-wrap">
-        <div class="tag-dropdown-container">
-          <label for="tag-filters" class="tag-dropdown-label">Filter by tags:</label>
-          <div class="tag-select-row">
-            <div class="custom-dropdown">
-              <button type="button" class="dropdown-trigger" id="tag-dropdown-trigger">
-                <span class="dropdown-text">Select tags...</span>
-                <span class="dropdown-arrow">▼</span>
-              </button>
-              <div class="dropdown-options" id="tag-dropdown-options">
-                <!-- Options will be populated by JavaScript -->
-              </div>
-            </div>
-            <button id="reset-tags" class="btn btn-clear-tags">Clear All</button>
-          </div>
-          <div id="selected-tags-display" class="selected-tags-pills"></div>
-        </div>
-      </div>
-    </section>
+
 
     <div class="tabsbar" role="navigation" aria-label="Main tabs and filters">
       <nav class="tabs" role="tablist" aria-label="Main tabs">
@@ -92,7 +72,24 @@
         <button class="sev-btn active" data-sev="critical" aria-pressed="true" title="Critical">🚨</button>
         <button class="sev-btn active" data-sev="warning"  aria-pressed="true" title="Warning">⚠️</button>
         <button class="sev-btn active" data-sev="info"     aria-pressed="true" title="Info">🛟</button>
+        
+        <!-- Tag filter icon -->
+        <div class="tag-filter-wrapper">
+          <button class="filter-icon-btn" id="tag-dropdown-trigger" title="Filter by tags">
+            🏷️
+          </button>
+          <div class="tag-dropdown-popup" id="tag-dropdown-options">
+            <div class="dropdown-header">
+              <span>Filter by tags</span>
+              <button id="reset-tags" class="btn-clear-tags-popup">Clear All</button>
+            </div>
+            <!-- Options will be populated by JavaScript -->
+          </div>
+        </div>
       </div>
+      
+      <!-- Selected tags display -->
+      <div id="selected-tags-display" class="selected-tags-pills"></div>
 
       <label class="switch small" id="showall-wrap" title="Include closed/dismissed alerts">
         <span class="switch-caption">Show closed</span>
