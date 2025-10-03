@@ -738,6 +738,15 @@ app.get('/api/market/auto-alerts', async (req, res) => {
   res.json(mk);
 });
 
+// Expose market config (currency + symbol) for frontend formatting
+function currencySymbol(code){
+  const m = { USD: '$', GBP: '£', EUR: '€', JPY: '¥', AUD: 'A$', CAD: 'C$', CHF: 'CHF', CNY: '¥', HKD: 'HK$', SGD: 'S$', NZD: 'NZ$' };
+  return m[String(code||'').toUpperCase()] || code || '$';
+}
+app.get('/api/market/config', (_req, res) => {
+  res.json({ currency: MARKET_CURRENCY, symbol: currencySymbol(MARKET_CURRENCY) });
+});
+
 // --- CryptoPanic config ------------------------------------------------------
 const CP_PLAN   = process.env.CRYPTOPANIC_PLAN || 'developer';
 const CP_TOKEN  = process.env.CRYPTOPANIC_TOKEN || '';

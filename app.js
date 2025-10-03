@@ -9,6 +9,8 @@ const BASE_TOKENS = [
 const ALL_TOKENS = [...BASE_TOKENS];
 
 // --- Utilities ---------------------------------------------------------------
+let CURRENCY_CODE = 'USD';
+let CURRENCY_SYMBOL = '$';
 function fmtTimeLeft(msLeft){
   if (msLeft <= 0) return 'Expired';
   const totalSeconds = Math.floor(msLeft / 1000);
@@ -27,7 +29,7 @@ function pctFmt(n){
 }
 function moneyFmt(n){
   if (n === null || n === undefined || isNaN(n)) return '—';
-  return '$' + Number(n).toLocaleString(undefined, {maximumFractionDigits: 2});
+  return CURRENCY_SYMBOL + Number(n).toLocaleString(undefined, {maximumFractionDigits: 2});
 }
 function alertKey(a){
   return [
@@ -166,6 +168,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Init (boot) -------------------------------------------------------------
 (async function boot(){
+  // Fetch market config (currency symbol/code) before first render
+  try{
+    const r = await fetch('/api/market/config');
+    if (r.ok){
+      const j = await r.json();
+      if (j && j.symbol) CURRENCY_SYMBOL = String(j.symbol);
+      if (j && j.currency) CURRENCY_CODE = String(j.currency);
+    }
+  }catch(_e){}
+
   // Load user preferences from server (cookie-based anon ID)
   try{
     const res = await fetch('/api/me');
