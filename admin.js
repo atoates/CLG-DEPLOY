@@ -459,7 +459,7 @@ let validatedAlerts = [];
   downloadTemplateBtn?.addEventListener('click', () => {
     const csvContent = [
       'token,title,description,severity,deadline,tags,further_info,source_type,source_url',
-      'BTC,Example Alert,This is an example alert,critical,2024-12-31T23:59:59.000Z,"[""hack"",""exploit""]",Additional information about this alert,trusted-source,https://example.com'
+      'BTC,Example Alert,"This is an example alert, with a comma",critical,2024-12-31T23:59:59.000Z,"[""hack"",""exploit""]","Additional information about this alert. Quotes need doubling like this: ""quoted"".",trusted-source,https://example.com'
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -528,62 +528,86 @@ let validatedAlerts = [];
     reader.readAsText(file);
   }
 
-  // Parse CSV text into array of objects
+  // Robust CSV parser (RFC4180-ish): handles quotes, escaped quotes, and commas in fields
   function parseCSV(text) {
-    const lines = text.trim().split('\n');
-    if (lines.length < 2) {
-      throw new Error('CSV must have at least a header row and one data row');
+    if (!text || !text.trim()) throw new Error('Empty CSV');
+    // Normalize line endings
+    const input = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    // Detect delimiter from the first few non-empty lines (support ",", ";", or tab)
+    const sampleLines = input.split('\n').filter(Boolean).slice(0, 10);
+    const delimCandidates = [',', ';', '\t'];
+    let delim = ',';
+    let bestScore = -1;
+    for (const d of delimCandidates) {
+      // Score by average token count across samples
+      let total = 0; let lines = 0;
+      for (const ln of sampleLines) { total += (ln.split(d).length); lines++; }
+      const avg = lines ? total / lines : 0;
+      if (avg > bestScore) { bestScore = avg; delim = d; }
+    }
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuotes = false;
+    for (let i = 0; i < input.length; i++) {
+      const ch = input[i];
+      if (ch === '"') {
+        if (inQuotes && input[i + 1] === '"') {
+          // Escaped quote
+          field += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === delim && !inQuotes) {
+        row.push(field);
+        field = '';
+      } else if (ch === '\n' && !inQuotes) {
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = '';
+      } else {
+        field += ch;
+      }
+    }
+    // Push last field/row
+    if (field.length > 0 || inQuotes || row.length > 0) {
+      row.push(field);
+      rows.push(row);
     }
 
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    if (!rows.length) throw new Error('CSV must have at least a header row');
+    // Headers
+    const headers = rows[0].map(h => (h || '').trim().replace(/^\ufeff/, '').replace(/^\"|\"$/g, ''));
     const requiredHeaders = ['token', 'title', 'description', 'severity', 'deadline'];
-    
-    // Check required headers
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-    if (missingHeaders.length > 0) {
+    if (missingHeaders.length) {
       throw new Error(`Missing required columns: ${missingHeaders.join(', ')}`);
     }
 
     const data = [];
-    for (let i = 1; i < lines.length; i++) {
-      const values = parseCSVLine(lines[i]);
-      if (values.length !== headers.length) {
-        console.warn(`Row ${i + 1} has ${values.length} columns, expected ${headers.length}`);
-      }
-      
-      const row = {};
-      headers.forEach((header, index) => {
-        row[header] = values[index] || '';
+    for (let r = 1; r < rows.length; r++) {
+      const cols = rows[r];
+      if (!cols || cols.every(c => !c || !String(c).trim())) continue; // skip empty rows
+      const obj = {};
+      headers.forEach((h, idx) => {
+        let v = cols[idx] == null ? '' : String(cols[idx]);
+        // Trim outer quotes if present
+        if (v.startsWith('"') && v.endsWith('"')) {
+          v = v.substring(1, v.length - 1);
+        }
+        obj[h] = v;
       });
-      data.push(row);
-    }
-
-    return data;
-  }
-
-  // Parse a single CSV line, handling quoted values
-  function parseCSVLine(line) {
-    const result = [];
-    let current = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      
-      if (char === '"' && (i === 0 || line[i-1] === ',')) {
-        inQuotes = true;
-      } else if (char === '"' && inQuotes) {
-        inQuotes = false;
-      } else if (char === ',' && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += char;
+      // If there are extra columns beyond headers due to stray delimiters, keep them in the last field
+      if (cols.length > headers.length) {
+        const lastIdx = headers.length - 1;
+        const extra = cols.slice(headers.length).join(delim === '\t' ? '\t' : delim);
+        obj[headers[lastIdx]] = `${obj[headers[lastIdx]]}${obj[headers[lastIdx]] ? (delim === '\t' ? '\t' : delim) : ''}${extra}`;
       }
+      data.push(obj);
     }
-    
-    result.push(current.trim());
-    return result;
+    return data;
   }
 
   // Validate data and show preview
@@ -656,21 +680,40 @@ let validatedAlerts = [];
       errors.push(`Row ${rowNumber}: Invalid deadline format (${row.deadline})`);
     }
 
-    // Tags validation (if present)
+    // Tags validation (if present) - accept JSON array OR comma/semicolon list
     if (row.tags && row.tags.trim()) {
+      const raw = row.tags.trim();
+      let ok = false;
       try {
-        const parsed = JSON.parse(row.tags);
-        if (!Array.isArray(parsed)) {
-          errors.push(`Row ${rowNumber}: Tags must be a JSON array`);
-        }
-      } catch (e) {
-        errors.push(`Row ${rowNumber}: Invalid tags format (must be JSON array)`);
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) ok = true;
+      } catch (_e) {
+        // Fallback: split by comma/semicolon
+        const parts = raw.split(/[;,]/).map(s => s.trim()).filter(Boolean);
+        if (parts.length) ok = true;
+      }
+      if (!ok) {
+        errors.push(`Row ${rowNumber}: Invalid tags format (must be JSON array or comma-separated list)`);
       }
     }
 
-    // Source type validation (if present)
-    if (row.source_type && !['anonymous', 'mainstream-media', 'trusted-source', 'social-media', 'dev-team'].includes(row.source_type)) {
-      errors.push(`Row ${rowNumber}: Invalid source_type (${row.source_type})`);
+    // Source type validation (if present) with normalization
+    if (row.source_type && row.source_type.trim()) {
+      const allowed = ['anonymous', 'mainstream-media', 'trusted-source', 'social-media', 'dev-team'];
+      const map = {
+        'mainstream': 'mainstream-media',
+        'main stream media': 'mainstream-media',
+        'main-stream-media': 'mainstream-media',
+        'trusted': 'trusted-source',
+        'social': 'social-media',
+        'dev': 'dev-team',
+        'team': 'dev-team'
+      };
+      const raw = String(row.source_type).trim().toLowerCase();
+      const norm = map[raw] || raw;
+      if (!allowed.includes(norm)) {
+        errors.push(`Row ${rowNumber}: Invalid source_type (${row.source_type})`);
+      }
     }
 
     // Source URL validation (if present)
@@ -697,10 +740,13 @@ let validatedAlerts = [];
 
     // Add optional fields if present
     if (row.tags && row.tags.trim()) {
+      const raw = row.tags.trim();
       try {
-        alert.tags = JSON.parse(row.tags);
-      } catch (e) {
-        alert.tags = [];
+        const parsed = JSON.parse(raw);
+        alert.tags = Array.isArray(parsed) ? parsed : [];
+      } catch (_e) {
+        // Fallback: split by comma/semicolon into array of strings
+        alert.tags = raw.split(/[;,]/).map(s => s.trim()).filter(Boolean);
       }
     }
 
@@ -709,7 +755,20 @@ let validatedAlerts = [];
     }
 
     if (row.source_type && row.source_type.trim()) {
-      alert.source_type = row.source_type.trim();
+      const st = row.source_type.trim().toLowerCase();
+      const allowed = ['anonymous','mainstream-media','trusted-source','social-media','dev-team'];
+      // map common variants/synonyms
+      const map = {
+        'mainstream': 'mainstream-media',
+        'main stream media': 'mainstream-media',
+        'main-stream-media': 'mainstream-media',
+        'trusted': 'trusted-source',
+        'social': 'social-media',
+        'dev': 'dev-team',
+        'team': 'dev-team'
+      };
+      const norm = map[st] || st;
+      if (allowed.includes(norm)) alert.source_type = norm;
     }
 
     if (row.source_url && row.source_url.trim()) {
@@ -781,7 +840,7 @@ let validatedAlerts = [];
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': ADMIN_TOKEN
+          ...authHeaders()
         },
         body: JSON.stringify({ alerts: validatedAlerts })
       });

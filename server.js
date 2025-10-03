@@ -389,7 +389,7 @@ app.post('/api/alerts', requireAdmin, (req, res) => {
   // Validate tags against known tag types
   const validTags = [
     'price-change', 'migration', 'hack', 'fork', 'scam',
-    'airdrop', 'whale', 'news', 'community', 'exploit'
+    'airdrop', 'whale', 'news', 'community', 'exploit', 'privacy'
   ];
   const sanitizedTags = Array.isArray(tags) 
     ? tags.filter(t => typeof t === 'string' && validTags.includes(t))
@@ -449,7 +449,7 @@ app.put('/api/alerts/:id', requireAdmin, (req, res) => {
   if (payload.tags != null) {
     const validTags = [
       'price-change', 'migration', 'hack', 'fork', 'scam',
-      'airdrop', 'whale', 'news', 'community', 'exploit'
+      'airdrop', 'whale', 'news', 'community', 'exploit', 'privacy'
     ];
     const cleaned = Array.isArray(payload.tags)
       ? payload.tags.filter(t => typeof t === 'string' && validTags.includes(t))
@@ -493,7 +493,7 @@ app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
 
   const validTags = [
     'price-change', 'migration', 'hack', 'fork', 'scam',
-    'airdrop', 'whale', 'news', 'community', 'exploit'
+    'airdrop', 'whale', 'news', 'community', 'exploit', 'privacy'
   ];
 
   const createdAlerts = [];
