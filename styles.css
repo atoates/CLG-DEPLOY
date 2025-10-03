@@ -71,7 +71,7 @@ body{
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
     "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
   color:var(--ink);
-  background: linear-gradient(180deg, #e9f4ff, var(--sandy-beige));
+  background: #f8fafc;
 }
 
 /* ---------------- Top Banner / Navbar ---------------- */
@@ -172,7 +172,7 @@ button#user-menu-btn.menu-btn{
   display:flex; flex-direction:column; gap:16px;
 }
 .card{
-  background: var(--bg-card);
+  background: #ffffff;
   border-radius: 16px;
   padding: 16px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.08);
@@ -688,10 +688,10 @@ button#user-menu-btn.menu-btn{
   top:50%; left:50%; transform: translate(-50%, -58%);
 }
 
-/* severity bg & icon tint */
-.severity-critical{ background:#ffe8e8; } .severity-critical .alert-icon{ color:#d90429; }
-.severity-warning{ background:#fff6dd; }  .severity-warning .alert-icon{ color:#8a6a00; }
-.severity-info{ background:#e8fff5; }     .severity-info .alert-icon{ color:#0c6a45; }
+/* severity border & icon tint - consistent white backgrounds */
+.severity-critical{ background:#fff; border-left: 4px solid #dc2626; } .severity-critical .alert-icon{ color:#dc2626; }
+.severity-warning{ background:#fff; border-left: 4px solid #d97706; }  .severity-warning .alert-icon{ color:#d97706; }
+.severity-info{ background:#fff; border-left: 4px solid #059669; }     .severity-info .alert-icon{ color:#059669; }
 
 /* Fade hidden ones when "Show all" is ON */
 .is-hidden{ opacity:.6; }
