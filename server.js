@@ -687,10 +687,10 @@ app.get('/api/market/snapshot', async (req, res) => {
       }
 
       // Fetch quotes data (current price, volume, % changes)
+      // Temporarily removed aux parameter to fix 400 errors - will add back supported fields gradually
       const params = new URLSearchParams({
         id: ids.join(','),
-        convert: MARKET_CURRENCY,
-        aux: 'volume_24h,volume_change_24h,percent_change_1h,percent_change_7d,percent_change_30d,market_cap,circulating_supply,total_supply'
+        convert: MARKET_CURRENCY
       });
       const url = `https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?${params.toString()}`;
       const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
