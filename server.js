@@ -36,6 +36,9 @@ let server;
 const POLYGON_KEY = process.env.POLYGON_API_KEY || '';
 // CoinMarketCap configuration (preferred over Polygon when present)
 const CMC_API_KEY = process.env.CMC_API_KEY || '';
+// AI API keys for summary generation
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const MARKET_CURRENCY = (process.env.MARKET_CURRENCY || 'GBP').toUpperCase();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
@@ -797,6 +800,162 @@ function currencySymbol(code){
 app.get('/api/market/config', (_req, res) => {
   res.json({ currency: MARKET_CURRENCY, symbol: currencySymbol(MARKET_CURRENCY) });
 });
+
+// --- AI Summary API ----------------------------------------------------------
+app.post('/api/summary/generate', async (req, res) => {
+  try {
+    const { alerts, tokens, sevFilter, tagFilter } = req.body;
+    
+    if (!alerts || !Array.isArray(alerts)) {
+      return res.status(400).json({ error: 'Invalid alerts data' });
+    }
+
+    // Generate AI summary using available API
+    const summary = await generateAISummary(alerts, tokens || [], sevFilter || [], tagFilter || []);
+    
+    res.json({ 
+      summary,
+      timestamp: new Date().toISOString(),
+      alertCount: alerts.length,
+      tokenCount: (tokens || []).length
+    });
+  } catch (error) {
+    console.error('AI Summary generation error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate summary',
+      fallback: generateFallbackSummary(req.body.alerts || [], req.body.tokens || [])
+    });
+  }
+});
+
+// AI Summary generation function
+async function generateAISummary(alerts, tokens, sevFilter, tagFilter) {
+  // Prepare alerts data for AI analysis
+  const alertsData = alerts.map(alert => ({
+    token: alert.token,
+    title: alert.title,
+    description: alert.description,
+    severity: alert.severity,
+    deadline: alert.deadline,
+    tags: Array.isArray(alert.tags) ? alert.tags : (alert.tags ? JSON.parse(alert.tags) : [])
+  }));
+
+  const prompt = `You are a crypto portfolio assistant. Analyze these alerts and provide a concise summary for a user monitoring these tokens: ${tokens.join(', ')}.
+
+Current alerts (${alerts.length} total):
+${alertsData.map(a => `- ${a.token}: ${a.title} (${a.severity}) - ${a.description} [Deadline: ${a.deadline}]`).join('\n')}
+
+Please provide:
+1. **Executive Summary** (2-3 sentences): Key takeaways and urgent actions needed
+2. **Critical Actions** (if any): Time-sensitive items requiring immediate attention  
+3. **Token-Specific Insights**: Brief analysis for each token in the watchlist
+4. **Timeline Overview**: Key dates and deadlines to watch
+
+Keep it concise, actionable, and focused on portfolio management decisions.`;
+
+  // Try OpenAI first, then Anthropic, then fallback
+  if (OPENAI_API_KEY) {
+    try {
+      return await callOpenAI(prompt);
+    } catch (error) {
+      console.error('OpenAI API error:', error.message);
+    }
+  }
+
+  if (ANTHROPIC_API_KEY) {
+    try {
+      return await callAnthropic(prompt);
+    } catch (error) {
+      console.error('Anthropic API error:', error.message);
+    }
+  }
+
+  // Fallback to rule-based summary
+  return generateFallbackSummary(alerts, tokens);
+}
+
+// OpenAI API call
+async function callOpenAI(prompt) {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini', // Cost-effective model
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 800,
+      temperature: 0.3
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content.trim();
+}
+
+// Anthropic API call  
+async function callAnthropic(prompt) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': ANTHROPIC_API_KEY,
+      'Content-Type': 'application/json',
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-3-haiku-20240307', // Cost-effective model
+      max_tokens: 800,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Anthropic API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.content[0].text.trim();
+}
+
+// Fallback summary generation (rule-based)
+function generateFallbackSummary(alerts, tokens) {
+  const criticalCount = alerts.filter(a => a.severity === 'critical').length;
+  const warningCount = alerts.filter(a => a.severity === 'warning').length;
+  const infoCount = alerts.filter(a => a.severity === 'info').length;
+  
+  const upcomingDeadlines = alerts
+    .filter(a => new Date(a.deadline) > new Date())
+    .sort((a, b) => new Date(a.deadline) - new Date(a.deadline))
+    .slice(0, 3);
+
+  const tokenSummary = tokens.map(token => {
+    const tokenAlerts = alerts.filter(a => a.token === token);
+    const urgent = tokenAlerts.filter(a => a.severity === 'critical').length;
+    return `${token}: ${tokenAlerts.length} alert${tokenAlerts.length !== 1 ? 's' : ''}${urgent ? ` (${urgent} critical)` : ''}`;
+  }).join(', ');
+
+  return `**Executive Summary**
+You have ${alerts.length} active alerts across ${tokens.length} tokens. ${criticalCount} critical items require immediate attention.
+
+**Critical Actions**
+${criticalCount > 0 ? `${criticalCount} critical alerts need immediate review.` : 'No critical actions required at this time.'}
+
+**Token-Specific Insights**
+${tokenSummary || 'No specific token insights available.'}
+
+**Timeline Overview**
+${upcomingDeadlines.length > 0 ? 
+  upcomingDeadlines.map(a => `${a.token}: ${a.title} by ${new Date(a.deadline).toLocaleDateString()}`).join('\n') :
+  'No upcoming deadlines in the near term.'
+}
+
+*Note: This is an automated summary. AI-powered analysis requires API configuration.*`;
+}
 
 // --- CryptoPanic config ------------------------------------------------------
 const CP_PLAN   = process.env.CRYPTOPANIC_PLAN || 'developer';

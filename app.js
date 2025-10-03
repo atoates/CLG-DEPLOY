@@ -405,6 +405,7 @@ if (showAllToggle) {
     showAll = showAllToggle.checked;
     persistPrefsServerDebounced();
     renderAlerts();
+    updateSummaryIfActive();
   });
 }
 
@@ -426,6 +427,7 @@ sevButtons.forEach(btn => {
     syncSevUi();
     persistPrefsServerDebounced();
     renderAlerts();
+    updateSummaryIfActive();
   });
 });
 
@@ -439,11 +441,13 @@ function dismissAlert(a){
   hiddenKeys.add(alertKey(a));
   persistHidden();
   renderAlerts();
+  updateSummaryIfActive();
 }
 function unhideAlert(a){
   hiddenKeys.delete(alertKey(a));
   persistHidden();
   renderAlerts();
+  updateSummaryIfActive();
 }
 
 // --- Alerts (Saved + Auto) ---------------------------------------------------
@@ -596,6 +600,7 @@ function toggleTagFilter(tag) {
   updateTagButtonStates();
   updateDropdownText();
   renderAlerts();
+  updateSummaryIfActive();
 }
 
 function updateTagButtonStates() {
@@ -669,6 +674,7 @@ function resetTagFilters() {
   
   updateDropdownText();
   renderAlerts();
+  updateSummaryIfActive();
 }
 
 // Apply tag filter
@@ -909,30 +915,133 @@ function startTicking(){
   }, 1000);
 }
 
-// --- Summary (mock) ----------------------------------------------------------
-function renderSummary(){
-  const tokens = selectedTokens;
-  const out = [];
-  if (tokens.includes('BTC')) out.push('- BTC: Network activity ticked up; devs debated a future fork proposal. No immediate action required.');
-  if (tokens.includes('ETH')) out.push('- ETH: Staking withdrawals increased; core devs signalled steady upgrade progress.');
-  if (tokens.includes('MATIC')) out.push('- MATIC: Transition to POL remains on track; migration tooling improving.');
-  if (tokens.includes('UNI')) out.push('- UNI: Large holder flows spotted; monitor governance/treasury chatter.');
-  if (tokens.includes('SOL')) out.push('- SOL: Validator upgrade window scheduled; ecosystem projects testing compatibility.');
-  if (tokens.includes('USDC')) out.push('- USDC: Issuer posted routine compliance updates; peg remains stable.');
-  if (tokens.includes('LINK')) out.push('- LINK: Oracle performance optimisations rolling out.');
-  if (tokens.includes('ADA')) out.push('- ADA: Community proposals discussed throughput; research teams shared progress.');
-  if (tokens.includes('DOGE')) out.push('- DOGE: Client updates recommended for improved security and reliability.');
-  if (tokens.includes('POL')) out.push('- POL: Ecosystem integrations expanding; bridging UX under refinement.');
+// --- AI-Powered Summary ------------------------------------------------------
+async function renderSummary(){
   const sc = document.getElementById('summary-content');
-  sc.innerHTML = '';
-  if (out.length === 0){
-    sc.innerHTML = '<p class="muted">Select some tokens to see a summary.</p>';
-  } else {
-    const h = document.createElement('h2'); h.className='section-title'; h.textContent='AI-Generated Summary (mock)';
-    sc.appendChild(h);
-    out.forEach(line => { const p=document.createElement('p'); p.textContent=line; sc.appendChild(p); });
-    const note=document.createElement('p'); note.className='muted'; note.textContent='(This summary is auto-generated based on trending news for your selected tokens.)'; sc.appendChild(note);
+  
+  // Show loading state
+  sc.innerHTML = '<div class="loading-state"><p>🤖 Generating AI summary...</p></div>';
+  
+  if (!selectedTokens.length && !showAllTokens) {
+    sc.innerHTML = '<p class="muted">Select some tokens to see an AI-generated summary of your alerts.</p>';
+    return;
   }
+
+  try {
+    // Get visible alerts (same filtering as main alerts view)
+    const visibleAlerts = getVisibleAlerts();
+    
+    if (visibleAlerts.length === 0) {
+      sc.innerHTML = '<p class="muted">No alerts match your current filters. Adjust your severity or tag filters to see a summary.</p>';
+      return;
+    }
+
+    // Call AI summary API
+    const response = await fetch('/api/summary/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        alerts: visibleAlerts,
+        tokens: showAllTokens ? getUniqueTokensFromAlerts(visibleAlerts) : selectedTokens,
+        sevFilter: sevFilter,
+        tagFilter: tagFilter
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // Render the AI summary
+    sc.innerHTML = '';
+    
+    const header = document.createElement('div');
+    header.className = 'summary-header';
+    header.innerHTML = `
+      <h2 class="section-title">🤖 AI Portfolio Summary</h2>
+      <div class="summary-meta">
+        <span>${data.alertCount} alerts • ${data.tokenCount} tokens • ${new Date(data.timestamp).toLocaleTimeString()}</span>
+      </div>
+    `;
+    sc.appendChild(header);
+
+    const summaryContent = document.createElement('div');
+    summaryContent.className = 'summary-text';
+    
+    // Convert markdown-style formatting to HTML
+    const formattedSummary = formatSummaryText(data.summary);
+    summaryContent.innerHTML = formattedSummary;
+    
+    sc.appendChild(summaryContent);
+
+  } catch (error) {
+    console.error('Failed to generate AI summary:', error);
+    
+    // Fallback to basic summary
+    sc.innerHTML = '';
+    const header = document.createElement('h2');
+    header.className = 'section-title';
+    header.textContent = '📊 Basic Summary';
+    sc.appendChild(header);
+
+    const fallback = generateBasicSummary();
+    const content = document.createElement('div');
+    content.innerHTML = fallback;
+    sc.appendChild(content);
+
+    const note = document.createElement('p');
+    note.className = 'muted';
+    note.textContent = 'AI summary unavailable. Check API configuration.';
+    sc.appendChild(note);
+  }
+}
+
+// Helper function to get visible alerts (same logic as main view)
+function getVisibleAlerts() {
+  return getRelevantAlerts();
+}
+
+// Helper to update summary if it's the active tab
+function updateSummaryIfActive() {
+  if (!panelSummary.hidden) {
+    renderSummary();
+  }
+}
+
+// Helper function to get unique tokens from alerts
+function getUniqueTokensFromAlerts(alerts) {
+  return [...new Set(alerts.map(a => a.token))].sort();
+}
+
+// Format summary text (convert **bold** to <strong>, etc.)
+function formatSummaryText(text) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br>')
+    .replace(/^(\d+\..*$)/gm, '<li>$1</li>')
+    .replace(/^(-.*$)/gm, '<li style="list-style: none;">$1</li>');
+}
+
+// Basic fallback summary
+function generateBasicSummary() {
+  const visibleAlerts = getVisibleAlerts();
+  const criticalCount = visibleAlerts.filter(a => a.severity === 'critical').length;
+  const warningCount = visibleAlerts.filter(a => a.severity === 'warning').length;
+  const infoCount = visibleAlerts.filter(a => a.severity === 'info').length;
+  
+  const tokens = showAllTokens ? getUniqueTokensFromAlerts(visibleAlerts) : selectedTokens;
+  
+  return `
+    <p><strong>Alert Overview:</strong> ${visibleAlerts.length} total alerts across ${tokens.length} tokens</p>
+    <p><strong>Severity Breakdown:</strong> ${criticalCount} critical, ${warningCount} warning, ${infoCount} info</p>
+    <p><strong>Monitored Tokens:</strong> ${tokens.join(', ')}</p>
+    <p><em>Enable AI analysis by configuring OpenAI or Anthropic API keys for detailed insights.</em></p>
+  `;
 }
 
 // --- Market snapshot (FREE TIER: EOD only) -----------------------------------
