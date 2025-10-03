@@ -72,6 +72,11 @@ const ALERT_SOURCE_TYPES = {
   'dev-team':         { icon: '🛠️', label: 'Dev. Team' }
 };
 
+// Extract tag icons for easy access
+const tagIcons = Object.fromEntries(
+  Object.entries(ALERT_TAG_TYPES).map(([key, value]) => [key, value.icon])
+);
+
 // --- State (will be hydrated from /api/me) -----------------------------------
 let selectedTokens = [];                                 // watchlist
 let showAll       = false;                               // include dismissed ("Show closed")
@@ -493,17 +498,24 @@ function initializeTagFilters() {
     tags.forEach(tag => allTags.add(tag));
   });
   
-  // Create dropdown options with checkboxes
-  dropdownOptions.innerHTML = '';
+  // Create tag filter buttons in the popup
+  const popupTagFilters = document.getElementById('popup-tag-filters');
+  popupTagFilters.innerHTML = '';
+  
   Array.from(allTags).sort().forEach(tag => {
-    const option = document.createElement('div');
-    option.className = 'dropdown-option';
-    option.dataset.value = tag;
-    option.innerHTML = `
-      <div class="option-checkbox"></div>
-      <span class="option-label">${tag}</span>
-    `;
-    dropdownOptions.appendChild(option);
+    const tagButton = document.createElement('button');
+    tagButton.className = 'tag-filter';
+    tagButton.dataset.tag = tag;
+    tagButton.innerHTML = `<span class="icon">${tagIcons[tag] || '🏷️'}</span><span>${tag}</span>`;
+    
+    // Add click handler for tag selection
+    tagButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleTagFilter(tag);
+    });
+    
+    popupTagFilters.appendChild(tagButton);
   });
   
   // Bind event listeners once
@@ -517,10 +529,7 @@ function initializeTagFilters() {
     // Handle option selection
     dropdownOptions.addEventListener('click', function(e) {
       e.stopPropagation();
-      const option = e.target.closest('.dropdown-option');
-      if (option) {
-        toggleOption(option);
-      }
+      // Don't handle clicks here since tag buttons have their own handlers
     });
     
     // Close dropdown when clicking outside
@@ -559,6 +568,7 @@ function initializeTagFilters() {
   }
   
   // Initialize display
+  updateTagButtonStates();
   updateSelectedTagsDisplay();
   updateDropdownText();
 }
@@ -583,6 +593,30 @@ function closeDropdown() {
   
   dropdownOptions.classList.remove('open');
   dropdownTrigger.classList.remove('active');
+}
+
+function toggleTagFilter(tag) {
+  if (tagFilter.includes(tag)) {
+    // Remove from selection
+    tagFilter = tagFilter.filter(t => t !== tag);
+  } else {
+    // Add to selection
+    tagFilter.push(tag);
+  }
+  
+  // Update visual state of tag buttons in popup
+  updateTagButtonStates();
+  updateSelectedTagsDisplay();
+  updateDropdownText();
+  renderAlerts();
+}
+
+function updateTagButtonStates() {
+  const tagButtons = document.querySelectorAll('#popup-tag-filters .tag-filter');
+  tagButtons.forEach(button => {
+    const tag = button.dataset.tag;
+    button.classList.toggle('active', tagFilter.includes(tag));
+  });
 }
 
 function toggleOption(option) {
@@ -669,12 +703,8 @@ function resetTagFilters() {
   tagFilter = [];
   tagPillsExpanded = false;
   
-  // Update all dropdown options
-  const dropdownOptions = document.getElementById('tag-dropdown-options');
-  dropdownOptions.querySelectorAll('.dropdown-option').forEach(option => {
-    option.classList.remove('selected');
-    option.querySelector('.option-checkbox').classList.remove('checked');
-  });
+  // Update tag button states in popup
+  updateTagButtonStates();
   
   updateSelectedTagsDisplay();
   updateDropdownText();
