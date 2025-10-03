@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live API Diagnostics</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #f5f5f5; }
+        .result { background: white; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #007acc; }
+        .error { border-left-color: #d32f2f; }
+        .success { border-left-color: #388e3c; }
+        pre { background: #f0f0f0; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Live API Diagnostics</h1>
+    <div id="results"></div>
+
+    <script>
+        const results = document.getElementById('results');
+
+        function addResult(title, content, isError = false) {
+            const div = document.createElement('div');
+            div.className = `result ${isError ? 'error' : 'success'}`;
+            div.innerHTML = `<h3>${title}</h3><pre>${content}</pre>`;
+            results.appendChild(div);
+        }
+
+        async function runDiagnostics() {
+            try {
+                // Test 1: Market Config
+                addResult('🔍 Testing /api/market/config...', 'Loading...');
+                const configRes = await fetch('/api/market/config');
+                const config = await configRes.json();
+                addResult('✅ Market Config', JSON.stringify(config, null, 2));
+
+                // Test 2: Market Snapshot
+                addResult('🔍 Testing /api/market/snapshot?symbols=BTC,ETH...', 'Loading...');
+                const snapRes = await fetch('/api/market/snapshot?symbols=BTC,ETH');
+                const snap = await snapRes.json();
+                addResult('📊 Market Snapshot', JSON.stringify(snap, null, 2));
+
+                // Test 3: Admin Info (may fail without auth)
+                addResult('🔍 Testing /admin/info (may require auth)...', 'Loading...');
+                try {
+                    const adminRes = await fetch('/admin/info');
+                    if (adminRes.ok) {
+                        const admin = await adminRes.json();
+                        addResult('🔧 Admin Info', JSON.stringify(admin, null, 2));
+                    } else {
+                        addResult('❌ Admin Info', `HTTP ${adminRes.status} - ${adminRes.statusText}`, true);
+                    }
+                } catch (e) {
+                    addResult('❌ Admin Info', `Error: ${e.message}`, true);
+                }
+
+                // Analysis
+                let analysis = '🔍 ANALYSIS:\n\n';
+                if (snap.provider === 'cmc') {
+                    analysis += '✅ CMC API is configured and active\n';
+                    if (snap.items && snap.items.length > 0 && snap.items[0].lastPrice) {
+                        analysis += '✅ CMC data is being fetched successfully\n';
+                    } else {
+                        analysis += '❌ CMC configured but no price data returned\n';
+                    }
+                } else if (snap.provider === 'polygon') {
+                    analysis += '⚠️  Falling back to Polygon API\n';
+                    analysis += '💡 CMC_API_KEY is likely not set in environment\n';
+                } else {
+                    analysis += '❌ No market API configured (neither CMC nor Polygon)\n';
+                    analysis += '💡 Set CMC_API_KEY or POLYGON_API_KEY in Railway environment\n';
+                }
+
+                if (config.currency === 'GBP' && config.symbol === '£') {
+                    analysis += '✅ Currency configuration is correct (GBP/£)\n';
+                } else {
+                    analysis += `⚠️  Currency: ${config.currency}/${config.symbol}\n`;
+                }
+
+                addResult('🎯 Analysis', analysis);
+
+            } catch (e) {
+                addResult('❌ Diagnostics Failed', `Error: ${e.message}`, true);
+            }
+        }
+
+        // Auto-run diagnostics
+        runDiagnostics();
+    </script>
+</body>
+</html>
