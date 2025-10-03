@@ -258,10 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Default to showing all tokens if no watchlist is configured
   if (selectedTokens.length === 0 && localStorage.getItem('showAllTokens') === null) {
     showAllTokens = true;
-    console.log('🔧 Setting showAllTokens=true for new user');
     try { localStorage.setItem('showAllTokens', '1'); } catch(_e) {}
-  } else {
-    console.log('ℹ️ Using existing showAllTokens setting:', showAllTokens);
   }
   
   if (showAllTokensToggle) showAllTokensToggle.checked = !!showAllTokens;
@@ -749,23 +746,14 @@ function applyTagFilter(list) {
 }
 
 function getRelevantAlerts(){
-  console.log('🔍 getRelevantAlerts called');
   const all = [...serverAlerts, ...autoAlerts];
-  console.log('📥 Total alerts:', all.length, '(server:', serverAlerts.length, 'auto:', autoAlerts.length, ')');
-  console.log('🎯 Selected tokens:', selectedTokens);
-  console.log('🌍 Show all tokens:', showAllTokens);
-  
   const base = showAllTokens ? all : all.filter(a => selectedTokens.includes((a.token || '').toUpperCase()))
-  console.log('📋 Base filtered alerts:', base.length);
 
   let list = applySeverityFilter(base);
-  console.log('⚡ After severity filter:', list.length, 'sevFilter:', sevFilter);
   list = applyTagFilter(list);
-  console.log('🏷️ After tag filter:', list.length, 'tagFilter:', tagFilter);
 
   // Hide dismissed unless Show all is ON
   if (!showAll) list = list.filter(a => !isHidden(a));
-  console.log('👁️ Final filtered alerts:', list.length, 'showAll:', showAll);
 
   return list;
 }
@@ -829,18 +817,12 @@ function sortAlertsByDeadline(list){
 }
 
 function renderAlerts(){
-  console.log('🔍 renderAlerts called');
   const list = sortAlertsByDeadline(getRelevantAlerts());
-  console.log('📊 Relevant alerts count:', list.length);
-  console.log('🎯 First few alerts:', list.slice(0, 3).map(a => ({token: a.token, title: a.title})));
-  
   alertsListEl.innerHTML = '';
   if (list.length === 0){
-    console.log('❌ No alerts to show - showing empty message');
     noAlertsEl.hidden = false;
     return;
   } else {
-    console.log('✅ Hiding empty message, rendering alerts');
     noAlertsEl.hidden = true;
   }
 
