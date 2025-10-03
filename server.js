@@ -687,10 +687,11 @@ app.get('/api/market/snapshot', async (req, res) => {
       }
 
       // Fetch quotes data (current price, volume, % changes)
-      // Temporarily removed aux parameter to fix 400 errors - will add back supported fields gradually
+      // Start with safe auxiliary fields for Hobbyist plan
       const params = new URLSearchParams({
         id: ids.join(','),
-        convert: MARKET_CURRENCY
+        convert: MARKET_CURRENCY,
+        aux: 'volume_24h,volume_change_24h,percent_change_1h,percent_change_7d,percent_change_30d,market_cap'
       });
       const url = `https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?${params.toString()}`;
       const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
@@ -702,8 +703,9 @@ app.get('/api/market/snapshot', async (req, res) => {
       let ohlcvData = {};
       try {
         ohlcvData = await getCmcOhlcvData(ids, MARKET_CURRENCY);
+        console.log('OHLCV data retrieved successfully for', ids.length, 'tokens');
       } catch (e) {
-        console.warn('OHLCV data not available:', e.message);
+        console.warn('OHLCV data not available:', e.message, 'Status:', e.status || 'unknown');
       }
       
       // Build items array keyed by symbol using quotes endpoint
