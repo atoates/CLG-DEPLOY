@@ -717,7 +717,10 @@ button#user-menu-btn.menu-btn{
 .mk-title{ font-weight:900; letter-spacing:.3px; color: var(--ocean-blue); font-size:14px; }
 .mk-price{ font-weight:800; font-size:22px; line-height:1; }
 .mk-row{ display:flex; gap:8px; flex-wrap:wrap; }
+.mk-secondary{ margin-top:4px; }
 .mk-chip{ font-size:12px; padding:6px 8px; border-radius:999px; border:1px solid rgba(2,6,23,0.06); background:#f9fafb; }
+.mk-chip-primary{ font-weight:600; }
+.mk-info{ font-size:11px; padding:4px 6px; border-radius:6px; background:#f8fafc; color:#64748b; font-weight:500; }
 .chg-pos{ color:#0c6a45; background:#e8fff5; border-color:#b9f3d3; }
 .chg-neg{ color:#8f1111; background:#ffe8e8; border-color:#ffc6c6; }
 .neutral{ color:#475569; background:#f1f5f9; border-color:#e2e8f0; }

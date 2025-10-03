@@ -31,6 +31,14 @@ function moneyFmt(n){
   if (n === null || n === undefined || isNaN(n)) return '—';
   return CURRENCY_SYMBOL + Number(n).toLocaleString(undefined, {maximumFractionDigits: 2});
 }
+function volumeFmt(n){
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return CURRENCY_SYMBOL + (n/1e9).toFixed(1) + 'B';
+  if (abs >= 1e6) return CURRENCY_SYMBOL + (n/1e6).toFixed(1) + 'M';
+  if (abs >= 1e3) return CURRENCY_SYMBOL + (n/1e3).toFixed(1) + 'K';
+  return CURRENCY_SYMBOL + n.toFixed(0);
+}
 function alertKey(a){
   return [
     (a.token || '').toUpperCase(),
@@ -1010,21 +1018,57 @@ function renderMarket(){
     price.className = 'mk-price';
     price.textContent = moneyFmt(it.lastPrice);
 
-    const chips = document.createElement('div');
-    chips.className = 'mk-row';
+    // Primary percentage changes row
+    const primaryChips = document.createElement('div');
+    primaryChips.className = 'mk-row';
 
-  const changeVal = typeof it.dayChangePct === 'number' ? it.dayChangePct : null;
-  const changeChip = document.createElement('span');
-  changeChip.className = 'mk-chip ' + (changeVal === null ? 'neutral' : (changeVal >= 0 ? 'chg-pos' : 'chg-neg'));
-  const label = marketProvider === 'cmc' ? '24h' : 'EOD';
-  changeChip.textContent = `${label} ${pctFmt(changeVal)}`;
-  chips.appendChild(changeChip);
+    // 24h change (main)
+    const changeVal = typeof it.dayChangePct === 'number' ? it.dayChangePct : null;
+    const changeChip = document.createElement('span');
+    changeChip.className = 'mk-chip mk-chip-primary ' + (changeVal === null ? 'neutral' : (changeVal >= 0 ? 'chg-pos' : 'chg-neg'));
+    const label = marketProvider === 'cmc' ? '24h' : 'EOD';
+    changeChip.textContent = `${label} ${pctFmt(changeVal)}`;
+    primaryChips.appendChild(changeChip);
+
+    // 1h change
+    if (typeof it.change1hPct === 'number'){
+      const h1 = document.createElement('span');
+      h1.className = 'mk-chip ' + (it.change1hPct >= 0 ? 'chg-pos' : 'chg-neg');
+      h1.textContent = `1h ${pctFmt(it.change1hPct)}`;
+      primaryChips.appendChild(h1);
+    }
+
+    // 7d change
+    if (typeof it.change7dPct === 'number'){
+      const d7 = document.createElement('span');
+      d7.className = 'mk-chip ' + (it.change7dPct >= 0 ? 'chg-pos' : 'chg-neg');
+      d7.textContent = `7d ${pctFmt(it.change7dPct)}`;
+      primaryChips.appendChild(d7);
+    }
+
+    // Secondary info row (volume, market cap)
+    const secondaryRow = document.createElement('div');
+    secondaryRow.className = 'mk-row mk-secondary';
+
+    if (typeof it.volume24h === 'number'){
+      const vol = document.createElement('span');
+      vol.className = 'mk-info';
+      vol.textContent = `Vol: ${volumeFmt(it.volume24h)}`;
+      secondaryRow.appendChild(vol);
+    }
+
+    if (typeof it.marketCap === 'number'){
+      const mcap = document.createElement('span');
+      mcap.className = 'mk-info';
+      mcap.textContent = `MCap: ${volumeFmt(it.marketCap)}`;
+      secondaryRow.appendChild(mcap);
+    }
 
     if (typeof it.change30mPct === 'number'){
       const m30 = document.createElement('span');
       m30.className = 'mk-chip ' + (it.change30mPct >= 0 ? 'chg-pos' : 'chg-neg');
       m30.textContent = `30m ${pctFmt(it.change30mPct)}`;
-      chips.appendChild(m30);
+      primaryChips.appendChild(m30);
     }
 
     if (it.error){
@@ -1036,7 +1080,10 @@ function renderMarket(){
 
     card.appendChild(header);
     card.appendChild(price);
-    card.appendChild(chips);
+    card.appendChild(primaryChips);
+    if (secondaryRow.children.length > 0) {
+      card.appendChild(secondaryRow);
+    }
 
     marketGridEl.appendChild(card);
   });
