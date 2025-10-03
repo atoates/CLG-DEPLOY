@@ -800,6 +800,19 @@ function mapPostToAlert(p){
   };
 }
 
+/* ---------------- Environment Debug Endpoint ---------------- */
+app.get('/debug/env', (req, res) => {
+  res.json({
+    NODE_ENV: process.env.NODE_ENV || 'not_set',
+    CMC_API_KEY_SET: !!process.env.CMC_API_KEY,
+    CMC_API_KEY_LENGTH: process.env.CMC_API_KEY ? process.env.CMC_API_KEY.length : 0,
+    CMC_API_KEY_FIRST_8: process.env.CMC_API_KEY ? process.env.CMC_API_KEY.substring(0, 8) : 'not_set',
+    POLYGON_API_KEY_SET: !!process.env.POLYGON_API_KEY,
+    MARKET_CURRENCY: process.env.MARKET_CURRENCY || 'not_set',
+    RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT || 'not_set'
+  });
+});
+
 /* ---------------- Health + static SPA ---------------- */
 app.get('/healthz', (_req,res)=>res.json({ ok:true }));
 
