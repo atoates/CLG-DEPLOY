@@ -647,7 +647,7 @@ app.get('/api/market/snapshot', async (req, res) => {
       // Resolve CMC IDs for symbols
       const idsMap = await getCmcIdsForSymbols(symbols);
       const ids = symbols.map(s => idsMap[s]).filter(Boolean);
-      if (!ids.length) return res.json({ items: symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-id' })), note: 'CoinMarketCap price-performance (~60s). No IDs found for requested symbols.' });
+      if (!ids.length) return res.json({ items: symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-id' })), note: 'CoinMarketCap price-performance (~60s). No IDs found for requested symbols.', provider: 'cmc' });
 
       const cacheKey = `stats:${ids.join(',')}:${MARKET_CURRENCY}`;
       const hit = cmcStatsCache.get(cacheKey);
@@ -687,6 +687,7 @@ app.get('/api/market/snapshot', async (req, res) => {
       cmcStatsCache.set(cacheKey, { t: Date.now(), data: items });
       return res.json({ items, note: `CoinMarketCap price-performance (~60s) — ${MARKET_CURRENCY}`, provider: 'cmc' });
     }catch(e){
+      console.warn('CMC API error:', e.message);
       // Fall through to Polygon if configured, else return error items
       if (!POLYGON_KEY) {
         const items = symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'cmc-failed' }));
