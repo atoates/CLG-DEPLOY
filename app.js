@@ -652,6 +652,8 @@ function toggleOption(option) {
 function updateDropdownText() {
   const dropdownText = document.querySelector('.dropdown-text');
   
+  if (!dropdownText) return; // Element doesn't exist in main app, only in admin
+  
   if (tagFilter.length === 0) {
     dropdownText.textContent = 'Select tags...';
   } else if (tagFilter.length === 1) {
