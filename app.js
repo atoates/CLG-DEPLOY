@@ -254,6 +254,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (showAllToggle) showAllToggle.checked = showAll;
   // Restore top-row 'Show all' preference from localStorage (no server persistence)
   try { showAllTokens = (localStorage.getItem('showAllTokens') === '1'); } catch(_e) {}
+  
+  // Default to showing all tokens if no watchlist is configured
+  if (selectedTokens.length === 0 && localStorage.getItem('showAllTokens') === null) {
+    showAllTokens = true;
+    try { localStorage.setItem('showAllTokens', '1'); } catch(_e) {}
+  }
+  
   if (showAllTokensToggle) showAllTokensToggle.checked = !!showAllTokens;
   syncSevUi();
 
