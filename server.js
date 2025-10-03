@@ -1317,7 +1317,11 @@ app.post('/auth/logout', (req, res) => {
 });
 
 // Start server and keep a reference so we can gracefully shut down
-server = app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT} - DB: ${maskPath(DB_PATH)} Backup: ${maskPath(BACKUP_DIR)}`));
+server = app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT} - DB: ${maskPath(DB_PATH)} Backup: ${maskPath(BACKUP_DIR)}`);
+  console.log(`Market provider: ${CMC_API_KEY ? 'CoinMarketCap (CMC)' : (POLYGON_KEY ? 'Polygon' : 'None')}`);
+  console.log(`Currency: ${MARKET_CURRENCY}`);
+});
 
 // Wildcard fallback should be last: point to dist or root index
 app.get('*', (_req,res) => {
