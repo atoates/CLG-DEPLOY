@@ -647,45 +647,43 @@ app.get('/api/market/snapshot', async (req, res) => {
       // Resolve CMC IDs for symbols
       const idsMap = await getCmcIdsForSymbols(symbols);
       const ids = symbols.map(s => idsMap[s]).filter(Boolean);
-      if (!ids.length) return res.json({ items: symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-id' })), note: 'CoinMarketCap price-performance (~60s). No IDs found for requested symbols.', provider: 'cmc' });
+      if (!ids.length) return res.json({ items: symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-id' })), note: 'CoinMarketCap quotes (~60s). No IDs found for requested symbols.', provider: 'cmc' });
 
       const cacheKey = `stats:${ids.join(',')}:${MARKET_CURRENCY}`;
       const hit = cmcStatsCache.get(cacheKey);
       if (hit && Date.now() - hit.t < CMC_STATS_TTL_MS) {
-        return res.json({ items: hit.data, note: `CoinMarketCap price-performance (~60s) — ${MARKET_CURRENCY}` , provider: 'cmc' });
+        return res.json({ items: hit.data, note: `CoinMarketCap quotes (~60s) — ${MARKET_CURRENCY}` , provider: 'cmc' });
       }
 
       const params = new URLSearchParams({
         id: ids.join(','),
-        time_period: 'all_time,24h',
         convert: MARKET_CURRENCY
       });
-      const url = `https://pro-api.coinmarketcap.com/v2/cryptocurrency/price-performance-stats/latest?${params.toString()}`;
+      const url = `https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?${params.toString()}`;
       const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
-      const data = Array.isArray(j?.data) ? j.data : [];
-      // Build items array keyed by symbol
+      const data = j?.data || {};
+      // Build items array keyed by symbol using quotes endpoint
       const cur = MARKET_CURRENCY;
       const items = symbols.map(sym => {
         const id = idsMap[sym];
-        const row = data.find(d => d.id === id) || null;
+        const row = data[id] || null;
         if (!row) return { token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, error: 'no-data' };
-        const p24 = row.periods?.['24h']?.quote?.[cur] || {};
-        const pall = row.periods?.all_time?.quote?.[cur] || {};
+        const quote = row.quote?.[cur] || {};
         return {
           token: sym,
-          lastPrice: p24.close ?? null,
-          dayChangePct: typeof p24.percent_change === 'number' ? p24.percent_change : null,
+          lastPrice: quote.price ?? null,
+          dayChangePct: typeof quote.percent_change_24h === 'number' ? quote.percent_change_24h : null,
           change30mPct: null,
-          high24h: p24.high ?? null,
-          low24h: p24.low ?? null,
-          ath: pall.high ?? null,
-          atl: pall.low ?? null
+          high24h: null, // Not available in basic quotes endpoint
+          low24h: null,  // Not available in basic quotes endpoint
+          ath: null,     // Not available in basic quotes endpoint
+          atl: null      // Not available in basic quotes endpoint
         };
       });
       cmcStatsCache.set(cacheKey, { t: Date.now(), data: items });
-      return res.json({ items, note: `CoinMarketCap price-performance (~60s) — ${MARKET_CURRENCY}`, provider: 'cmc' });
+      return res.json({ items, note: `CoinMarketCap quotes (~60s) — ${MARKET_CURRENCY}`, provider: 'cmc' });
     }catch(e){
       console.warn('CMC API error:', e.message);
       // Fall through to Polygon if configured, else return error items
