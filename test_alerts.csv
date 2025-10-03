@@ -1,4 +1,0 @@
-token,title,description,severity,deadline,tags,further_info,source_type,source_url
-BTC,Test Bitcoin Alert,This is a test alert for Bitcoin,critical,2024-12-31T23:59:59.000Z,"[""hack"",""exploit""]",This is additional information about the Bitcoin alert,trusted-source,https://bitcoin.org
-ETH,Test Ethereum Alert,This is a test alert for Ethereum,warning,2025-01-15T12:00:00.000Z,"[""fork"",""community""]",Additional details about the Ethereum upgrade,dev-team,https://ethereum.org
-DOGE,Test Dogecoin Alert,This is a test alert for Dogecoin,info,2025-02-01T09:30:00.000Z,"[""news"",""community""]",Some additional context for the Dogecoin announcement,social-media,https://dogecoin.com

@@ -52,10 +52,7 @@ function getDefaultTags(severity) {
   }
 }
 
-console.log('Data directory:', DATA_DIR);
-console.log('Database path:', DB_PATH);
-console.log('Current directory:', __dirname);
-console.log('Directory contents:', fs.readdirSync(DATA_DIR));
+// Data directory and database initialized
 
 /* ---------------- DB setup (SQLite) ---------------- */
 const db = new Database(DB_PATH);
@@ -175,7 +172,7 @@ try {
         oauthStates.set(state, data);
       }
     }
-    console.log('Loaded', oauthStates.size, 'valid OAuth states from disk');
+    // OAuth states loaded from disk
   }
 } catch (e) {
   console.warn('Failed to load OAuth states from disk:', e.message);
@@ -261,9 +258,9 @@ try {
       source_url: String(r.source_url || '')
     }));
     persistAlerts();
-    console.log(`Loaded ${alerts.length} alerts from DB into file-backed store`);
+    // Alerts loaded from database
   } else {
-    console.log('No DB alerts found; using file-backed alerts.json');
+    // Using file-backed alerts
   }
 } catch (e) {
   console.warn('Failed to load alerts from DB; using file-backed alerts.json', e && e.message);
@@ -702,9 +699,8 @@ app.get('/api/market/snapshot', async (req, res) => {
       const j = await r.json();
       const quotesData = j?.data || {};
       
-      // Skip OHLCV data for now - causes 403 errors with GBP conversion on Hobbyist plan
-      // const ohlcvData = await getCmcOhlcvData(ids, MARKET_CURRENCY);
-      const ohlcvData = {}; // Disabled due to plan restrictions
+      // OHLCV disabled due to CMC Hobbyist plan GBP conversion restrictions
+      const ohlcvData = {};
       
       // Build items array keyed by symbol using quotes endpoint
       const cur = MARKET_CURRENCY;
@@ -714,7 +710,7 @@ app.get('/api/market/snapshot', async (req, res) => {
         if (!row) return { token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, high24h: null, low24h: null, ath: null, atl: null, error: 'no-data' };
         
         const quote = row.quote?.[cur] || {};
-        // OHLCV disabled due to 403 errors on Hobbyist plan with GBP conversion
+        // OHLCV data not available on Hobbyist plan with GBP
         
         // Extract available fields 
         return {
@@ -728,8 +724,8 @@ app.get('/api/market/snapshot', async (req, res) => {
           volume24h: typeof quote.volume_24h === 'number' ? quote.volume_24h : null,
           volumeChange24h: typeof quote.volume_change_24h === 'number' ? quote.volume_change_24h : null,
           marketCap: typeof quote.market_cap === 'number' ? quote.market_cap : null,
-          high24h: null, // OHLCV disabled due to plan restrictions 
-          low24h: null,  // OHLCV disabled due to plan restrictions
+          high24h: null, // Not available 
+          low24h: null,  // Not available
           ath: null,     // Would need price-performance-stats endpoint (premium)
           atl: null      // Would need price-performance-stats endpoint (premium)
         };
@@ -920,73 +916,10 @@ process.on('uncaughtException', (err) => {
 });
 
 // GET /api/news/cryptopanic?symbols=BTC,ETH&size=20&filter=important
-// COMMENTED OUT: CryptoPanic API to avoid rate limits
-/*
-app.get('/api/news/cryptopanic', async (req, res) => {
-  if (!CP_TOKEN) return res.status(501).json({ error: 'CRYPTOPANIC_TOKEN not set' });
-  const symbols = String(req.query.symbols || '').toUpperCase();
-  const params = new URLSearchParams({
-    auth_token: CP_TOKEN,
-    ...(CP_PUBLIC ? { public: 'true' } : {}),
-    ...(symbols ? { currencies: symbols } : {}),
-    ...(req.query.filter ? { filter: String(req.query.filter) } : {}),
-    ...(req.query.kind   ? { kind: String(req.query.kind) } : {}),
-    ...(req.query.size   ? { size: String(req.query.size) } : {})
-  });
-  const url = `https://cryptopanic.com/api/${CP_PLAN}/v2/posts/?` + params.toString();
-
-  const key = 'raw:' + url;
-  const cached = cacheGet(key);
-  if (cached) return res.json(cached);
-
-  try {
-    const json = await fetchJson(url);
-    cacheSet(key, json);
-    res.json(json);
-  } catch (e) {
-    res.status(502).json({ error: 'cryptopanic_fetch_failed', detail: String(e) });
-  }
-});
-*/
+// CryptoPanic endpoints removed to avoid rate limits
 
 // GET /api/news/cryptopanic-alerts?symbols=BTC,ETH&size=30
-// COMMENTED OUT: CryptoPanic API to avoid rate limits
-/*
-app.get('/api/news/cryptopanic-alerts', async (req, res) => {
-  if (!CP_TOKEN) return res.json([]); // silently no-op if not configured
-  const symbols = String(req.query.symbols || '').toUpperCase();
-
-  const params = new URLSearchParams({
-    auth_token: CP_TOKEN,
-    ...(CP_PUBLIC ? { public: 'true' } : {}),
-    ...(symbols ? { currencies: symbols } : {}),
-    kind: 'news',           // prefer written news; change to 'all' if you want twitter/reddit too
-    size: String(req.query.size || 50)  // you can tune
-  });
-  const url = `https://cryptopanic.com/api/${CP_PLAN}/v2/posts/?` + params.toString();
-
-  const key = 'alerts:' + url;
-  const cached = cacheGet(key);
-  if (cached) return res.json(cached);
-
-  try {
-    const json = await fetchJson(url);
-    const posts = Array.isArray(json?.results) ? json.results : [];
-    // Only posts that mention a coin (instrument)
-    const withInstruments = posts.filter(p => Array.isArray(p.instruments) && p.instruments.length);
-    // Map to our alert model; also keep only those with a token in the requested symbols if provided
-    let alerts = withInstruments.map(mapPostToAlert);
-    if (symbols) {
-      const set = new Set(symbols.split(',').map(s => s.trim().toUpperCase()));
-      alerts = alerts.filter(a => set.has(a.token));
-    }
-    cacheSet(key, alerts);
-    res.json(alerts);
-  } catch (e) {
-    res.status(502).json({ error: 'cryptopanic_map_failed', detail: String(e) });
-  }
-});
-*/
+// CryptoPanic alerts endpoint also removed
 
 
 // --- Admin: backup endpoint -------------------------------------------------
@@ -1037,7 +970,7 @@ app.post('/admin/migrate', requireAdmin, async (req, res) => {
     const userColumns = db.prepare('PRAGMA table_info(users)').all();
     const columnNames = userColumns.map(col => col.name);
     
-    console.log('Current users table columns:', columnNames);
+    // Users table columns verified
     
     const missingColumns = [];
     if (!columnNames.includes('google_id')) missingColumns.push('google_id TEXT');
@@ -1047,10 +980,10 @@ app.post('/admin/migrate', requireAdmin, async (req, res) => {
     if (!columnNames.includes('created_at')) missingColumns.push('created_at INTEGER DEFAULT (strftime(\'%s\',\'now\'))');
     
     if (missingColumns.length > 0) {
-      console.log('Adding missing columns:', missingColumns);
+      // Adding missing database columns
       for (const column of missingColumns) {
         const sql = `ALTER TABLE users ADD COLUMN ${column}`;
-        console.log('Executing:', sql);
+        // Executing column addition
         db.exec(sql);
       }
       
@@ -1064,7 +997,7 @@ app.post('/admin/migrate', requireAdmin, async (req, res) => {
         updated_at     INTEGER NOT NULL DEFAULT (strftime('%s','now'))
       )`);
       
-      console.log('Database schema updated successfully');
+      // Database schema updated
       return res.json({ ok: true, added: missingColumns, message: 'Schema updated' });
     } else {
       return res.json({ ok: true, message: 'Schema already up to date' });
@@ -1085,12 +1018,12 @@ app.post('/admin/backup', requireAdmin, async (req, res) => {
     try {
       db.pragma('journal_mode = WAL');
       db.exec(`VACUUM INTO '${out.replace(/'/g, "''")}'`);
-      console.log('Admin backup created (VACUUM INTO):', out);
+      // Admin backup created (VACUUM)
       return res.json({ ok: true, method: 'vacuum', path: out });
     } catch (e) {
       console.warn('VACUUM INTO failed, falling back to copy:', e && e.message);
       fs.copyFileSync(DB_PATH, out);
-      console.log('Admin backup created (copy):', out);
+      // Admin backup created (copy)
       return res.json({ ok: true, method: 'copy', path: out });
     }
   } catch (e) {
@@ -1256,7 +1189,7 @@ app.get('/auth/google', (req, res) => {
   // Save states to disk for persistence
   saveOAuthStates();
   
-  console.log('Generated OAuth state:', state, 'Total states in memory:', oauthStates.size);
+  // OAuth state generated
   
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
@@ -1309,7 +1242,7 @@ app.get('/auth/google/callback', async (req, res) => {
   // Mark state as used and remove it
   oauthStates.delete(state);
   saveOAuthStates();
-  console.log('OAuth state validated successfully:', state);
+  // OAuth state validated
   
   try{
     // Exchange code
@@ -1321,12 +1254,7 @@ app.get('/auth/google/callback', async (req, res) => {
       redirect_uri: `${BASE_URL}/auth/google/callback`
     });
     
-    console.log('Exchanging token with params:', { 
-      client_id: GOOGLE_CLIENT_ID ? 'present' : 'missing',
-      client_secret: GOOGLE_CLIENT_SECRET ? 'present' : 'missing',
-      redirect_uri: `${BASE_URL}/auth/google/callback`,
-      code_length: String(code).length
-    });
+    // Exchanging OAuth code for tokens
     
     const tr = await fetch('https://oauth2.googleapis.com/token', { 
       method:'POST', 
@@ -1334,7 +1262,7 @@ app.get('/auth/google/callback', async (req, res) => {
       body: tokenParams.toString() 
     });
     
-    console.log('Token exchange response:', { status: tr.status, ok: tr.ok });
+    // Token exchange completed
     
     if (!tr.ok) {
       const errorText = await tr.text();
@@ -1343,7 +1271,7 @@ app.get('/auth/google/callback', async (req, res) => {
     }
     
     const tj = await tr.json();
-    console.log('Token exchange success:', { hasIdToken: !!tj.id_token, hasAccessToken: !!tj.access_token });
+    // Token exchange successful
     
     const idToken = tj.id_token;
     if (!idToken) {
@@ -1353,7 +1281,7 @@ app.get('/auth/google/callback', async (req, res) => {
     
     // Decode ID token payload (without verification — for demo)
     const payload = JSON.parse(Buffer.from(String(idToken).split('.')[1]||'', 'base64').toString('utf8')) || {};
-    console.log('ID token payload:', { sub: !!payload.sub, email: !!payload.email, name: !!payload.name });
+    // ID token decoded
     
     const googleId = payload.sub || '';
     const email = payload.email || '';
@@ -1362,7 +1290,7 @@ app.get('/auth/google/callback', async (req, res) => {
 
     // Create or map user
     const uid = `usr_${googleId}`; // simple mapping for demo
-    console.log('Creating user:', { uid, googleId: !!googleId, email: !!email });
+    // Creating new user
     
     qUpsertUser.run(uid);
     db.prepare('UPDATE users SET google_id=?, email=?, name=?, avatar=? WHERE id=?').run(googleId, email, name, avatar, uid);
@@ -1384,8 +1312,6 @@ app.post('/auth/logout', (req, res) => {
 // Start server and keep a reference so we can gracefully shut down
 server = app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT} - DB: ${maskPath(DB_PATH)} Backup: ${maskPath(BACKUP_DIR)}`);
-  console.log(`Market provider: ${CMC_API_KEY ? 'CoinMarketCap (CMC)' : (POLYGON_KEY ? 'Polygon' : 'None')}`);
-  console.log(`Currency: ${MARKET_CURRENCY}`);
 });
 
 // Wildcard fallback should be last: point to dist or root index
