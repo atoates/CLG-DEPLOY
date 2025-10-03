@@ -614,13 +614,16 @@ async function getCmcOhlcvData(ids, currency) {
   try {
     const params = new URLSearchParams({
       id: ids.join(','),
-      convert: currency,
-      time_period: 'daily',
-      count: 1 // Just today's data
+      convert: currency
     });
     const url = `https://pro-api.coinmarketcap.com/v2/cryptocurrency/ohlcv/latest?${params.toString()}`;
     const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
-    if (!r.ok) throw new Error(`OHLCV HTTP ${r.status}`);
+    
+    if (!r.ok) {
+      const errorText = await r.text();
+      throw new Error(`OHLCV HTTP ${r.status}: ${errorText}`);
+    }
+    
     const j = await r.json();
     const data = j?.data || {};
     
