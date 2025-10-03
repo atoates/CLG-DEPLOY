@@ -280,7 +280,11 @@ app.get('/admin/info', requireAdmin, (req, res) => {
       databasePath: DB_PATH,
       backupDir: BACKUP_DIR,
       restoreFromFile: RESTORE_FROM_FILE,
-      counts: { alerts: alertCount, users: userCount, user_prefs: prefsCount }
+      counts: { alerts: alertCount, users: userCount, user_prefs: prefsCount },
+      market: {
+        provider: CMC_API_KEY ? 'cmc' : (POLYGON_KEY ? 'polygon' : 'none'),
+        currency: MARKET_CURRENCY
+      }
     });
   }catch(e){
     res.status(500).json({ error: 'failed', message: e && e.message });
