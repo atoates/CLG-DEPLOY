@@ -612,9 +612,10 @@ async function getCmcOhlcvData(ids, currency) {
   }
   
   try {
+    // Try OHLCV in USD since GBP conversion may be restricted on Hobbyist plan
     const params = new URLSearchParams({
       id: ids.join(','),
-      convert: currency
+      convert: 'USD'  // Use USD for OHLCV to avoid 403 errors
     });
     const url = `https://pro-api.coinmarketcap.com/v2/cryptocurrency/ohlcv/latest?${params.toString()}`;
     const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
@@ -701,14 +702,9 @@ app.get('/api/market/snapshot', async (req, res) => {
       const j = await r.json();
       const quotesData = j?.data || {};
       
-      // Attempt to fetch OHLCV data for high/low (may fail on basic plans)
-      let ohlcvData = {};
-      try {
-        ohlcvData = await getCmcOhlcvData(ids, MARKET_CURRENCY);
-        console.log('OHLCV data retrieved successfully for', ids.length, 'tokens');
-      } catch (e) {
-        console.warn('OHLCV data not available:', e.message, 'Status:', e.status || 'unknown');
-      }
+      // Skip OHLCV data for now - causes 403 errors with GBP conversion on Hobbyist plan
+      // const ohlcvData = await getCmcOhlcvData(ids, MARKET_CURRENCY);
+      const ohlcvData = {}; // Disabled due to plan restrictions
       
       // Build items array keyed by symbol using quotes endpoint
       const cur = MARKET_CURRENCY;
@@ -718,8 +714,7 @@ app.get('/api/market/snapshot', async (req, res) => {
         if (!row) return { token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, high24h: null, low24h: null, ath: null, atl: null, error: 'no-data' };
         
         const quote = row.quote?.[cur] || {};
-        const ohlcv = ohlcvData[id] || null;
-        const ohlcvQuote = ohlcv?.quotes?.[0]?.quote?.[cur] || null;
+        // OHLCV disabled due to 403 errors on Hobbyist plan with GBP conversion
         
         // Extract available fields 
         return {
@@ -733,8 +728,8 @@ app.get('/api/market/snapshot', async (req, res) => {
           volume24h: typeof quote.volume_24h === 'number' ? quote.volume_24h : null,
           volumeChange24h: typeof quote.volume_change_24h === 'number' ? quote.volume_change_24h : null,
           marketCap: typeof quote.market_cap === 'number' ? quote.market_cap : null,
-          high24h: ohlcvQuote?.high ?? null, // From OHLCV if available
-          low24h: ohlcvQuote?.low ?? null,   // From OHLCV if available
+          high24h: null, // OHLCV disabled due to plan restrictions 
+          low24h: null,  // OHLCV disabled due to plan restrictions
           ath: null,     // Would need price-performance-stats endpoint (premium)
           atl: null      // Would need price-performance-stats endpoint (premium)
         };
