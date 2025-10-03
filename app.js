@@ -74,7 +74,7 @@ const ALERT_SOURCE_TYPES = {
 
 // Extract tag icons for easy access
 const tagIcons = Object.fromEntries(
-  Object.entries(ALERT_TAG_TYPES).map(([key, value]) => [key, value.icon])
+  Object.entries(ALERT_TAGS).map(([key, value]) => [key, value.icon])
 );
 
 // --- State (will be hydrated from /api/me) -----------------------------------
