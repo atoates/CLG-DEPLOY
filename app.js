@@ -49,7 +49,8 @@ const ALERT_TAGS = {
   'whale': { icon: '🐋', label: 'Whale Alert', color: '#818cf8' },
   'news': { icon: '📰', label: 'News', color: '#94a3b8' },
   'community': { icon: '👥', label: 'Community', color: '#fb923c' },
-  'exploit': { icon: '⚡', label: 'Exploit', color: '#f43f5e' }
+  'exploit': { icon: '⚡', label: 'Exploit', color: '#f43f5e' },
+  'privacy': { icon: '🛡️', label: 'Privacy', color: '#22c55e' }
 };
 
 // Source types definitions (for alert source metadata)
@@ -1032,9 +1033,3 @@ function renderAll(){
   renderAlerts();
   renderSummary();
 }
-
-// --- Load initial data --------------------------------------------------------
-(async () => {
-  await loadAlertsFromServer();
-  renderAll();
-})();

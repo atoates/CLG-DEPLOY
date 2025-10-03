@@ -15,6 +15,3 @@ const ALERT_TAGS = {
 
 // Make tags available globally
 window.ALERT_TAGS = ALERT_TAGS;
-
-// Export for ES modules
-export { ALERT_TAGS };
