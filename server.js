@@ -599,7 +599,38 @@ const CMC_STATIC_IDS = {
 
 // In-memory cache for stats calls (60s cadence)
 const cmcStatsCache = new Map(); // key -> { t, data }
+const cmcOhlcvCache = new Map(); // key -> { t, data }
 const CMC_STATS_TTL_MS = 60 * 1000;
+const CMC_OHLCV_TTL_MS = 5 * 60 * 1000; // 5 minutes for OHLCV
+
+// Fetch today's OHLCV data to get high/low
+async function getCmcOhlcvData(ids, currency) {
+  const cacheKey = `ohlcv:${ids.join(',')}:${currency}`;
+  const hit = cmcOhlcvCache.get(cacheKey);
+  if (hit && Date.now() - hit.t < CMC_OHLCV_TTL_MS) {
+    return hit.data;
+  }
+  
+  try {
+    const params = new URLSearchParams({
+      id: ids.join(','),
+      convert: currency,
+      time_period: 'daily',
+      count: 1 // Just today's data
+    });
+    const url = `https://pro-api.coinmarketcap.com/v2/cryptocurrency/ohlcv/latest?${params.toString()}`;
+    const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
+    if (!r.ok) throw new Error(`OHLCV HTTP ${r.status}`);
+    const j = await r.json();
+    const data = j?.data || {};
+    
+    cmcOhlcvCache.set(cacheKey, { t: Date.now(), data });
+    return data;
+  } catch (e) {
+    console.warn('CMC OHLCV API error:', e.message);
+    return {};
+  }
+}
 
 async function getCmcIdsForSymbols(symbols) {
   const ids = {};
@@ -655,31 +686,53 @@ app.get('/api/market/snapshot', async (req, res) => {
         return res.json({ items: hit.data, note: `CoinMarketCap quotes (~60s) — ${MARKET_CURRENCY}` , provider: 'cmc' });
       }
 
+      // Fetch quotes data (current price, volume, % changes)
       const params = new URLSearchParams({
         id: ids.join(','),
-        convert: MARKET_CURRENCY
+        convert: MARKET_CURRENCY,
+        aux: 'volume_24h,volume_change_24h,percent_change_1h,percent_change_7d,percent_change_30d,market_cap,circulating_supply,total_supply'
       });
       const url = `https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?${params.toString()}`;
       const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
-      const data = j?.data || {};
+      const quotesData = j?.data || {};
+      
+      // Attempt to fetch OHLCV data for high/low (may fail on basic plans)
+      let ohlcvData = {};
+      try {
+        ohlcvData = await getCmcOhlcvData(ids, MARKET_CURRENCY);
+      } catch (e) {
+        console.warn('OHLCV data not available:', e.message);
+      }
+      
       // Build items array keyed by symbol using quotes endpoint
       const cur = MARKET_CURRENCY;
       const items = symbols.map(sym => {
         const id = idsMap[sym];
-        const row = data[id] || null;
-        if (!row) return { token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, error: 'no-data' };
+        const row = quotesData[id] || null;
+        if (!row) return { token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, high24h: null, low24h: null, ath: null, atl: null, error: 'no-data' };
+        
         const quote = row.quote?.[cur] || {};
+        const ohlcv = ohlcvData[id] || null;
+        const ohlcvQuote = ohlcv?.quotes?.[0]?.quote?.[cur] || null;
+        
+        // Extract available fields 
         return {
           token: sym,
           lastPrice: quote.price ?? null,
           dayChangePct: typeof quote.percent_change_24h === 'number' ? quote.percent_change_24h : null,
-          change30mPct: null,
-          high24h: null, // Not available in basic quotes endpoint
-          low24h: null,  // Not available in basic quotes endpoint
-          ath: null,     // Not available in basic quotes endpoint
-          atl: null      // Not available in basic quotes endpoint
+          change1hPct: typeof quote.percent_change_1h === 'number' ? quote.percent_change_1h : null,
+          change7dPct: typeof quote.percent_change_7d === 'number' ? quote.percent_change_7d : null,
+          change30dPct: typeof quote.percent_change_30d === 'number' ? quote.percent_change_30d : null,
+          change30mPct: null, // Not available in CMC API
+          volume24h: typeof quote.volume_24h === 'number' ? quote.volume_24h : null,
+          volumeChange24h: typeof quote.volume_change_24h === 'number' ? quote.volume_change_24h : null,
+          marketCap: typeof quote.market_cap === 'number' ? quote.market_cap : null,
+          high24h: ohlcvQuote?.high ?? null, // From OHLCV if available
+          low24h: ohlcvQuote?.low ?? null,   // From OHLCV if available
+          ath: null,     // Would need price-performance-stats endpoint (premium)
+          atl: null      // Would need price-performance-stats endpoint (premium)
         };
       });
       cmcStatsCache.set(cacheKey, { t: Date.now(), data: items });
