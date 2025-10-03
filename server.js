@@ -804,12 +804,14 @@ function mapPostToAlert(p){
 app.get('/debug/env', (req, res) => {
   res.json({
     NODE_ENV: process.env.NODE_ENV || 'not_set',
-    CMC_API_KEY_SET: !!process.env.CMC_API_KEY,
-    CMC_API_KEY_LENGTH: process.env.CMC_API_KEY ? process.env.CMC_API_KEY.length : 0,
-    CMC_API_KEY_FIRST_8: process.env.CMC_API_KEY ? process.env.CMC_API_KEY.substring(0, 8) : 'not_set',
-    POLYGON_API_KEY_SET: !!process.env.POLYGON_API_KEY,
-    MARKET_CURRENCY: process.env.MARKET_CURRENCY || 'not_set',
-    RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT || 'not_set'
+    CMC_API_KEY_SET: !!CMC_API_KEY,
+    CMC_API_KEY_LENGTH: CMC_API_KEY ? CMC_API_KEY.length : 0,
+    CMC_API_KEY_FIRST_8: CMC_API_KEY ? CMC_API_KEY.substring(0, 8) : 'not_set',
+    POLYGON_KEY_SET: !!POLYGON_KEY,
+    MARKET_CURRENCY_RESOLVED: MARKET_CURRENCY,
+    MARKET_CURRENCY_RAW: process.env.MARKET_CURRENCY || 'not_set_defaulting_to_GBP',
+    RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT || 'not_set',
+    SERVER_LOGIC_PROVIDER: CMC_API_KEY ? 'cmc' : (POLYGON_KEY ? 'polygon' : 'none')
   });
 });
 
