@@ -451,6 +451,8 @@ async function loadAlertsFromServer(){
   try{
     const res = await fetch('/api/alerts');
     serverAlerts = await res.json();
+    console.log('DEBUG: Loaded', serverAlerts.length, 'alerts from server');
+    console.log('DEBUG: First few alerts:', serverAlerts.slice(0, 3));
   }catch(e){
     console.error('Failed to fetch /api/alerts', e);
     serverAlerts = [];
