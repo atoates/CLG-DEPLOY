@@ -43,8 +43,19 @@ console.log('Reading alerts from alerts.json...');
 const alerts = JSON.parse(fs.readFileSync('alerts.json', 'utf8'));
 console.log(`Found ${alerts.length} alerts in JSON file`);
 
-// Clear existing alerts first
-console.log('Clearing existing alerts...');
+// Check if database already has alerts (to avoid wiping user uploads)
+const existingCount = db.prepare('SELECT COUNT(*) as count FROM alerts').get().count;
+console.log(`Found ${existingCount} existing alerts in database`);
+
+if (existingCount > 0) {
+  console.log('Database already contains alerts. Skipping restore to preserve user data.');
+  console.log('To force restore, manually clear the database first.');
+  db.close();
+  process.exit(0);
+}
+
+// Clear existing alerts first (only if database was empty)
+console.log('Database is empty. Clearing existing alerts...');
 db.exec('DELETE FROM alerts');
 
 // Prepare insert statement
