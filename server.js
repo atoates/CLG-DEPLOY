@@ -682,7 +682,7 @@ app.get('/api/market/snapshot', async (req, res) => {
       // Resolve CMC IDs for symbols
       const idsMap = await getCmcIdsForSymbols(symbols);
       const ids = symbols.map(s => idsMap[s]).filter(Boolean);
-      if (!ids.length) return res.json({ items: symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-id' })), note: 'CoinMarketCap quotes (~60s). No IDs found for requested symbols.', provider: 'cmc' });
+      if (!ids.length) return res.json({ items: symbols.map(s=>({ token:s, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-id' })), note: 'CoinMarketCap quotes (~60s). No IDs found for requested symbols.', provider: 'cmc' });
 
       const cacheKey = `stats:${ids.join(',')}:${MARKET_CURRENCY}`;
       const hit = cmcStatsCache.get(cacheKey);
@@ -691,10 +691,11 @@ app.get('/api/market/snapshot', async (req, res) => {
       }
 
       // Fetch quotes data (current price, volume, % changes)
-      // Back to basic version without aux parameter that was working
+      // Include logo auxiliary field to get icon URLs
       const params = new URLSearchParams({
         id: ids.join(','),
-        convert: MARKET_CURRENCY
+        convert: MARKET_CURRENCY,
+        aux: 'logo'
       });
       const url = `https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?${params.toString()}`;
       const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
@@ -710,7 +711,7 @@ app.get('/api/market/snapshot', async (req, res) => {
       const items = symbols.map(sym => {
         const id = idsMap[sym];
         const row = quotesData[id] || null;
-        if (!row) return { token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, high24h: null, low24h: null, ath: null, atl: null, error: 'no-data' };
+        if (!row) return { token: sym, logoUrl: null, lastPrice: null, dayChangePct: null, change30mPct: null, high24h: null, low24h: null, ath: null, atl: null, error: 'no-data' };
         
         const quote = row.quote?.[cur] || {};
         // OHLCV data not available on Hobbyist plan with GBP
@@ -718,6 +719,7 @@ app.get('/api/market/snapshot', async (req, res) => {
         // Extract available fields 
         return {
           token: sym,
+          logoUrl: row.logo || null, // Add logo URL from CMC API
           lastPrice: quote.price ?? null,
           dayChangePct: typeof quote.percent_change_24h === 'number' ? quote.percent_change_24h : null,
           change1hPct: typeof quote.percent_change_1h === 'number' ? quote.percent_change_1h : null,
@@ -739,7 +741,7 @@ app.get('/api/market/snapshot', async (req, res) => {
       console.warn('CMC API error:', e.message);
       // Fall through to Polygon if configured, else return error items
       if (!POLYGON_KEY) {
-        const items = symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'cmc-failed' }));
+        const items = symbols.map(s=>({ token:s, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'cmc-failed' }));
         return res.json({ items, note: 'CoinMarketCap fetch failed; no fallback API configured.', provider: 'cmc' });
       }
     }
@@ -751,22 +753,22 @@ app.get('/api/market/snapshot', async (req, res) => {
   for (const sym of symbols){
     const ticker = mapSymbolToPolygon(sym);
     if (!ticker || !POLYGON_KEY){
-      items.push({ token:sym, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-data' });
+      items.push({ token:sym, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-data' });
       continue;
     }
     try{
       const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(ticker)}/prev?adjusted=true&apiKey=${POLYGON_KEY}`;
       const r = await fetch(url);
-      if (!r.ok){ items.push({ token:sym, lastPrice:null, dayChangePct:null, change30mPct:null, error:`http-${r.status}` }); continue; }
+      if (!r.ok){ items.push({ token:sym, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:`http-${r.status}` }); continue; }
       const json = await r.json();
       const rec = (json.results && json.results[0]) || null;
-      if (!rec){ items.push({ token:sym, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-results' }); continue; }
+      if (!rec){ items.push({ token:sym, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-results' }); continue; }
       const lastPrice = rec.c ?? null;
       const open = rec.o ?? null;
       const dayChangePct = (lastPrice!=null && open!=null && open!==0) ? ((lastPrice-open)/open)*100 : null;
-      items.push({ token:sym, lastPrice, dayChangePct, change30mPct:null });
+      items.push({ token:sym, logoUrl:null, lastPrice, dayChangePct, change30mPct:null });
     }catch{
-      items.push({ token:sym, lastPrice:null, dayChangePct:null, change30mPct:null, error:'fetch-failed' });
+      items.push({ token:sym, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'fetch-failed' });
     }
   }
   res.json({ items, note, provider: POLYGON_KEY ? 'polygon' : 'none' });
