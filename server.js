@@ -33,8 +33,7 @@ try {
 
 // server reference declared up-front so shutdown handlers can close it later
 let server;
-const POLYGON_KEY = process.env.POLYGON_API_KEY || '';
-// CoinMarketCap configuration (preferred over Polygon when present)
+// CoinMarketCap configuration
 const CMC_API_KEY = process.env.CMC_API_KEY || '';
 // AI API keys for summary generation
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
@@ -282,7 +281,7 @@ app.get('/admin/info', requireAdmin, (req, res) => {
       restoreFromFile: RESTORE_FROM_FILE,
       counts: { alerts: alertCount, users: userCount, user_prefs: prefsCount },
       market: {
-        provider: CMC_API_KEY ? 'cmc' : (POLYGON_KEY ? 'polygon' : 'none'),
+        provider: CMC_API_KEY ? 'cmc' : 'none',
         currency: MARKET_CURRENCY
       }
     });
@@ -582,7 +581,7 @@ app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
   res.status(201).json(response);
 });
 
-/* ---------------- Market (CoinMarketCap preferred, Polygon fallback) ---------------- */
+/* ---------------- Market (CoinMarketCap) ---------------- */
 // Simple persistent cache for symbol->CMC id mappings
 const CMC_MAP_FILE = path.join(DATA_DIR, 'cmc_symbol_map.json');
 let cmcSymbolMap = readJsonSafe(CMC_MAP_FILE, {});
@@ -593,8 +592,7 @@ const CMC_STATIC_IDS = {
   UNI: 7083, AVAX: 5805, LTC: 2, BCH: 1831, BSV: 3602, ETC: 1321, XLM: 512, HBAR: 4642,
   APT: 21794, ARB: 11841, OP: 11840, SUI: 20947, NEAR: 6535, ICP: 8916, MKR: 1518,
   AAVE: 7278, COMP: 5692, SNX: 2586, CRV: 6538, BAL: 5728, YFI: 5864, ZEC: 1437,
-  DASH: 131, EOS: 1765, FIL: 2280, VET: 3077, XTZ: 2011, KSM: 5034, GLMR: 6836,
-  POLYGON: 3890
+  DASH: 131, EOS: 1765, FIL: 2280, VET: 3077, XTZ: 2011, KSM: 5034, GLMR: 6836
 };
 
 // In-memory cache for stats calls (60s cadence)
@@ -665,16 +663,9 @@ async function getCmcIdsForSymbols(symbols) {
   return ids;
 }
 
-function mapSymbolToPolygon(sym){
-  const m={ BTC:'X:BTCUSD', ETH:'X:ETHUSD', USDC:'X:USDCUSD', MATIC:'X:MATICUSD',
-            DOGE:'X:DOGEUSD', ADA:'X:ADAUSD', SOL:'X:SOLUSD', POL:'X:POLUSD',
-            UNI:'X:UNIUSD', LINK:'X:LINKUSD' };
-  return m[sym] || null;
-}
-
 app.get('/api/market/snapshot', async (req, res) => {
   const symbols = String(req.query.symbols||'').split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
-  if (!symbols.length) return res.json({ items:[], note:'No symbols selected.', provider: CMC_API_KEY ? 'cmc' : (POLYGON_KEY ? 'polygon' : 'none') });
+  if (!symbols.length) return res.json({ items:[], note:'No symbols selected.', provider: CMC_API_KEY ? 'cmc' : 'none' });
 
   // Prefer CMC if configured
   if (CMC_API_KEY) {
@@ -739,39 +730,14 @@ app.get('/api/market/snapshot', async (req, res) => {
       return res.json({ items, note: `CoinMarketCap quotes (~60s) — ${MARKET_CURRENCY}`, provider: 'cmc' });
     }catch(e){
       console.warn('CMC API error:', e.message);
-      // Fall through to Polygon if configured, else return error items
-      if (!POLYGON_KEY) {
-        const items = symbols.map(s=>({ token:s, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'cmc-failed' }));
-        return res.json({ items, note: 'CoinMarketCap fetch failed; no fallback API configured.', provider: 'cmc' });
-      }
+      const items = symbols.map(s=>({ token:s, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'cmc-failed' }));
+      return res.json({ items, note: 'CoinMarketCap fetch failed; no market API configured.', provider: 'cmc' });
     }
   }
 
-  // Fallback to Polygon EOD
-  const note = POLYGON_KEY ? 'End-of-day aggregates via Polygon (free tier).' : 'No market API configured.';
-  const items = [];
-  for (const sym of symbols){
-    const ticker = mapSymbolToPolygon(sym);
-    if (!ticker || !POLYGON_KEY){
-      items.push({ token:sym, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-data' });
-      continue;
-    }
-    try{
-      const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(ticker)}/prev?adjusted=true&apiKey=${POLYGON_KEY}`;
-      const r = await fetch(url);
-      if (!r.ok){ items.push({ token:sym, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:`http-${r.status}` }); continue; }
-      const json = await r.json();
-      const rec = (json.results && json.results[0]) || null;
-      if (!rec){ items.push({ token:sym, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-results' }); continue; }
-      const lastPrice = rec.c ?? null;
-      const open = rec.o ?? null;
-      const dayChangePct = (lastPrice!=null && open!=null && open!==0) ? ((lastPrice-open)/open)*100 : null;
-      items.push({ token:sym, logoUrl:null, lastPrice, dayChangePct, change30mPct:null });
-    }catch{
-      items.push({ token:sym, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'fetch-failed' });
-    }
-  }
-  res.json({ items, note, provider: POLYGON_KEY ? 'polygon' : 'none' });
+  // No CMC API key configured
+  const items = symbols.map(s=>({ token:s, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-api' }));
+  res.json({ items, note: 'No market API configured.', provider: 'none' });
 });
 
 app.get('/api/market/auto-alerts', async (req, res) => {
@@ -1182,11 +1148,10 @@ app.get('/debug/env', (req, res) => {
     CMC_API_KEY_SET: !!CMC_API_KEY,
     CMC_API_KEY_LENGTH: CMC_API_KEY ? CMC_API_KEY.length : 0,
     CMC_API_KEY_FIRST_8: CMC_API_KEY ? CMC_API_KEY.substring(0, 8) : 'not_set',
-    POLYGON_KEY_SET: !!POLYGON_KEY,
     MARKET_CURRENCY_RESOLVED: MARKET_CURRENCY,
     MARKET_CURRENCY_RAW: process.env.MARKET_CURRENCY || 'not_set_defaulting_to_GBP',
     RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT || 'not_set',
-    SERVER_LOGIC_PROVIDER: CMC_API_KEY ? 'cmc' : (POLYGON_KEY ? 'polygon' : 'none')
+    SERVER_LOGIC_PROVIDER: CMC_API_KEY ? 'cmc' : 'none'
   });
 });
 

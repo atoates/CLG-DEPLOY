@@ -22,7 +22,7 @@ Crypto Lifeguard is a web application for tracking crypto token alerts with seve
   - `DATA_DIR`: Base directory for data storage (default: './data')
   - `DATABASE_PATH`: SQLite database location
   - `BACKUP_DIR`: Backup storage location
-  - `POLYGON_API_KEY`: For external data integration
+  - `CMC_API_KEY`: For CoinMarketCap market data integration
 
 ### API Endpoints
 - `/api/me`: User preferences and watchlist management
@@ -91,7 +91,7 @@ npm run update-tags
 - Transactions wrap critical operations
 
 ## Integration Points
-- External API integration with Polygon.io (configured via `POLYGON_API_KEY`)
+- CoinMarketCap API integration for cryptocurrency market data and logos
 - Local storage for persisting user token selections in browser
 - SQLite WAL mode enables concurrent read/write operations
 - Railway.app deployment integration

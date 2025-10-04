@@ -89,7 +89,7 @@ let tagPillsExpanded = false;                            // expanded view for se
 let serverAlerts = [];
 let autoAlerts   = [];
 let marketItems  = [];
-let marketProvider = 'none'; // 'cmc' | 'polygon' | 'none'
+let marketProvider = 'none'; // 'cmc' | 'none'
 
 // --- DOM ---------------------------------------------------------------------
 const tokenInput      = document.getElementById('token-input');
