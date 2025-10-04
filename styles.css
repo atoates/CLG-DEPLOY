@@ -1107,6 +1107,20 @@ button#user-menu-btn.menu-btn{
   border-top: 1px solid #e2e8f0;
 }
 
+.news-tab-content {
+  min-height: 200px;
+}
+
+.news-placeholder {
+  color: #64748b;
+  font-style: italic;
+  text-align: center;
+  padding: 2rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
 .news-header-row {
   display: flex;
   justify-content: space-between;

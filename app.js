@@ -100,6 +100,7 @@ const pillsRow        = document.getElementById('selected-tokens');
 const tabs            = document.querySelectorAll('.tab');
 const panelAlerts     = document.getElementById('panel-alerts');
 const panelSummary    = document.getElementById('panel-summary');
+const panelNews       = document.getElementById('panel-news');
 const panelMarket     = document.getElementById('panel-market');
 
 const alertsListEl    = document.getElementById('alerts-list');
@@ -351,10 +352,12 @@ tabs.forEach(btn => {
     const tab = btn.getAttribute('data-tab');
     const isAlerts  = tab === 'alerts';
     const isSummary = tab === 'summary';
+    const isNews    = tab === 'news';
     const isMarket  = tab === 'market';
 
     panelAlerts.hidden  = !isAlerts;
     panelSummary.hidden = !isSummary;
+    panelNews.hidden    = !isNews;
     panelMarket.hidden  = !isMarket;
 
     updateFilterVisibility(tab);
@@ -990,102 +993,11 @@ async function renderSummary(){
     
     sc.appendChild(summaryContent);
 
-    // Add news section if available
+    // Update the news tab if news data is available
     if (data.news && data.news.length > 0) {
-      const newsSection = document.createElement('div');
-      newsSection.className = 'news-section';
-      
-      const newsHeaderRow = document.createElement('div');
-      newsHeaderRow.className = 'news-header-row';
-      
-      const newsHeader = document.createElement('h3');
-      newsHeader.className = 'news-header';
-      newsHeader.textContent = '📰 Your tokens in the News';
-      newsHeaderRow.appendChild(newsHeader);
-      
-      // Get unique tokens from news articles
-      const uniqueTokens = [...new Set(data.news.flatMap(article => {
-        if (article.tickers && article.tickers.length > 0) {
-          return article.tickers;
-        }
-        return article.token ? [article.token] : [];
-      }))].sort();
-      
-      // Add token filter dropdown
-      const filterContainer = document.createElement('div');
-      filterContainer.className = 'news-filter-container';
-      
-      const filterSelect = document.createElement('select');
-      filterSelect.className = 'news-token-filter';
-      filterSelect.innerHTML = `
-        <option value="all">All tokens</option>
-        ${uniqueTokens.map(token => `<option value="${token}">${token}</option>`).join('')}
-      `;
-      filterContainer.appendChild(filterSelect);
-      newsHeaderRow.appendChild(filterContainer);
-      
-      newsSection.appendChild(newsHeaderRow);
-      
-      const newsContainer = document.createElement('div');
-      newsContainer.className = 'news-container';
-      
-      // Store all news articles for filtering
-      const allNews = data.news;
-      
-      // Function to render news articles based on filter
-      const renderNews = (filterToken = 'all') => {
-        newsContainer.innerHTML = '';
-        
-        const filteredNews = filterToken === 'all' ? allNews : allNews.filter(article => {
-          if (article.tickers && article.tickers.length > 0) {
-            return article.tickers.includes(filterToken);
-          }
-          return article.token === filterToken;
-        });
-        
-        filteredNews.forEach(article => {
-        const newsItem = document.createElement('div');
-        newsItem.className = 'news-item';
-        
-        const publishedDate = new Date(article.publishedAt).toLocaleDateString();
-        const tickersDisplay = article.tickers && article.tickers.length > 0 
-          ? article.tickers.slice(0, 3).map(ticker => `<span class="news-ticker">${ticker}</span>`).join('')
-          : (article.token ? `<span class="news-ticker">${article.token}</span>` : '');
-        
-        // Sentiment indicator
-        const sentimentClass = article.sentiment === 'positive' ? 'sentiment-positive' : 
-                              article.sentiment === 'negative' ? 'sentiment-negative' : 'sentiment-neutral';
-        const sentimentIcon = article.sentiment === 'positive' ? '📈' : 
-                             article.sentiment === 'negative' ? '📉' : '📊';
-        
-        newsItem.innerHTML = `
-          <div class="news-content">
-            <h4 class="news-title">
-              ${article.url !== '#' ? `<a href="${article.url}" target="_blank" rel="noopener">${article.title}</a>` : article.title}
-            </h4>
-            <p class="news-description">${article.description || 'No description available'}</p>
-            <div class="news-meta">
-              <span class="news-source">${article.source.name}</span>
-              <span class="news-date">${publishedDate}</span>
-              ${article.sentiment && article.sentiment !== 'neutral' ? `<span class="news-sentiment ${sentimentClass}">${sentimentIcon} ${article.sentiment}</span>` : ''}
-              ${tickersDisplay}
-            </div>
-          </div>
-        `;
-        newsContainer.appendChild(newsItem);
-        });
-      };
-      
-      // Initial render
-      renderNews();
-      
-      // Add filter event listener
-      filterSelect.addEventListener('change', (e) => {
-        renderNews(e.target.value);
-      });
-      
-      newsSection.appendChild(newsContainer);
-      sc.appendChild(newsSection);
+      updateNewsTab(data.news);
+    } else {
+      clearNewsTab();
     }
 
   } catch (error) {
@@ -1152,6 +1064,115 @@ function generateBasicSummary() {
     <p><strong>Monitored Tokens:</strong> ${tokens.join(', ')}</p>
     <p><em>Enable AI analysis by configuring OpenAI or Anthropic API keys for detailed insights.</em></p>
   `;
+}
+
+// --- News Tab Functions ---
+function updateNewsTab(newsData) {
+  const newsContent = document.getElementById('news-content');
+  if (!newsContent) return;
+  
+  newsContent.innerHTML = '';
+  
+  if (!newsData || newsData.length === 0) {
+    newsContent.innerHTML = '<div class="news-placeholder">No recent news available for your selected tokens.</div>';
+    return;
+  }
+  
+  // Create header with filter
+  const newsHeaderRow = document.createElement('div');
+  newsHeaderRow.className = 'news-header-row';
+  
+  const newsHeader = document.createElement('h3');
+  newsHeader.className = 'news-header';
+  newsHeader.textContent = '📰 Your tokens in the News';
+  newsHeaderRow.appendChild(newsHeader);
+  
+  // Get unique tokens from news articles
+  const uniqueTokens = [...new Set(newsData.flatMap(article => {
+    if (article.tickers && article.tickers.length > 0) {
+      return article.tickers;
+    }
+    return article.token ? [article.token] : [];
+  }))].sort();
+  
+  // Add token filter dropdown
+  const filterContainer = document.createElement('div');
+  filterContainer.className = 'news-filter-container';
+  
+  const filterSelect = document.createElement('select');
+  filterSelect.className = 'news-token-filter';
+  filterSelect.innerHTML = `
+    <option value="all">All tokens</option>
+    ${uniqueTokens.map(token => `<option value="${token}">${token}</option>`).join('')}
+  `;
+  filterContainer.appendChild(filterSelect);
+  newsHeaderRow.appendChild(filterContainer);
+  
+  newsContent.appendChild(newsHeaderRow);
+  
+  const newsContainer = document.createElement('div');
+  newsContainer.className = 'news-container';
+  
+  // Function to render news articles based on filter
+  const renderNews = (filterToken = 'all') => {
+    newsContainer.innerHTML = '';
+    
+    const filteredNews = filterToken === 'all' ? newsData : newsData.filter(article => {
+      if (article.tickers && article.tickers.length > 0) {
+        return article.tickers.includes(filterToken);
+      }
+      return article.token === filterToken;
+    });
+    
+    filteredNews.forEach(article => {
+      const newsItem = document.createElement('div');
+      newsItem.className = 'news-item';
+      
+      const publishedDate = new Date(article.publishedAt).toLocaleDateString();
+      const tickersDisplay = article.tickers && article.tickers.length > 0 
+        ? article.tickers.slice(0, 3).map(ticker => `<span class="news-ticker">${ticker}</span>`).join('')
+        : (article.token ? `<span class="news-ticker">${article.token}</span>` : '');
+      
+      // Sentiment indicator
+      const sentimentClass = article.sentiment === 'positive' ? 'sentiment-positive' : 
+                            article.sentiment === 'negative' ? 'sentiment-negative' : 'sentiment-neutral';
+      const sentimentIcon = article.sentiment === 'positive' ? '📈' : 
+                           article.sentiment === 'negative' ? '📉' : '📊';
+      
+      newsItem.innerHTML = `
+        <div class="news-content">
+          <h4 class="news-title">
+            ${article.url !== '#' ? `<a href="${article.url}" target="_blank" rel="noopener">${article.title}</a>` : article.title}
+          </h4>
+          <p class="news-description">${article.description || 'No description available'}</p>
+          <div class="news-meta">
+            <span class="news-source">${article.source.name}</span>
+            <span class="news-date">${publishedDate}</span>
+            ${article.sentiment && article.sentiment !== 'neutral' ? `<span class="news-sentiment ${sentimentClass}">${sentimentIcon} ${article.sentiment}</span>` : ''}
+            ${tickersDisplay}
+          </div>
+        </div>
+      `;
+      newsContainer.appendChild(newsItem);
+    });
+  };
+  
+  // Initial render
+  renderNews();
+  
+  // Add filter event listener
+  filterSelect.addEventListener('change', (e) => {
+    renderNews(e.target.value);
+  });
+  
+  newsContent.appendChild(newsContainer);
+}
+
+function clearNewsTab() {
+  const newsContent = document.getElementById('news-content');
+  if (newsContent) {
+    newsContent.innerHTML = '<div class="news-placeholder">Select some tokens in your watchlist to see recent news.</div>';
+  }
 }
 
 // --- Market snapshot (FREE TIER: EOD only) -----------------------------------

@@ -65,6 +65,7 @@
       <nav class="tabs" role="tablist" aria-label="Main tabs">
         <button class="tab active" data-tab="alerts" aria-selected="true" role="tab">Alerts</button>
         <button class="tab" data-tab="summary" aria-selected="false" role="tab">Summary</button>
+        <button class="tab" data-tab="news" aria-selected="false" role="tab">News</button>
         <button class="tab" data-tab="market" aria-selected="false" role="tab">Market</button>
       </nav>
 
@@ -104,6 +105,12 @@
 
     <section id="panel-summary" class="card" hidden role="tabpanel">
       <div id="summary-content" class="summary"></div>
+    </section>
+
+    <section id="panel-news" class="card" hidden role="tabpanel">
+      <div id="news-content" class="news-tab-content">
+        <div class="news-placeholder">Select some tokens in your watchlist to see recent news.</div>
+      </div>
     </section>
 
     <section id="panel-market" class="card" hidden role="tabpanel">
