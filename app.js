@@ -923,8 +923,47 @@ function startTicking(){
 async function renderSummary(){
   const sc = document.getElementById('summary-content');
   
-  // Show loading state
-  sc.innerHTML = '<div class="loading-state"><p>🤖 Generating AI summary...</p></div>';
+  // Show loading state with countdown
+  sc.innerHTML = `
+    <div class="loading-state">
+      <div class="countdown-container">
+        <div class="countdown-circle">
+          <svg class="countdown-svg" viewBox="0 0 100 100">
+            <circle class="countdown-track" cx="50" cy="50" r="45" fill="none" stroke="#e2e8f0" stroke-width="8"/>
+            <circle class="countdown-progress" cx="50" cy="50" r="45" fill="none" stroke="#3b82f6" stroke-width="8" 
+                    stroke-linecap="round" transform="rotate(-90 50 50)"/>
+          </svg>
+          <div class="countdown-number">30</div>
+        </div>
+        <p class="countdown-text">🤖 Generating AI summary...</p>
+      </div>
+    </div>
+  `;
+  
+  // Start countdown animation
+  let countdownSeconds = 30;
+  const countdownNumber = sc.querySelector('.countdown-number');
+  const countdownProgress = sc.querySelector('.countdown-progress');
+  const circumference = 2 * Math.PI * 45; // radius = 45
+  
+  countdownProgress.style.strokeDasharray = circumference;
+  countdownProgress.style.strokeDashoffset = 0;
+  
+  window.currentCountdownInterval = setInterval(() => {
+    countdownSeconds--;
+    countdownNumber.textContent = countdownSeconds;
+    
+    // Update progress circle
+    const progress = (30 - countdownSeconds) / 30;
+    const offset = circumference * (1 - progress);
+    countdownProgress.style.strokeDashoffset = offset;
+    
+    if (countdownSeconds <= 0) {
+      clearInterval(window.currentCountdownInterval);
+      countdownNumber.textContent = '⏳';
+      sc.querySelector('.countdown-text').textContent = '🤖 Finalizing summary...';
+    }
+  }, 1000);
   
   if (!selectedTokens.length && !showAllTokens) {
     sc.innerHTML = '<p class="muted">Select some tokens to see an AI-generated summary of your alerts.</p>';
@@ -959,6 +998,11 @@ async function renderSummary(){
     }
 
     const data = await response.json();
+    
+    // Clear countdown timer
+    if (window.currentCountdownInterval) {
+      clearInterval(window.currentCountdownInterval);
+    }
     
     // Render the AI summary
     sc.innerHTML = '';
