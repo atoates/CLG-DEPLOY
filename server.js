@@ -35,6 +35,8 @@ try {
 let server;
 // CoinMarketCap configuration
 const CMC_API_KEY = process.env.CMC_API_KEY || '';
+// LogoKit API for crypto token icons
+const LOGOKIT_API_KEY = process.env.LOGOKIT_API_KEY || 'pk_fr3b615a522b603695a025';
 // AI API keys for summary generation
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
@@ -763,7 +765,11 @@ function currencySymbol(code){
   return m[String(code||'').toUpperCase()] || code || '$';
 }
 app.get('/api/market/config', (_req, res) => {
-  res.json({ currency: MARKET_CURRENCY, symbol: currencySymbol(MARKET_CURRENCY) });
+  res.json({ 
+    currency: MARKET_CURRENCY, 
+    symbol: currencySymbol(MARKET_CURRENCY),
+    logokitApiKey: LOGOKIT_API_KEY
+  });
 });
 
 // --- AI Summary API ----------------------------------------------------------

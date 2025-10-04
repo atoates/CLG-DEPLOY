@@ -11,6 +11,7 @@ const ALL_TOKENS = [...BASE_TOKENS];
 // --- Utilities ---------------------------------------------------------------
 let CURRENCY_CODE = 'USD';
 let CURRENCY_SYMBOL = '$';
+let LOGOKIT_API_KEY = 'pk_fr3b615a522b603695a025'; // fallback default
 function fmtTimeLeft(msLeft){
   if (msLeft <= 0) return 'Expired';
   const totalSeconds = Math.floor(msLeft / 1000);
@@ -183,13 +184,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Init (boot) -------------------------------------------------------------
 (async function boot(){
-  // Fetch market config (currency symbol/code) before first render
+  // Fetch market config (currency symbol/code and LogoKit API key) before first render
   try{
     const r = await fetch('/api/market/config');
     if (r.ok){
       const j = await r.json();
       if (j && j.symbol) CURRENCY_SYMBOL = String(j.symbol);
       if (j && j.currency) CURRENCY_CODE = String(j.currency);
+      if (j && j.logokitApiKey) LOGOKIT_API_KEY = String(j.logokitApiKey);
     }
   }catch(_e){}
 
@@ -1306,7 +1308,7 @@ function renderMarket(){
     
     // Use LogoKit Crypto Logo API for token icons
     const icon = document.createElement('img');
-    icon.src = `https://img.logokit.com/crypto/${it.token}?token=pk_fr3b615a522b603695a025&size=64&fallback=monogram`;
+    icon.src = `https://img.logokit.com/crypto/${it.token}?token=${LOGOKIT_API_KEY}&size=64&fallback=monogram`;
     icon.alt = `${it.token} logo`;
     icon.className = 'mk-icon';
     icon.onerror = function() {
