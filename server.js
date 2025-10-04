@@ -731,7 +731,7 @@ app.get('/api/market/snapshot', async (req, res) => {
     }catch(e){
       console.warn('CMC API error:', e.message);
       const items = symbols.map(s=>({ token:s, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'cmc-failed' }));
-      return res.json({ items, note: 'CoinMarketCap fetch failed; no market API configured.', provider: 'cmc' });
+      return res.json({ items, note: `CoinMarketCap API error: ${e.message}`, provider: 'cmc' });
     }
   }
 
