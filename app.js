@@ -1303,7 +1303,7 @@ function renderMarket(){
 
     const badge = document.createElement('div');
     badge.className = 'mk-badge';
-    badge.textContent = (it.token || '?').slice(0,3);
+    badge.textContent = it.token || '?';
 
     const name = document.createElement('div');
     name.className = 'mk-title';
