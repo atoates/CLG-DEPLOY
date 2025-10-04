@@ -812,12 +812,16 @@ app.post('/api/summary/generate', async (req, res) => {
 
     // Generate AI summary using available API
     const summary = await generateAISummary(alerts, tokens || [], sevFilter || [], tagFilter || []);
+    const news = await fetchNewsForTokens(tokens || []);
     
     res.json({ 
-      summary,
-      timestamp: new Date().toISOString(),
-      alertCount: alerts.length,
-      tokenCount: (tokens || []).length
+      summary: summary.content,
+      model: summary.model,
+      usage: summary.usage,
+      alertCount: summary.alertCount,
+      tokenCount: summary.tokenCount,
+      news: news,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('AI Summary generation error:', error);
@@ -856,7 +860,14 @@ Keep it concise, actionable, and focused on portfolio management decisions.`;
   // Try OpenAI first, then Anthropic, then fallback
   if (OPENAI_API_KEY) {
     try {
-      return await callOpenAI(prompt);
+      const response = await callOpenAI(prompt);
+      return {
+        content: response.content,
+        model: response.model,
+        usage: response.usage,
+        alertCount: alerts.length,
+        tokenCount: tokens.length
+      };
     } catch (error) {
       console.error('OpenAI API error:', error.message);
     }
@@ -864,18 +875,32 @@ Keep it concise, actionable, and focused on portfolio management decisions.`;
 
   if (ANTHROPIC_API_KEY) {
     try {
-      return await callAnthropic(prompt);
+      const response = await callAnthropic(prompt);
+      return {
+        content: response.content,
+        model: response.model,
+        usage: response.usage,
+        alertCount: alerts.length,
+        tokenCount: tokens.length
+      };
     } catch (error) {
       console.error('Anthropic API error:', error.message);
     }
   }
 
   // Fallback to rule-based summary
-  return generateFallbackSummary(alerts, tokens);
+  return {
+    content: generateFallbackSummary(alerts, tokens),
+    model: 'Fallback (Rule-based)',
+    usage: null,
+    alertCount: alerts.length,
+    tokenCount: tokens.length
+  };
 }
 
 // OpenAI API call
 async function callOpenAI(prompt) {
+  const model = 'o1-pro';
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -883,7 +908,7 @@ async function callOpenAI(prompt) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'o1-pro', // Best reasoning model for complex analysis
+      model: model, // Best reasoning model for complex analysis
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 2000,
       temperature: 0.3
@@ -895,11 +920,16 @@ async function callOpenAI(prompt) {
   }
 
   const data = await response.json();
-  return data.choices[0].message.content.trim();
+  return {
+    content: data.choices[0].message.content.trim(),
+    model: `OpenAI ${model}`,
+    usage: data.usage
+  };
 }
 
 // Anthropic API call  
 async function callAnthropic(prompt) {
+  const model = 'claude-3-5-sonnet-20241022';
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -908,7 +938,7 @@ async function callAnthropic(prompt) {
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-3-5-sonnet-20241022', // High-quality model for best analysis
+      model: model, // High-quality model for best analysis
       max_tokens: 2000,
       messages: [{ role: 'user', content: prompt }]
     })
@@ -919,7 +949,11 @@ async function callAnthropic(prompt) {
   }
 
   const data = await response.json();
-  return data.content[0].text.trim();
+  return {
+    content: data.content[0].text.trim(),
+    model: `Anthropic ${model}`,
+    usage: data.usage
+  };
 }
 
 // Fallback summary generation (rule-based)
@@ -955,6 +989,62 @@ ${upcomingDeadlines.length > 0 ?
 }
 
 *Note: This is an automated summary. AI-powered analysis requires API configuration.*`;
+}
+
+// News fetching function
+async function fetchNewsForTokens(tokens) {
+  try {
+    // Use NewsAPI for crypto news (you'll need to add NEWSAPI_KEY to your environment)
+    const newsApiKey = process.env.NEWSAPI_KEY;
+    const newsArticles = [];
+    
+    if (!newsApiKey) {
+      return [{
+        title: "News API Configuration Required",
+        description: "Add NEWSAPI_KEY to environment variables to enable news fetching",
+        url: "#",
+        publishedAt: new Date().toISOString(),
+        source: { name: "System" }
+      }];
+    }
+    
+    for (const token of tokens.slice(0, 3)) { // Limit to first 3 tokens to avoid rate limits
+      try {
+        const query = `${token} cryptocurrency OR ${token} crypto`;
+        const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&pageSize=2&language=en&apiKey=${newsApiKey}`;
+        
+        const response = await fetch(url);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.articles) {
+            newsArticles.push(...data.articles.slice(0, 2).map(article => ({
+              ...article,
+              token: token
+            })));
+          }
+        }
+      } catch (error) {
+        console.error(`Error fetching news for ${token}:`, error);
+      }
+    }
+    
+    return newsArticles.length > 0 ? newsArticles.slice(0, 6) : [{
+      title: "No Recent News Found",
+      description: "No recent news articles found for your selected tokens",
+      url: "#",
+      publishedAt: new Date().toISOString(),
+      source: { name: "System" }
+    }];
+  } catch (error) {
+    console.error('Error fetching news:', error);
+    return [{
+      title: "News Fetch Error",
+      description: "Unable to fetch news at this time",
+      url: "#",
+      publishedAt: new Date().toISOString(),
+      source: { name: "System" }
+    }];
+  }
 }
 
 // --- CryptoPanic config ------------------------------------------------------
