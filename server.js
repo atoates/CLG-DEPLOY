@@ -250,6 +250,31 @@ let alerts = readJsonSafe(ALERTS_PATH, [
 function persistAlerts(){ writeJsonSafe(ALERTS_PATH, alerts); }
 let usingDatabaseAlerts = false; // Track if we're using DB instead of JSON file
 
+// Function to reload alerts from database into memory
+function reloadAlertsFromDatabase() {
+  if (!usingDatabaseAlerts) return false;
+  
+  try {
+    const rows = db.prepare('SELECT id, token, title, description, severity, deadline, tags, further_info, source_type, source_url FROM alerts').all();
+    alerts = rows.map(r => ({
+      id: r.id || `db_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+      token: String(r.token || '').toUpperCase(),
+      title: String(r.title || ''),
+      description: String(r.description || ''),
+      severity: ['critical','warning','info'].includes(r.severity) ? r.severity : 'info',
+      deadline: new Date(r.deadline).toISOString(),
+      tags: (() => { try{ const t = typeof r.tags === 'string' ? JSON.parse(r.tags) : r.tags; return Array.isArray(t) ? t : []; } catch { return []; } })(),
+      further_info: String(r.further_info || ''),
+      source_type: SOURCE_TYPES.includes(String(r.source_type||'')) ? String(r.source_type) : '',
+      source_url: String(r.source_url || '')
+    }));
+    return true;
+  } catch (e) {
+    console.warn('Failed to reload alerts from database:', e.message);
+    return false;
+  }
+}
+
 // Prefer DB alerts if available (keeps start sequence consistent with restore-alerts.js)
 try {
   const rows = db.prepare('SELECT id, token, title, description, severity, deadline, tags, further_info, source_type, source_url FROM alerts').all();
@@ -427,7 +452,31 @@ app.post('/api/alerts', requireAdmin, (req, res) => {
     source_type: srcType,
     source_url: srcUrl
   };
-  alerts.push(item); persistAlerts();
+  alerts.push(item);
+  
+  // Also insert into database if using DB-backed alerts
+  if (usingDatabaseAlerts) {
+    try {
+      qInsertAlert.run({
+        id: item.id,
+        token: item.token,
+        title: item.title,
+        description: item.description,
+        severity: item.severity,
+        deadline: item.deadline,
+        tags: JSON.stringify(item.tags),
+        further_info: item.further_info,
+        source_type: item.source_type,
+        source_url: item.source_url
+      });
+      reloadAlertsFromDatabase();
+    } catch (dbError) {
+      console.warn('Failed to insert individual alert into database:', dbError.message);
+    }
+  } else {
+    persistAlerts();
+  }
+  
   res.status(201).json(item);
 });
 
@@ -483,7 +532,31 @@ app.put('/api/alerts/:id', requireAdmin, (req, res) => {
   // Apply changes
   const old = alerts[idx];
   const updated = { ...old, ...payload };
-  alerts[idx] = updated; persistAlerts();
+  alerts[idx] = updated;
+  
+  // Also update in database if using DB-backed alerts
+  if (usingDatabaseAlerts) {
+    try {
+      qInsertAlert.run({
+        id: updated.id,
+        token: updated.token,
+        title: updated.title,
+        description: updated.description,
+        severity: updated.severity,
+        deadline: updated.deadline,
+        tags: JSON.stringify(updated.tags),
+        further_info: updated.further_info,
+        source_type: updated.source_type,
+        source_url: updated.source_url
+      });
+      reloadAlertsFromDatabase();
+    } catch (dbError) {
+      console.warn('Failed to update alert in database:', dbError.message);
+    }
+  } else {
+    persistAlerts();
+  }
+  
   res.json(updated);
 });
 
@@ -492,7 +565,19 @@ app.delete('/api/alerts/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
   const idx = alerts.findIndex(a => a.id === id);
   if (idx === -1) return res.status(404).json({ error: 'not_found' });
-  const removed = alerts.splice(idx, 1)[0]; persistAlerts();
+  const removed = alerts.splice(idx, 1)[0];
+  
+  // Also delete from database if using DB-backed alerts
+  if (usingDatabaseAlerts) {
+    try {
+      db.prepare('DELETE FROM alerts WHERE id = ?').run(removed.id);
+      reloadAlertsFromDatabase();
+    } catch (dbError) {
+      console.warn('Failed to delete alert from database:', dbError.message);
+    }
+  } else {
+    persistAlerts();
+  }
   res.json({ ok:true, removedId: removed.id });
 });
 
@@ -588,6 +673,11 @@ app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
   // Persist if any alerts were created (only to JSON if not using DB)
   if (createdAlerts.length > 0 && !usingDatabaseAlerts) {
     persistAlerts();
+  }
+
+  // Reload alerts from database to sync in-memory array
+  if (createdAlerts.length > 0 && usingDatabaseAlerts) {
+    reloadAlertsFromDatabase();
   }
 
   const response = {
