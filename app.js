@@ -363,6 +363,7 @@ tabs.forEach(btn => {
     updateFilterVisibility(tab);
 
     if (isSummary) renderSummary();
+    if (isNews) loadNews();
     if (isMarket)  loadMarket();
   });
 });
@@ -1172,6 +1173,47 @@ function clearNewsTab() {
   const newsContent = document.getElementById('news-content');
   if (newsContent) {
     newsContent.innerHTML = '<div class="news-placeholder">Select some tokens in your watchlist to see recent news.</div>';
+  }
+}
+
+// --- News loading -----------------------------------------------------------
+async function loadNews() {
+  const newsContent = document.getElementById('news-content');
+  if (!newsContent) return;
+
+  if (!selectedTokens.length && !showAllTokens) {
+    clearNewsTab();
+    return;
+  }
+
+  // Show loading state
+  newsContent.innerHTML = '<div class="news-placeholder">📰 Loading recent news...</div>';
+
+  try {
+    const tokens = showAllTokens ? getUniqueTokensFromAlerts([...serverAlerts, ...autoAlerts]) : selectedTokens;
+    
+    const response = await fetch('/api/news', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ tokens })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.news && data.news.length > 0) {
+      updateNewsTab(data.news);
+    } else {
+      newsContent.innerHTML = '<div class="news-placeholder">No recent news available for your selected tokens.</div>';
+    }
+  } catch (error) {
+    console.error('Failed to load news:', error);
+    newsContent.innerHTML = '<div class="news-placeholder">Failed to load news. Please try again later.</div>';
   }
 }
 

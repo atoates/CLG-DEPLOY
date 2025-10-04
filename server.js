@@ -832,6 +832,30 @@ app.post('/api/summary/generate', async (req, res) => {
   }
 });
 
+// --- News API ----------------------------------------------------------
+app.post('/api/news', async (req, res) => {
+  try {
+    const { tokens } = req.body;
+    
+    if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
+      return res.status(400).json({ error: 'Invalid tokens data' });
+    }
+
+    const news = await fetchNewsForTokens(tokens);
+    
+    res.json({ 
+      news: news,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('News fetch error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch news',
+      news: []
+    });
+  }
+});
+
 // AI Summary generation function
 async function generateAISummary(alerts, tokens, sevFilter, tagFilter) {
   // Prepare alerts data for AI analysis
@@ -844,16 +868,23 @@ async function generateAISummary(alerts, tokens, sevFilter, tagFilter) {
     tags: Array.isArray(alert.tags) ? alert.tags : (alert.tags ? JSON.parse(alert.tags) : [])
   }));
 
-  const prompt = `You are a crypto portfolio assistant. Analyze these alerts and provide a concise summary for a user monitoring these tokens: ${tokens.join(', ')}.
+  // Fetch recent news for context
+  const newsData = await fetchNewsForTokens(tokens);
+  const newsContext = newsData.length > 0 ? 
+    `\n\nRecent news (${newsData.length} articles):\n${newsData.map(n => `- ${n.title} (${n.sentiment || 'neutral'}) [${n.source.name}]`).join('\n')}` : 
+    '\n\nNo recent news available for these tokens.';
+
+  const prompt = `You are a crypto portfolio assistant. Analyze these alerts and recent news to provide a comprehensive summary for a user monitoring these tokens: ${tokens.join(', ')}.
 
 Current alerts (${alerts.length} total):
-${alertsData.map(a => `- ${a.token}: ${a.title} (${a.severity}) - ${a.description} [Deadline: ${a.deadline}]`).join('\n')}
+${alertsData.map(a => `- ${a.token}: ${a.title} (${a.severity}) - ${a.description} [Deadline: ${a.deadline}]`).join('\n')}${newsContext}
 
 Please provide:
-1. **Executive Summary** (2-3 sentences): Key takeaways and urgent actions needed
+1. **Executive Summary** (2-3 sentences): Key takeaways and urgent actions needed considering both alerts and recent news
 2. **Critical Actions** (if any): Time-sensitive items requiring immediate attention  
-3. **Token-Specific Insights**: Brief analysis for each token in the watchlist
-4. **Timeline Overview**: Key dates and deadlines to watch
+3. **Token-Specific Insights**: Brief analysis for each token combining alert data and news sentiment
+4. **News Highlights** (if available): Key developments from recent news that impact your tokens
+5. **Timeline Overview**: Key dates and deadlines to watch
 
 Keep it concise, actionable, and focused on portfolio management decisions.`;
 
