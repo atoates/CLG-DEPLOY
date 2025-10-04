@@ -994,16 +994,15 @@ ${upcomingDeadlines.length > 0 ?
 // News fetching function using CryptoNews API
 async function fetchNewsForTokens(tokens) {
   try {
-    const cryptoNewsApiKey = process.env.NEWSAPI_KEY; // Using existing env var name
-    const newsArticles = [];
+    const cryptoNewsApiKey = process.env.NEWSAPI_KEY;
     
-    if (!cryptoNewsApiKey) {
+    if (!cryptoNewsApiKey || cryptoNewsApiKey === 'undefined') {
       return [{
-        title: "CryptoNews API Configuration Required",
-        description: "Add NEWSAPI_KEY to environment variables to enable crypto news fetching",
+        title: "CryptoNews API Key Missing",
+        description: "NEWSAPI_KEY environment variable is not configured",
         url: "#",
         publishedAt: new Date().toISOString(),
-        source: { name: "System" },
+        source: { name: "Configuration Error" },
         sentiment: "neutral"
       }];
     }
@@ -1019,103 +1018,54 @@ async function fetchNewsForTokens(tokens) {
       }];
     }
     
-    try {
-      // Fetch news for multiple tickers in a single call (more efficient)
-      const tickersParam = tokens.slice(0, 5).join(','); // Limit to 5 tokens for API efficiency
-      const url = `https://cryptonews-api.com/api/v1?tickers=${tickersParam}&items=8&page=1&token=${cryptoNewsApiKey}`;
-      
-      console.log(`Fetching crypto news for tokens: ${tickersParam}`);
-      console.log(`CryptoNews API URL: ${url.replace(cryptoNewsApiKey, 'HIDDEN_KEY')}`);
-      
-      const response = await fetch(url);
-      console.log(`CryptoNews API response status: ${response.status}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`CryptoNews API response data structure:`, Object.keys(data));
-        console.log(`CryptoNews API data.data type:`, typeof data.data, Array.isArray(data.data));
-        
-        if (data.data && Array.isArray(data.data)) {
-          console.log(`CryptoNews API returned ${data.data.length} articles`);
-          newsArticles.push(...data.data.map(article => ({
-            title: article.title || 'No title available',
-            description: article.text || article.description || 'No description available',
-            url: article.news_url || article.url || '#',
-            publishedAt: article.date || new Date().toISOString(),
-            source: { name: article.source_name || article.source || 'Unknown' },
-            sentiment: article.sentiment || 'neutral',
-            tickers: article.tickers || [],
-            image_url: article.image_url
-          })));
-        } else {
-          console.log('CryptoNews API: data.data is not a valid array:', data);
-        }
-        
-        // If we got results, return them
-        if (newsArticles.length > 0) {
-          return newsArticles.slice(0, 6); // Limit to 6 articles for UI
-        }
-      } else {
-        const errorText = await response.text();
-        console.error(`CryptoNews API error: ${response.status} ${response.statusText}`);
-        console.error(`CryptoNews API error body:`, errorText);
-      }
-      
-      // Fallback: try general crypto news if ticker-specific failed
-      console.log('Trying fallback: general crypto news');
-      const generalUrl = `https://cryptonews-api.com/api/v1/category?section=general&items=6&page=1&token=${cryptoNewsApiKey}`;
-      console.log(`General crypto news URL: ${generalUrl.replace(cryptoNewsApiKey, 'HIDDEN_KEY')}`);
-      
-      const generalResponse = await fetch(generalUrl);
-      console.log(`General crypto news response status: ${generalResponse.status}`);
-      
-      if (generalResponse.ok) {
-        const generalData = await generalResponse.json();
-        console.log(`General crypto news data structure:`, Object.keys(generalData));
-        
-        if (generalData.data && Array.isArray(generalData.data)) {
-          console.log(`General crypto news returned ${generalData.data.length} articles`);
-          return generalData.data.slice(0, 6).map(article => ({
-            title: article.title || 'No title available',
-            description: article.text || article.description || 'No description available',
-            url: article.news_url || article.url || '#',
-            publishedAt: article.date || new Date().toISOString(),
-            source: { name: article.source_name || article.source || 'Unknown' },
-            sentiment: article.sentiment || 'neutral',
-            tickers: article.tickers || [],
-            image_url: article.image_url
-          }));
-        } else {
-          console.log('General crypto news: data.data is not a valid array:', generalData);
-        }
-      } else {
-        const errorText = await generalResponse.text();
-        console.error(`General crypto news error: ${generalResponse.status} ${generalResponse.statusText}`);
-        console.error(`General crypto news error body:`, errorText);
-      }
-      
-    } catch (fetchError) {
-      console.error('Error fetching from CryptoNews API:', fetchError);
+    // Simple test: try to fetch news for BTC,ETH (most common tokens)
+    const testTokens = tokens.filter(t => ['BTC', 'ETH', 'SOL', 'ADA', 'DOT'].includes(t)).slice(0, 3);
+    const tickersParam = testTokens.length > 0 ? testTokens.join(',') : 'BTC,ETH';
+    
+    const url = `https://cryptonews-api.com/api/v1?tickers=${tickersParam}&items=6&page=1&token=${cryptoNewsApiKey}`;
+    
+    const response = await fetch(url, {
+      timeout: 10000 // 10 second timeout
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`API responded with ${response.status}: ${errorText}`);
     }
     
-    // Final fallback
-    return [{
-      title: "Unable to Fetch Crypto News",
-      description: "There was an issue connecting to the crypto news service. Please try again later.",
-      url: "#",
-      publishedAt: new Date().toISOString(),
-      source: { name: "System" },
-      sentiment: "neutral"
-    }];
+    const data = await response.json();
+    
+    if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+      return data.data.slice(0, 6).map(article => ({
+        title: article.title || 'No title available',
+        description: article.text || article.description || 'No description available',
+        url: article.news_url || article.url || '#',
+        publishedAt: article.date || new Date().toISOString(),
+        source: { name: article.source_name || article.source || 'Unknown' },
+        sentiment: article.sentiment || 'neutral',
+        tickers: article.tickers || [],
+        image_url: article.image_url
+      }));
+    } else {
+      return [{
+        title: "No News Available",
+        description: "No recent cryptocurrency news found for your selected tokens",
+        url: "#",
+        publishedAt: new Date().toISOString(),
+        source: { name: "CryptoNews API" },
+        sentiment: "neutral"
+      }];
+    }
     
   } catch (error) {
-    console.error('Error in fetchNewsForTokens:', error);
+    console.error('CryptoNews API Error:', error.message);
+    
     return [{
-      title: "News Fetch Error",
-      description: "An unexpected error occurred while fetching crypto news",
+      title: "News Service Temporarily Unavailable",
+      description: `Unable to fetch crypto news: ${error.message}`,
       url: "#",
       publishedAt: new Date().toISOString(),
-      source: { name: "System" },
+      source: { name: "Error Handler" },
       sentiment: "neutral"
     }];
   }
