@@ -1303,26 +1303,7 @@ function renderMarket(){
 
     const badge = document.createElement('div');
     badge.className = 'mk-badge';
-    
-    // Display token icon if available, otherwise fallback to text
-    if (it.logoUrl) {
-      const icon = document.createElement('img');
-      icon.src = it.logoUrl;
-      icon.alt = it.token || '?';
-      icon.className = 'mk-icon';
-      icon.onerror = function() {
-        // Fallback to text if image fails to load
-        this.style.display = 'none';
-        const textSpan = document.createElement('span');
-        textSpan.textContent = (it.token || '?').slice(0, 3);
-        textSpan.className = 'mk-icon-text';
-        badge.appendChild(textSpan);
-      };
-      badge.appendChild(icon);
-    } else {
-      // Fallback to text badge
-      badge.textContent = (it.token || '?').slice(0, 3);
-    }
+    badge.textContent = (it.token || '?').slice(0, 3);
 
     const name = document.createElement('div');
     name.className = 'mk-title';

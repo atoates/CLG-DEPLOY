@@ -673,7 +673,7 @@ app.get('/api/market/snapshot', async (req, res) => {
       // Resolve CMC IDs for symbols
       const idsMap = await getCmcIdsForSymbols(symbols);
       const ids = symbols.map(s => idsMap[s]).filter(Boolean);
-      if (!ids.length) return res.json({ items: symbols.map(s=>({ token:s, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-id' })), note: 'CoinMarketCap quotes (~60s). No IDs found for requested symbols.', provider: 'cmc' });
+      if (!ids.length) return res.json({ items: symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-id' })), note: 'CoinMarketCap quotes (~60s). No IDs found for requested symbols.', provider: 'cmc' });
 
       const cacheKey = `stats:${ids.join(',')}:${MARKET_CURRENCY}`;
       const hit = cmcStatsCache.get(cacheKey);
@@ -682,11 +682,9 @@ app.get('/api/market/snapshot', async (req, res) => {
       }
 
       // Fetch quotes data (current price, volume, % changes)
-      // Include logo auxiliary field to get icon URLs
       const params = new URLSearchParams({
         id: ids.join(','),
-        convert: MARKET_CURRENCY,
-        aux: 'logo'
+        convert: MARKET_CURRENCY
       });
       const url = `https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?${params.toString()}`;
       const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
@@ -702,7 +700,7 @@ app.get('/api/market/snapshot', async (req, res) => {
       const items = symbols.map(sym => {
         const id = idsMap[sym];
         const row = quotesData[id] || null;
-        if (!row) return { token: sym, logoUrl: null, lastPrice: null, dayChangePct: null, change30mPct: null, high24h: null, low24h: null, ath: null, atl: null, error: 'no-data' };
+        if (!row) return { token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, high24h: null, low24h: null, ath: null, atl: null, error: 'no-data' };
         
         const quote = row.quote?.[cur] || {};
         // OHLCV data not available on Hobbyist plan with GBP
@@ -710,7 +708,6 @@ app.get('/api/market/snapshot', async (req, res) => {
         // Extract available fields 
         return {
           token: sym,
-          logoUrl: row.logo || null, // Add logo URL from CMC API
           lastPrice: quote.price ?? null,
           dayChangePct: typeof quote.percent_change_24h === 'number' ? quote.percent_change_24h : null,
           change1hPct: typeof quote.percent_change_1h === 'number' ? quote.percent_change_1h : null,
@@ -730,13 +727,13 @@ app.get('/api/market/snapshot', async (req, res) => {
       return res.json({ items, note: `CoinMarketCap quotes (~60s) — ${MARKET_CURRENCY}`, provider: 'cmc' });
     }catch(e){
       console.warn('CMC API error:', e.message);
-      const items = symbols.map(s=>({ token:s, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'cmc-failed' }));
+      const items = symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'cmc-failed' }));
       return res.json({ items, note: `CoinMarketCap API error: ${e.message}`, provider: 'cmc' });
     }
   }
 
   // No CMC API key configured
-  const items = symbols.map(s=>({ token:s, logoUrl:null, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-api' }));
+  const items = symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-api' }));
   res.json({ items, note: 'No market API configured.', provider: 'none' });
 });
 
