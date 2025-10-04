@@ -1025,12 +1025,18 @@ async function fetchNewsForTokens(tokens) {
       const url = `https://cryptonews-api.com/api/v1?tickers=${tickersParam}&items=8&page=1&token=${cryptoNewsApiKey}`;
       
       console.log(`Fetching crypto news for tokens: ${tickersParam}`);
+      console.log(`CryptoNews API URL: ${url.replace(cryptoNewsApiKey, 'HIDDEN_KEY')}`);
+      
       const response = await fetch(url);
+      console.log(`CryptoNews API response status: ${response.status}`);
       
       if (response.ok) {
         const data = await response.json();
+        console.log(`CryptoNews API response data structure:`, Object.keys(data));
+        console.log(`CryptoNews API data.data type:`, typeof data.data, Array.isArray(data.data));
         
         if (data.data && Array.isArray(data.data)) {
+          console.log(`CryptoNews API returned ${data.data.length} articles`);
           newsArticles.push(...data.data.map(article => ({
             title: article.title || 'No title available',
             description: article.text || article.description || 'No description available',
@@ -1041,6 +1047,8 @@ async function fetchNewsForTokens(tokens) {
             tickers: article.tickers || [],
             image_url: article.image_url
           })));
+        } else {
+          console.log('CryptoNews API: data.data is not a valid array:', data);
         }
         
         // If we got results, return them
@@ -1048,16 +1056,25 @@ async function fetchNewsForTokens(tokens) {
           return newsArticles.slice(0, 6); // Limit to 6 articles for UI
         }
       } else {
+        const errorText = await response.text();
         console.error(`CryptoNews API error: ${response.status} ${response.statusText}`);
+        console.error(`CryptoNews API error body:`, errorText);
       }
       
       // Fallback: try general crypto news if ticker-specific failed
+      console.log('Trying fallback: general crypto news');
       const generalUrl = `https://cryptonews-api.com/api/v1/category?section=general&items=6&page=1&token=${cryptoNewsApiKey}`;
+      console.log(`General crypto news URL: ${generalUrl.replace(cryptoNewsApiKey, 'HIDDEN_KEY')}`);
+      
       const generalResponse = await fetch(generalUrl);
+      console.log(`General crypto news response status: ${generalResponse.status}`);
       
       if (generalResponse.ok) {
         const generalData = await generalResponse.json();
+        console.log(`General crypto news data structure:`, Object.keys(generalData));
+        
         if (generalData.data && Array.isArray(generalData.data)) {
+          console.log(`General crypto news returned ${generalData.data.length} articles`);
           return generalData.data.slice(0, 6).map(article => ({
             title: article.title || 'No title available',
             description: article.text || article.description || 'No description available',
@@ -1068,7 +1085,13 @@ async function fetchNewsForTokens(tokens) {
             tickers: article.tickers || [],
             image_url: article.image_url
           }));
+        } else {
+          console.log('General crypto news: data.data is not a valid array:', generalData);
         }
+      } else {
+        const errorText = await generalResponse.text();
+        console.error(`General crypto news error: ${generalResponse.status} ${generalResponse.statusText}`);
+        console.error(`General crypto news error body:`, errorText);
       }
       
     } catch (fetchError) {
