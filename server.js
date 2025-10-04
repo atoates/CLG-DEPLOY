@@ -991,58 +991,109 @@ ${upcomingDeadlines.length > 0 ?
 *Note: This is an automated summary. AI-powered analysis requires API configuration.*`;
 }
 
-// News fetching function
+// News fetching function using CryptoNews API
 async function fetchNewsForTokens(tokens) {
   try {
-    // Use NewsAPI for crypto news (you'll need to add NEWSAPI_KEY to your environment)
-    const newsApiKey = process.env.NEWSAPI_KEY;
+    const cryptoNewsApiKey = process.env.NEWSAPI_KEY; // Using existing env var name
     const newsArticles = [];
     
-    if (!newsApiKey) {
+    if (!cryptoNewsApiKey) {
       return [{
-        title: "News API Configuration Required",
-        description: "Add NEWSAPI_KEY to environment variables to enable news fetching",
+        title: "CryptoNews API Configuration Required",
+        description: "Add NEWSAPI_KEY to environment variables to enable crypto news fetching",
         url: "#",
         publishedAt: new Date().toISOString(),
-        source: { name: "System" }
+        source: { name: "System" },
+        sentiment: "neutral"
       }];
     }
     
-    for (const token of tokens.slice(0, 3)) { // Limit to first 3 tokens to avoid rate limits
-      try {
-        const query = `${token} cryptocurrency OR ${token} crypto`;
-        const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&pageSize=2&language=en&apiKey=${newsApiKey}`;
-        
-        const response = await fetch(url);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.articles) {
-            newsArticles.push(...data.articles.slice(0, 2).map(article => ({
-              ...article,
-              token: token
-            })));
-          }
-        }
-      } catch (error) {
-        console.error(`Error fetching news for ${token}:`, error);
-      }
+    if (tokens.length === 0) {
+      return [{
+        title: "No Tokens Selected",
+        description: "Select tokens in your watchlist to see relevant crypto news",
+        url: "#",
+        publishedAt: new Date().toISOString(),
+        source: { name: "System" },
+        sentiment: "neutral"
+      }];
     }
     
-    return newsArticles.length > 0 ? newsArticles.slice(0, 6) : [{
-      title: "No Recent News Found",
-      description: "No recent news articles found for your selected tokens",
+    try {
+      // Fetch news for multiple tickers in a single call (more efficient)
+      const tickersParam = tokens.slice(0, 5).join(','); // Limit to 5 tokens for API efficiency
+      const url = `https://cryptonews-api.com/api/v1?tickers=${tickersParam}&items=8&page=1&token=${cryptoNewsApiKey}`;
+      
+      console.log(`Fetching crypto news for tokens: ${tickersParam}`);
+      const response = await fetch(url);
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.data && Array.isArray(data.data)) {
+          newsArticles.push(...data.data.map(article => ({
+            title: article.title || 'No title available',
+            description: article.text || article.description || 'No description available',
+            url: article.news_url || article.url || '#',
+            publishedAt: article.date || new Date().toISOString(),
+            source: { name: article.source_name || article.source || 'Unknown' },
+            sentiment: article.sentiment || 'neutral',
+            tickers: article.tickers || [],
+            image_url: article.image_url
+          })));
+        }
+        
+        // If we got results, return them
+        if (newsArticles.length > 0) {
+          return newsArticles.slice(0, 6); // Limit to 6 articles for UI
+        }
+      } else {
+        console.error(`CryptoNews API error: ${response.status} ${response.statusText}`);
+      }
+      
+      // Fallback: try general crypto news if ticker-specific failed
+      const generalUrl = `https://cryptonews-api.com/api/v1/category?section=general&items=6&page=1&token=${cryptoNewsApiKey}`;
+      const generalResponse = await fetch(generalUrl);
+      
+      if (generalResponse.ok) {
+        const generalData = await generalResponse.json();
+        if (generalData.data && Array.isArray(generalData.data)) {
+          return generalData.data.slice(0, 6).map(article => ({
+            title: article.title || 'No title available',
+            description: article.text || article.description || 'No description available',
+            url: article.news_url || article.url || '#',
+            publishedAt: article.date || new Date().toISOString(),
+            source: { name: article.source_name || article.source || 'Unknown' },
+            sentiment: article.sentiment || 'neutral',
+            tickers: article.tickers || [],
+            image_url: article.image_url
+          }));
+        }
+      }
+      
+    } catch (fetchError) {
+      console.error('Error fetching from CryptoNews API:', fetchError);
+    }
+    
+    // Final fallback
+    return [{
+      title: "Unable to Fetch Crypto News",
+      description: "There was an issue connecting to the crypto news service. Please try again later.",
       url: "#",
       publishedAt: new Date().toISOString(),
-      source: { name: "System" }
+      source: { name: "System" },
+      sentiment: "neutral"
     }];
+    
   } catch (error) {
-    console.error('Error fetching news:', error);
+    console.error('Error in fetchNewsForTokens:', error);
     return [{
       title: "News Fetch Error",
-      description: "Unable to fetch news at this time",
+      description: "An unexpected error occurred while fetching crypto news",
       url: "#",
       publishedAt: new Date().toISOString(),
-      source: { name: "System" }
+      source: { name: "System" },
+      sentiment: "neutral"
     }];
   }
 }

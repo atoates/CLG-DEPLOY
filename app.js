@@ -1008,7 +1008,15 @@ async function renderSummary(){
         newsItem.className = 'news-item';
         
         const publishedDate = new Date(article.publishedAt).toLocaleDateString();
-        const tokenTag = article.token ? `<span class="news-token">${article.token}</span>` : '';
+        const tickersDisplay = article.tickers && article.tickers.length > 0 
+          ? article.tickers.slice(0, 3).map(ticker => `<span class="news-ticker">${ticker}</span>`).join('')
+          : (article.token ? `<span class="news-ticker">${article.token}</span>` : '');
+        
+        // Sentiment indicator
+        const sentimentClass = article.sentiment === 'positive' ? 'sentiment-positive' : 
+                              article.sentiment === 'negative' ? 'sentiment-negative' : 'sentiment-neutral';
+        const sentimentIcon = article.sentiment === 'positive' ? '📈' : 
+                             article.sentiment === 'negative' ? '📉' : '📊';
         
         newsItem.innerHTML = `
           <div class="news-content">
@@ -1019,7 +1027,8 @@ async function renderSummary(){
             <div class="news-meta">
               <span class="news-source">${article.source.name}</span>
               <span class="news-date">${publishedDate}</span>
-              ${tokenTag}
+              ${article.sentiment && article.sentiment !== 'neutral' ? `<span class="news-sentiment ${sentimentClass}">${sentimentIcon} ${article.sentiment}</span>` : ''}
+              ${tickersDisplay}
             </div>
           </div>
         `;
