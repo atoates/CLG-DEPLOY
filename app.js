@@ -1303,7 +1303,21 @@ function renderMarket(){
 
     const badge = document.createElement('div');
     badge.className = 'mk-badge';
-    badge.textContent = (it.token || '?').slice(0, 3);
+    
+    // Use LogoKit Crypto Logo API for token icons
+    const icon = document.createElement('img');
+    icon.src = `https://img.logokit.com/crypto/${it.token}?token=pk_fr3b615a522b603695a025&size=64&fallback=monogram`;
+    icon.alt = `${it.token} logo`;
+    icon.className = 'mk-icon';
+    icon.onerror = function() {
+      // Fallback to text if image fails to load
+      this.style.display = 'none';
+      const textSpan = document.createElement('span');
+      textSpan.textContent = (it.token || '?').slice(0, 3);
+      textSpan.className = 'mk-icon-text';
+      badge.appendChild(textSpan);
+    };
+    badge.appendChild(icon);
 
     const name = document.createElement('div');
     name.className = 'mk-title';
