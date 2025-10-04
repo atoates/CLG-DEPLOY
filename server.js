@@ -860,7 +860,9 @@ Keep it concise, actionable, and focused on portfolio management decisions.`;
   // Try OpenAI first, then Anthropic, then fallback
   if (OPENAI_API_KEY) {
     try {
+      console.log('Attempting OpenAI o1-pro for AI summary...');
       const response = await callOpenAI(prompt);
+      console.log('OpenAI o1-pro successful');
       return {
         content: response.content,
         model: response.model,
@@ -869,13 +871,17 @@ Keep it concise, actionable, and focused on portfolio management decisions.`;
         tokenCount: tokens.length
       };
     } catch (error) {
-      console.error('OpenAI API error:', error.message);
+      console.error('OpenAI API error, falling back to Anthropic:', error.message);
     }
+  } else {
+    console.log('OPENAI_API_KEY not available, skipping to Anthropic');
   }
 
   if (ANTHROPIC_API_KEY) {
     try {
+      console.log('Using Anthropic Claude 3.5 Sonnet as fallback...');
       const response = await callAnthropic(prompt);
+      console.log('Anthropic Claude successful');
       return {
         content: response.content,
         model: response.model,
@@ -886,6 +892,8 @@ Keep it concise, actionable, and focused on portfolio management decisions.`;
     } catch (error) {
       console.error('Anthropic API error:', error.message);
     }
+  } else {
+    console.log('ANTHROPIC_API_KEY not available');
   }
 
   // Fallback to rule-based summary
@@ -901,18 +909,24 @@ Keep it concise, actionable, and focused on portfolio management decisions.`;
 // OpenAI API call
 async function callOpenAI(prompt) {
   const model = 'o1-pro';
+  
+  // o1 models have different parameter requirements
+  const requestBody = {
+    model: model,
+    messages: [{ role: 'user', content: prompt }],
+    max_completion_tokens: 2000  // o1 models use max_completion_tokens instead of max_tokens
+  };
+  
+  // o1 models don't support temperature parameter
+  // Remove temperature for o1 models
+  
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${OPENAI_API_KEY}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      model: model, // Best reasoning model for complex analysis
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 2000,
-      temperature: 0.3
-    })
+    body: JSON.stringify(requestBody)
   });
 
   if (!response.ok) {
