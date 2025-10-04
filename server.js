@@ -119,6 +119,10 @@ ON CONFLICT(user_id) DO UPDATE SET
   updated_at     = excluded.updated_at
 `);
 const qInsertAudit = db.prepare('INSERT INTO audit_log (user_id, email, event, detail) VALUES (@user_id, @email, @event, @detail)');
+const qInsertAlert = db.prepare(`
+INSERT OR REPLACE INTO alerts (id, token, title, description, severity, deadline, tags, further_info, source_type, source_url)
+VALUES (@id, @token, @title, @description, @severity, @deadline, @tags, @further_info, @source_type, @source_url)
+`);
 
 // Allowed source types for alerts metadata
 const SOURCE_TYPES = [
@@ -244,6 +248,7 @@ let alerts = readJsonSafe(ALERTS_PATH, [
   }
 ]);
 function persistAlerts(){ writeJsonSafe(ALERTS_PATH, alerts); }
+let usingDatabaseAlerts = false; // Track if we're using DB instead of JSON file
 
 // Prefer DB alerts if available (keeps start sequence consistent with restore-alerts.js)
 try {
@@ -261,8 +266,8 @@ try {
       source_type: SOURCE_TYPES.includes(String(r.source_type||'')) ? String(r.source_type) : '',
       source_url: String(r.source_url || '')
     }));
-    persistAlerts();
-    // Alerts loaded from database
+    usingDatabaseAlerts = true;
+    // Alerts loaded from database - do NOT persist to JSON since DB is the master
   } else {
     // Using file-backed alerts
   }
@@ -554,6 +559,25 @@ app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
       };
 
       alerts.push(item);
+      
+      // Also insert into database if we're using DB-backed alerts
+      try {
+        qInsertAlert.run({
+          id: item.id,
+          token: item.token,
+          title: item.title,
+          description: item.description,
+          severity: item.severity,
+          deadline: item.deadline,
+          tags: JSON.stringify(item.tags),
+          further_info: item.further_info,
+          source_type: item.source_type,
+          source_url: item.source_url
+        });
+      } catch (dbError) {
+        console.warn('Failed to insert alert into database:', dbError.message);
+      }
+      
       createdAlerts.push(item);
 
     } catch (error) {
@@ -561,8 +585,8 @@ app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
     }
   });
 
-  // Persist if any alerts were created
-  if (createdAlerts.length > 0) {
+  // Persist if any alerts were created (only to JSON if not using DB)
+  if (createdAlerts.length > 0 && !usingDatabaseAlerts) {
     persistAlerts();
   }
 
