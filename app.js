@@ -1275,7 +1275,7 @@ async function loadMarket(){
     const json = await res.json();
     marketItems = json.items || [];
     marketProvider = json.provider || 'none';
-    if (marketNoteEl) marketNoteEl.textContent = json.note || 'End-of-day aggregates (free tier).';
+    if (marketNoteEl) marketNoteEl.textContent = json.note || 'Market data unavailable.';
   }catch(e){
     console.error('snapshot error', e);
     marketItems = [];
