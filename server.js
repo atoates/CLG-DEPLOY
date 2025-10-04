@@ -883,9 +883,9 @@ async function callOpenAI(prompt) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini', // Cost-effective model
+      model: 'o1-pro', // Best reasoning model for complex analysis
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 800,
+      max_tokens: 2000,
       temperature: 0.3
     })
   });
@@ -908,8 +908,8 @@ async function callAnthropic(prompt) {
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-3-haiku-20240307', // Cost-effective model
-      max_tokens: 800,
+      model: 'claude-3-5-sonnet-20241022', // High-quality model for best analysis
+      max_tokens: 2000,
       messages: [{ role: 'user', content: prompt }]
     })
   });
