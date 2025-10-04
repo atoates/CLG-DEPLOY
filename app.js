@@ -1088,13 +1088,13 @@ function updateNewsTab(newsData) {
   newsHeader.textContent = '📰 Your tokens in the News';
   newsHeaderRow.appendChild(newsHeader);
   
-  // Get unique tokens from news articles
-  const uniqueTokens = [...new Set(newsData.flatMap(article => {
-    if (article.tickers && article.tickers.length > 0) {
-      return article.tickers;
-    }
-    return article.token ? [article.token] : [];
-  }))].sort();
+  // Get user's selected tokens for the dropdown filter
+  const userTokens = showAllTokens ? getUniqueTokensFromAlerts([...serverAlerts, ...autoAlerts]) : selectedTokens;
+  const availableTokens = userTokens.filter(token => 
+    newsData.some(article => 
+      (article.tickers && article.tickers.includes(token)) || article.token === token
+    )
+  ).sort();
   
   // Add token filter dropdown
   const filterContainer = document.createElement('div');
@@ -1104,7 +1104,7 @@ function updateNewsTab(newsData) {
   filterSelect.className = 'news-token-filter';
   filterSelect.innerHTML = `
     <option value="all">All tokens</option>
-    ${uniqueTokens.map(token => `<option value="${token}">${token}</option>`).join('')}
+    ${availableTokens.map(token => `<option value="${token}">${token}</option>`).join('')}
   `;
   filterContainer.appendChild(filterSelect);
   newsHeaderRow.appendChild(filterContainer);
