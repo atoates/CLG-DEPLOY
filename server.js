@@ -1050,34 +1050,56 @@ async function fetchNewsForTokens(tokens) {
       }];
     }
     
-    // Simple test: try to fetch news for BTC,ETH (most common tokens)
-    const testTokens = tokens.filter(t => ['BTC', 'ETH', 'SOL', 'ADA', 'DOT'].includes(t)).slice(0, 3);
-    const tickersParam = testTokens.length > 0 ? testTokens.join(',') : 'BTC,ETH';
+    // Fetch news for each token individually to ensure coverage
+    const allArticles = [];
+    const itemsPerToken = Math.max(3, Math.ceil(15 / tokens.length)); // At least 3 per token, up to 15 total
     
-    const url = `https://cryptonews-api.com/api/v1?tickers=${tickersParam}&items=6&page=1&token=${cryptoNewsApiKey}`;
-    
-    const response = await fetch(url, {
-      timeout: 10000 // 10 second timeout
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error');
-      throw new Error(`API responded with ${response.status}: ${errorText}`);
+    for (const token of tokens.slice(0, 8)) { // Limit to 8 tokens to avoid rate limits
+      try {
+        const url = `https://cryptonews-api.com/api/v1?tickers=${token}&items=${itemsPerToken}&page=1&token=${cryptoNewsApiKey}`;
+        
+        const response = await fetch(url, {
+          timeout: 10000 // 10 second timeout
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+            const tokenArticles = data.data.map(article => ({
+              title: article.title || 'No title available',
+              description: article.text || article.description || 'No description available',
+              url: article.news_url || article.url || '#',
+              publishedAt: article.date || new Date().toISOString(),
+              source: { name: article.source_name || article.source || 'Unknown' },
+              sentiment: article.sentiment || 'neutral',
+              tickers: article.tickers || [token],
+              token: token, // Ensure we know which token this is for
+              image_url: article.image_url
+            }));
+            
+            allArticles.push(...tokenArticles);
+          }
+        }
+        
+        // Small delay between requests to be respectful to the API
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (tokenError) {
+        console.error(`Error fetching news for ${token}:`, tokenError.message);
+        // Continue with other tokens
+      }
     }
     
-    const data = await response.json();
-    
-    if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-      return data.data.slice(0, 6).map(article => ({
-        title: article.title || 'No title available',
-        description: article.text || article.description || 'No description available',
-        url: article.news_url || article.url || '#',
-        publishedAt: article.date || new Date().toISOString(),
-        source: { name: article.source_name || article.source || 'Unknown' },
-        sentiment: article.sentiment || 'neutral',
-        tickers: article.tickers || [],
-        image_url: article.image_url
-      }));
+    if (allArticles.length > 0) {
+      // Remove duplicates based on title and sort by publish date
+      const uniqueArticles = allArticles.filter((article, index, arr) => 
+        arr.findIndex(a => a.title === article.title) === index
+      );
+      
+      return uniqueArticles
+        .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+        .slice(0, 20); // Return up to 20 articles total
     } else {
       return [{
         title: "No News Available",
