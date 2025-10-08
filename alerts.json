@@ -38,7 +38,7 @@
     "title": "Alpenglow Upgrade Proposal",
     "description": "Solana's Alpenglow upgrade approved; validators should prepare for implementation.",
     "deadline": "2025-12-01T00:00:00.000Z",
-    "tags": ["fork", "community"],
+    "tags": ["fork", "community-vote"],
     "more info": "Alpenglow introduces Votor and Rotor to replace existing consensus mechanisms, aiming for unprecedented speed. Approved by 98.94% of stakeholders, this upgrade could make Solana faster than traditional web services, with a testnet planned for December 2025 and mainnet in Q1 2026.",
     "Link": "https://www.coindesk.com/tech/2025/09/02/solana-set-for-major-overhaul-after-98-votes-to-approve-historic-alpenglow-upgrade",
     "Source": "Trusted source"
@@ -126,7 +126,7 @@
     "title": "Conflux Hard Fork",
     "description": "Upcoming hard fork for Conflux; update nodes.",
     "deadline": "2025-10-15T00:00:00.000Z",
-    "tags": ["fork", "news"],
+    "tags": ["fork", "token-unlocks"],
     "more info": "Conflux faces a hard fork in early September, part of altcoin updates including token unlocks. This aims to improve throughput parameters.",
     "Link": "https://cryptorank.io/news/feed/eda3c-3-altcoins-face-12m-unlocks-hard-forks-in-early-september",
     "Source": "Trusted source"
@@ -137,7 +137,7 @@
     "title": "Ondo Token Unlock",
     "description": "Monitor Ondo token unlock; potential market impact.",
     "deadline": "2025-10-10T00:00:00.000Z",
-    "tags": ["price-change", "news"],
+    "tags": ["token-unlocks", "price-change"],
     "more info": "Ondo is set for a token unlock in September, which could influence price dynamics. Holders should consider exposure limits.",
     "Link": "https://cryptorank.io/news/feed/eda3c-3-altcoins-face-12m-unlocks-hard-forks-in-early-september",
     "Source": "Trusted source"
@@ -170,7 +170,7 @@
     "title": "Cardano Chang Hard Fork",
     "description": "Cardano's Chang upgrade to enhance governance; participate in voting.",
     "deadline": "2025-11-01T00:00:00.000Z",
-    "tags": ["fork", "community"],
+    "tags": ["fork", "community-vote"],
     "more info": "The Chang hard fork introduces improved governance and scalability, with 65% of ADA staked, signaling strong community support.",
     "Link": "https://x.com/news_crpto20658/status/1973439674149675140",
     "Source": "Social Media"
@@ -181,7 +181,7 @@
     "title": "BNB Chain Gas Fee Reduction",
     "description": "Proposal to reduce BNB Chain gas fees; monitor vote.",
     "deadline": "2025-10-25T00:00:00.000Z",
-    "tags": ["news", "price-change"],
+    "tags": ["community-vote", "price-change"],
     "more info": "Validators propose halving gas fees to 0.05 GWEI and speeding up block intervals, potentially boosting DeFi activity on BNB Chain.",
     "Link": "https://x.com/cointelegraph/status/1971130705699766691",
     "Source": "Social Media"
@@ -225,7 +225,7 @@
     "title": "Uniswap Fee Switch Proposal",
     "description": "Governance vote on Uniswap fee switch; potential impact on LPs.",
     "deadline": "2025-10-22T00:00:00.000Z",
-    "tags": ["community", "price-change"],
+    "tags": ["community-vote", "price-change"],
     "more info": "The proposal could alter liquidity provider rewards, affecting yield strategies on Uniswap.",
     "Link": "https://www.digitaljournal.com/pr/news/insights-news-wire/8-top-cryptos-join-october-1721219716.html",
     "Source": "Trusted source"
@@ -335,7 +335,7 @@
     "title": "Tezos Adaptive Inflation Vote",
     "description": "Governance vote on Tezos inflation; stake to participate.",
     "deadline": "2025-11-05T00:00:00.000Z",
-    "tags": ["community", "price-change"],
+    "tags": ["community-vote", "price-change"],
     "more info": "The vote could adjust inflation rates, impacting staking rewards.",
     "Link": "https://en.cryptonomist.ch/2025/10/01/5-best-crypto-presales-to-buy-in-october-2025/",
     "Source": "Trusted source"
@@ -456,7 +456,7 @@
     "title": "MakerDAO Endgame Phase",
     "description": "Governance restructuring for MakerDAO; monitor proposals.",
     "deadline": "2025-10-22T00:00:00.000Z",
-    "tags": ["community", "news"],
+    "tags": ["community-vote", "news"],
     "more info": "Endgame phase aims for decentralized governance evolution.",
     "Link": "https://cointelegraph.com/explained/solanas-alpenglow-upgrade-could-make-it-faster-than-google-heres-how",
     "Source": "Trusted source"
@@ -500,7 +500,7 @@
     "title": "Curve DAO Tokenomics Update",
     "description": "Vote on Curve emissions; impact on yields.",
     "deadline": "2025-10-25T00:00:00.000Z",
-    "tags": ["community", "price-change"],
+    "tags": ["community-vote", "price-change"],
     "more info": "Update could alter reward distributions for liquidity providers.",
     "Link": "https://x.com/0xPolygon/status/1966873901054521719",
     "Source": "Social Media"
@@ -610,7 +610,7 @@
     "title": "Ripple Protocol Amendment Vote",
     "description": "New amendment vote for XRP; monitor impacts.",
     "deadline": "2025-11-10T00:00:00.000Z",
-    "tags": ["news", "community"],
+    "tags": ["community-vote", "community"],
     "more info": "The amendment could introduce new features to the XRP ledger.",
     "Link": "https://www.coincarp.com/currencies/announcement/",
     "Source": "Trusted source"
@@ -621,7 +621,7 @@
     "title": "Pi Network Protocol Upgrade to V23",
     "description": "Upgrade to enable smart contracts on Pi Network; participate in vote.",
     "deadline": "2025-12-01T00:00:00.000Z",
-    "tags": ["fork", "community"],
+    "tags": ["fork", "community-vote"],
     "more info": "Adapting from Stellar V23, this upgrade introduces Soroban for smart contracts, transforming Pi into a full dApp platform.",
     "Link": "https://x.com/shrh56108161/status/1964984921279385857",
     "Source": "Social Media"
@@ -632,7 +632,7 @@
     "title": "Pi Network Blockchain Vote",
     "description": "Vote on upgrading Pi protocol from V19 to V23.",
     "deadline": "2025-11-15T00:00:00.000Z",
-    "tags": ["news", "community"],
+    "tags": ["community-vote", "community"],
     "more info": "Involving nodes, exchanges, and institutions, this vote enables smart contracts and cross-chain features.",
     "Link": "https://x.com/USA87500790/status/1965572866050834506",
     "Source": "Social Media"
