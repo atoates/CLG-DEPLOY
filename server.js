@@ -93,6 +93,22 @@ CREATE TABLE IF NOT EXISTS alerts (
   source_type TEXT,
   source_url TEXT
 );`);
+
+// Token requests table for user submissions
+db.exec(`CREATE TABLE IF NOT EXISTS token_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  name TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  website TEXT,
+  market_cap TEXT,
+  status TEXT DEFAULT 'pending',
+  submitted_at TEXT NOT NULL,
+  reviewed_at TEXT,
+  reviewed_by TEXT,
+  notes TEXT
+);`);
 // Simple audit log for profile-related events
 db.exec(`CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -698,6 +714,157 @@ app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
   }
 
   res.status(201).json(response);
+});
+
+/* ---------------- Token Requests API ---------------- */
+app.post('/api/token-requests', (req, res) => {
+  const sess = getSession(req);
+  const effectiveUid = sess?.uid || req.uid;
+  
+  const { symbol, name, reason, website, marketCap } = req.body || {};
+  
+  // Validate required fields
+  if (!symbol || !name || !reason) {
+    return res.status(400).json({ 
+      error: 'missing_fields', 
+      message: 'Symbol, name, and reason are required' 
+    });
+  }
+  
+  // Validate symbol format
+  const cleanSymbol = String(symbol).trim().toUpperCase();
+  if (!/^[A-Z0-9]{1,10}$/.test(cleanSymbol)) {
+    return res.status(400).json({ 
+      error: 'invalid_symbol', 
+      message: 'Symbol must be 1-10 characters, letters and numbers only' 
+    });
+  }
+  
+  // Validate lengths
+  const cleanName = String(name).trim();
+  const cleanReason = String(reason).trim();
+  if (cleanName.length > 50) {
+    return res.status(400).json({ 
+      error: 'name_too_long', 
+      message: 'Token name must be 50 characters or less' 
+    });
+  }
+  if (cleanReason.length > 500) {
+    return res.status(400).json({ 
+      error: 'reason_too_long', 
+      message: 'Reason must be 500 characters or less' 
+    });
+  }
+  
+  // Validate website URL if provided
+  let cleanWebsite = '';
+  if (website) {
+    try {
+      const url = new URL(String(website).trim());
+      if (url.protocol === 'http:' || url.protocol === 'https:') {
+        cleanWebsite = url.href;
+      }
+    } catch (e) {
+      return res.status(400).json({ 
+        error: 'invalid_website', 
+        message: 'Website must be a valid URL' 
+      });
+    }
+  }
+  
+  // Check for duplicate recent submissions from this user
+  const recentSubmissions = db.prepare(`
+    SELECT COUNT(*) as count FROM token_requests 
+    WHERE user_id = ? AND symbol = ? AND submitted_at > datetime('now', '-24 hours')
+  `).get(effectiveUid, cleanSymbol);
+  
+  if (recentSubmissions.count > 0) {
+    return res.status(429).json({ 
+      error: 'duplicate_request', 
+      message: 'You have already submitted a request for this token in the last 24 hours' 
+    });
+  }
+  
+  try {
+    // Insert token request
+    const insertRequest = db.prepare(`
+      INSERT INTO token_requests (user_id, symbol, name, reason, website, market_cap, submitted_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    const result = insertRequest.run(
+      effectiveUid,
+      cleanSymbol,
+      cleanName,
+      cleanReason,
+      cleanWebsite,
+      String(marketCap || '').trim(),
+      new Date().toISOString()
+    );
+    
+    // Log audit event
+    try { 
+      const urow = qGetUser.get(effectiveUid); 
+      qInsertAudit.run({ 
+        user_id: effectiveUid, 
+        email: (urow && urow.email) || '', 
+        event: 'token_request_submitted', 
+        detail: JSON.stringify({ symbol: cleanSymbol, name: cleanName }) 
+      }); 
+    } catch (auditError) {
+      console.warn('Failed to log token request audit:', auditError.message);
+    }
+    
+    res.status(201).json({ 
+      success: true, 
+      id: result.lastInsertRowid,
+      message: 'Token request submitted successfully' 
+    });
+    
+  } catch (error) {
+    console.error('Error submitting token request:', error);
+    res.status(500).json({ 
+      error: 'submission_failed', 
+      message: 'Failed to submit token request' 
+    });
+  }
+});
+
+// Get user's token requests (for potential future use)
+app.get('/api/token-requests/mine', (req, res) => {
+  const sess = getSession(req);
+  const effectiveUid = sess?.uid || req.uid;
+  
+  try {
+    const requests = db.prepare(`
+      SELECT id, symbol, name, reason, website, market_cap, status, submitted_at, reviewed_at, notes
+      FROM token_requests 
+      WHERE user_id = ? 
+      ORDER BY submitted_at DESC
+    `).all(effectiveUid);
+    
+    res.json(requests);
+  } catch (error) {
+    console.error('Error fetching user token requests:', error);
+    res.status(500).json({ error: 'Failed to fetch requests' });
+  }
+});
+
+// Admin endpoint to view all token requests
+app.get('/api/admin/token-requests', requireAdmin, (req, res) => {
+  try {
+    const requests = db.prepare(`
+      SELECT tr.*, u.email, u.name as user_name
+      FROM token_requests tr
+      LEFT JOIN users u ON tr.user_id = u.id
+      ORDER BY tr.submitted_at DESC
+    `).all();
+    
+    res.json(requests);
+  } catch (error) {
+    console.error('Error fetching admin token requests:', error);
+    res.status(500).json({ error: 'Failed to fetch requests' });
+  }
 });
 
 /* ---------------- Market (CoinMarketCap) ---------------- */

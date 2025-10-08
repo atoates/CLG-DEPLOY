@@ -15,6 +15,16 @@ const showAllToggle = document.getElementById('prof-show-all');
 const msgEl = document.getElementById('prof-msg');
 const avatarPresetsEl = document.getElementById('avatar-presets');
 
+// Token submission elements
+const submitTokenSymbol = document.getElementById('submit-token-symbol');
+const submitTokenName = document.getElementById('submit-token-name');
+const submitTokenReason = document.getElementById('submit-token-reason');
+const submitTokenWebsite = document.getElementById('submit-token-website');
+const submitTokenMarketCap = document.getElementById('submit-token-market-cap');
+const btnSubmitToken = document.getElementById('btn-submit-token');
+const btnClearSubmission = document.getElementById('btn-clear-submission');
+const submissionMsg = document.getElementById('submission-msg');
+
 let me = null;
 // Start with a tiny seed, then enrich from /api/alerts and user watchlist
 const tokenSuggestions = new Set(['BTC','ETH','USDC','MATIC','SOL']);
@@ -222,3 +232,120 @@ document.addEventListener('click', (e) => {
 
 // Ensure severity buttons reflect state on first load (slight delay to allow loadMe to set me)
 setTimeout(() => renderSeverityButtons(), 0);
+
+// --- Token Submission Functionality ---
+
+// Auto-uppercase token symbol input
+if (submitTokenSymbol) {
+  submitTokenSymbol.addEventListener('input', (e) => {
+    e.target.value = e.target.value.toUpperCase();
+  });
+}
+
+// Clear submission form
+if (btnClearSubmission) {
+  btnClearSubmission.addEventListener('click', () => {
+    if (submitTokenSymbol) submitTokenSymbol.value = '';
+    if (submitTokenName) submitTokenName.value = '';
+    if (submitTokenReason) submitTokenReason.value = '';
+    if (submitTokenWebsite) submitTokenWebsite.value = '';
+    if (submitTokenMarketCap) submitTokenMarketCap.value = '';
+    if (submissionMsg) submissionMsg.textContent = '';
+  });
+}
+
+// Submit token request
+if (btnSubmitToken) {
+  btnSubmitToken.addEventListener('click', async () => {
+    // Validate required fields
+    const symbol = (submitTokenSymbol?.value || '').trim().toUpperCase();
+    const name = (submitTokenName?.value || '').trim();
+    const reason = (submitTokenReason?.value || '').trim();
+    
+    if (!symbol || !name || !reason) {
+      if (submissionMsg) {
+        submissionMsg.textContent = 'Please fill in all required fields (marked with *)';
+        submissionMsg.style.color = '#dc2626';
+        setTimeout(() => {
+          submissionMsg.textContent = '';
+          submissionMsg.style.color = '';
+        }, 3000);
+      }
+      return;
+    }
+    
+    // Validate token symbol format
+    if (!/^[A-Z0-9]{1,10}$/.test(symbol)) {
+      if (submissionMsg) {
+        submissionMsg.textContent = 'Token symbol must be 1-10 characters, letters and numbers only';
+        submissionMsg.style.color = '#dc2626';
+        setTimeout(() => {
+          submissionMsg.textContent = '';
+          submissionMsg.style.color = '';
+        }, 3000);
+      }
+      return;
+    }
+    
+    // Prepare submission data
+    const submissionData = {
+      symbol,
+      name,
+      reason,
+      website: (submitTokenWebsite?.value || '').trim(),
+      marketCap: submitTokenMarketCap?.value || '',
+      submittedAt: new Date().toISOString()
+    };
+    
+    // Disable button and show loading
+    btnSubmitToken.disabled = true;
+    btnSubmitToken.textContent = 'Submitting...';
+    
+    try {
+      const response = await fetch('/api/token-requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(submissionData)
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (submissionMsg) {
+          submissionMsg.textContent = '✅ Token request submitted successfully! We\'ll review it and get back to you.';
+          submissionMsg.style.color = '#059669';
+        }
+        
+        // Clear form after successful submission
+        setTimeout(() => {
+          if (btnClearSubmission) btnClearSubmission.click();
+        }, 1000);
+        
+      } else {
+        const error = await response.json().catch(() => ({}));
+        if (submissionMsg) {
+          submissionMsg.textContent = `❌ ${error.message || 'Failed to submit request. Please try again.'}`;
+          submissionMsg.style.color = '#dc2626';
+        }
+      }
+    } catch (error) {
+      if (submissionMsg) {
+        submissionMsg.textContent = '❌ Network error. Please check your connection and try again.';
+        submissionMsg.style.color = '#dc2626';
+      }
+    } finally {
+      // Reset button
+      btnSubmitToken.disabled = false;
+      btnSubmitToken.textContent = 'Submit Request';
+      
+      // Clear message after delay
+      setTimeout(() => {
+        if (submissionMsg) {
+          submissionMsg.textContent = '';
+          submissionMsg.style.color = '';
+        }
+      }, 5000);
+    }
+  });
+}
