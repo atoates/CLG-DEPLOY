@@ -35,7 +35,10 @@ const ALERT_TAGS = {
   'whale': { icon: '🐋', label: 'Whale Alert', color: '#818cf8' },
   'news': { icon: '📰', label: 'News', color: '#94a3b8' },
   'community': { icon: '👥', label: 'Community', color: '#fb923c' },
-  'exploit': { icon: '⚡', label: 'Exploit', color: '#f43f5e' }
+  'exploit': { icon: '⚡', label: 'Exploit', color: '#f43f5e' },
+  'privacy': { icon: '🛡️', label: 'Privacy', color: '#22c55e' },
+  'community-vote': { icon: '🗳️', label: 'Community Vote', color: '#8b5cf6' },
+  'token-unlocks': { icon: '🔓', label: 'Token Unlocks', color: '#f59e0b' }
 };
 
 // Create tag selectors
