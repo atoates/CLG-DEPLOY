@@ -61,7 +61,9 @@ const ALERT_TAGS = {
   'news': { icon: '📰', label: 'News', color: '#94a3b8' },
   'community': { icon: '👥', label: 'Community', color: '#fb923c' },
   'exploit': { icon: '⚡', label: 'Exploit', color: '#f43f5e' },
-  'privacy': { icon: '🛡️', label: 'Privacy', color: '#22c55e' }
+  'privacy': { icon: '🛡️', label: 'Privacy', color: '#22c55e' },
+  'community-vote': { icon: '🗳️', label: 'Community Vote', color: '#8b5cf6' },
+  'token-unlocks': { icon: '�', label: 'Token Unlocks', color: '#f59e0b' }
 };
 
 // Source types definitions (for alert source metadata)
@@ -516,6 +518,9 @@ function initializeTagFilters() {
     tags.forEach(tag => allTags.add(tag));
   });
   
+  // Also add all predefined tags from ALERT_TAGS so they're always available
+  Object.keys(ALERT_TAGS).forEach(tag => allTags.add(tag));
+  
   // Create tag filter buttons in the popup
   const popupTagFilters = document.getElementById('popup-tag-filters');
   popupTagFilters.innerHTML = '';
@@ -524,7 +529,12 @@ function initializeTagFilters() {
     const tagButton = document.createElement('button');
     tagButton.className = 'tag-filter';
     tagButton.dataset.tag = tag;
-    tagButton.innerHTML = `<span class="icon">${tagIcons[tag] || '🏷️'}</span><span>${tag}</span>`;
+    
+    const tagInfo = ALERT_TAGS[tag];
+    const icon = tagInfo ? tagInfo.icon : '🏷️';
+    const label = tagInfo ? tagInfo.label : tag;
+    
+    tagButton.innerHTML = `<span class="icon">${icon}</span><span>${label}</span>`;
     
     // Add click handler for tag selection
     tagButton.addEventListener('click', function(e) {
