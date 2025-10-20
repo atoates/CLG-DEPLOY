@@ -1643,6 +1643,60 @@ app.get('/admin/backups/:file', requireAdmin, (req, res) => {
   }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
 });
 
+// Get users list as JSON (admin only)
+app.get('/admin/users', requireAdmin, (req, res) => {
+  try{
+    // Get users with their preferences
+    let users;
+    try{
+      users = db.prepare(`
+        SELECT 
+          u.id, 
+          u.email, 
+          u.name, 
+          u.username, 
+          u.avatar, 
+          u.google_id,
+          u.created_at,
+          p.watchlist_json,
+          p.updated_at as prefs_updated_at
+        FROM users u
+        LEFT JOIN user_prefs p ON u.id = p.user_id
+        ORDER BY u.created_at DESC
+      `).all();
+    }catch{
+      users = db.prepare('SELECT id, email, name, username, avatar, google_id FROM users ORDER BY id').all();
+      users.forEach(r => { r.created_at = null; r.watchlist_json = '[]'; r.prefs_updated_at = null; });
+    }
+    
+    // Parse watchlist and add metadata
+    const enriched = users.map(u => {
+      let watchlist = [];
+      try {
+        watchlist = JSON.parse(u.watchlist_json || '[]');
+      } catch {}
+      
+      return {
+        id: u.id,
+        email: u.email || '',
+        name: u.name || '',
+        username: u.username || '',
+        avatar: u.avatar || '',
+        isGoogleUser: !!u.google_id,
+        created_at: u.created_at ? new Date(u.created_at * 1000).toISOString() : null,
+        watchlistCount: watchlist.length,
+        watchlist: watchlist,
+        lastActivity: u.prefs_updated_at ? new Date(u.prefs_updated_at * 1000).toISOString() : null
+      };
+    });
+    
+    res.json({ users: enriched, total: enriched.length });
+  }catch(e){
+    console.error('Failed to fetch users:', e);
+    res.status(500).json({ ok:false, error: String(e) });
+  }
+});
+
 // Export users as CSV
 app.get('/admin/export/users.csv', requireAdmin, (req, res) => {
   try{

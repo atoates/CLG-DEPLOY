@@ -17,8 +17,15 @@ const btnExportAudit = document.getElementById('btn-export-audit');
 const btnExportAlerts = document.getElementById('btn-export-alerts');
 const tabs = document.querySelectorAll('.admin-tab');
 const alertsPane = document.getElementById('alerts-pane');
+const usersPane = document.getElementById('users-pane');
 const toolsPane = document.getElementById('tools-pane');
 const uploadPane = document.getElementById('upload-pane');
+
+// Users tab elements
+const usersListEl = document.getElementById('users-list');
+const usersStatsEl = document.getElementById('users-stats');
+const btnRefreshUsers = document.getElementById('btn-refresh-users');
+const usersSearchInput = document.getElementById('users-search-input');
 
 const fToken = document.getElementById('f-token');
 const fTitle = document.getElementById('f-title');
@@ -40,6 +47,10 @@ let current = null;
 let alerts = [];
 let filtered = [];
 let currentSev = 'info';
+
+// Users state
+let users = [];
+let filteredUsers = [];
 
 let ADMIN_TOKEN = localStorage.getItem('ADMIN_TOKEN') || '';
 tokenInput.value = ADMIN_TOKEN;
@@ -230,6 +241,172 @@ async function doBackupNow(){
 if (btnBackupNow) btnBackupNow.addEventListener('click', doBackupNow);
 if (btnRefreshBackups) btnRefreshBackups.addEventListener('click', refreshBackups);
 refreshBackups();
+
+// --- Users Tab Functionality ---
+async function refreshUsers(){
+  if (!usersListEl) return;
+  usersListEl.innerHTML = 'Loading users…';
+  try{
+    const r = await fetch('/admin/users', { headers: { ...authHeaders() }});
+    if (!r.ok){ 
+      usersListEl.textContent = 'Failed to load users (check auth)'; 
+      return; 
+    }
+    const j = await r.json();
+    users = (j && j.users) || [];
+    filteredUsers = users;
+    renderUsers();
+    updateUsersStats();
+  }catch(e){ 
+    usersListEl.textContent = 'Failed to load users'; 
+    console.error('Users fetch error:', e);
+  }
+}
+
+function renderUsers(){
+  if (!usersListEl) return;
+  if (filteredUsers.length === 0){
+    usersListEl.innerHTML = '<div class="note">No users found</div>';
+    return;
+  }
+  
+  usersListEl.innerHTML = '';
+  filteredUsers.forEach(user => {
+    const card = document.createElement('div');
+    card.className = 'user-card';
+    
+    // Avatar
+    const avatarDiv = document.createElement('div');
+    avatarDiv.className = 'user-avatar';
+    if (user.avatar) {
+      const img = document.createElement('img');
+      img.src = user.avatar;
+      img.alt = user.name || user.email || 'User';
+      avatarDiv.appendChild(img);
+    } else {
+      const initial = (user.name || user.email || user.username || '?')[0].toUpperCase();
+      avatarDiv.textContent = initial;
+    }
+    
+    // Info section
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'user-info';
+    
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'user-name';
+    nameDiv.textContent = user.name || user.username || user.email || user.id;
+    
+    const emailDiv = document.createElement('div');
+    emailDiv.className = 'user-email';
+    emailDiv.textContent = user.email || 'No email';
+    
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'user-meta';
+    
+    if (user.username) {
+      const usernameBadge = document.createElement('span');
+      usernameBadge.className = 'user-badge';
+      usernameBadge.textContent = `@${user.username}`;
+      metaDiv.appendChild(usernameBadge);
+    }
+    
+    if (user.isGoogleUser) {
+      const googleBadge = document.createElement('span');
+      googleBadge.className = 'user-badge google';
+      googleBadge.textContent = '✓ Google';
+      metaDiv.appendChild(googleBadge);
+    }
+    
+    if (user.created_at) {
+      const createdSpan = document.createElement('span');
+      const date = new Date(user.created_at);
+      createdSpan.textContent = `Joined ${date.toLocaleDateString()}`;
+      metaDiv.appendChild(createdSpan);
+    }
+    
+    infoDiv.appendChild(nameDiv);
+    infoDiv.appendChild(emailDiv);
+    if (metaDiv.children.length > 0) {
+      infoDiv.appendChild(metaDiv);
+    }
+    
+    // Stats section
+    const statsDiv = document.createElement('div');
+    statsDiv.className = 'user-stats';
+    
+    const watchlistStat = document.createElement('div');
+    watchlistStat.className = 'user-stat';
+    watchlistStat.innerHTML = `<strong>${user.watchlistCount}</strong> tokens`;
+    statsDiv.appendChild(watchlistStat);
+    
+    if (user.lastActivity) {
+      const activityStat = document.createElement('div');
+      activityStat.className = 'user-stat';
+      const actDate = new Date(user.lastActivity);
+      const now = new Date();
+      const diffMs = now - actDate;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+      
+      let timeAgo;
+      if (diffMins < 60) {
+        timeAgo = `${diffMins}m ago`;
+      } else if (diffHours < 24) {
+        timeAgo = `${diffHours}h ago`;
+      } else {
+        timeAgo = `${diffDays}d ago`;
+      }
+      
+      activityStat.innerHTML = `Active ${timeAgo}`;
+      statsDiv.appendChild(activityStat);
+    }
+    
+    // Assemble card
+    card.appendChild(avatarDiv);
+    card.appendChild(infoDiv);
+    card.appendChild(statsDiv);
+    
+    usersListEl.appendChild(card);
+  });
+}
+
+function updateUsersStats(){
+  if (!usersStatsEl) return;
+  const total = users.length;
+  const googleUsers = users.filter(u => u.isGoogleUser).length;
+  const anonUsers = total - googleUsers;
+  const withWatchlist = users.filter(u => u.watchlistCount > 0).length;
+  
+  usersStatsEl.textContent = `${total} total users • ${googleUsers} logged in • ${anonUsers} anonymous • ${withWatchlist} with watchlists`;
+}
+
+if (btnRefreshUsers) {
+  btnRefreshUsers.addEventListener('click', refreshUsers);
+}
+
+// Search functionality for users
+if (usersSearchInput) {
+  usersSearchInput.addEventListener('input', () => {
+    const q = usersSearchInput.value.toLowerCase();
+    filteredUsers = users.filter(u =>
+      (u.name || '').toLowerCase().includes(q) ||
+      (u.email || '').toLowerCase().includes(q) ||
+      (u.username || '').toLowerCase().includes(q) ||
+      (u.id || '').toLowerCase().includes(q)
+    );
+    renderUsers();
+  });
+}
+
+// Load users when tab is clicked
+tabs.forEach(t => t.addEventListener('click', () => {
+  const tab = t.getAttribute('data-tab');
+  if (tab === 'users' && users.length === 0) {
+    refreshUsers();
+  }
+}));
+
 // --- Tabs ---
 if (tabs && tabs.length){
   tabs.forEach(t => t.addEventListener('click', () => {
@@ -237,6 +414,7 @@ if (tabs && tabs.length){
     t.classList.add('active');
     const tab = t.getAttribute('data-tab');
     if (alertsPane) alertsPane.hidden = tab !== 'alerts';
+    if (usersPane) usersPane.hidden = tab !== 'users';
     if (toolsPane) toolsPane.hidden = tab !== 'tools';
     if (uploadPane) uploadPane.hidden = tab !== 'upload';
   }));

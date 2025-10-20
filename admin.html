@@ -56,6 +56,20 @@
     .tools-wrap{ max-width: 720px; margin: 0 auto; display:flex; flex-direction:column; gap:12px; }
   .backup-link{ color:#0f172a; text-decoration:none; font-weight:700; display:inline-block; padding:4px 0; }
   .backup-link:hover{ text-decoration:underline; }
+    /* User cards */
+    .user-card{ padding:12px; border:1px solid rgba(2,6,23,0.08); border-radius:10px; background:#f8fafc; display:grid; grid-template-columns:48px 1fr auto; gap:12px; align-items:center; margin-bottom:8px; }
+    .user-card:hover{ background:#eef6ff; }
+    .user-avatar{ width:48px; height:48px; border-radius:50%; background:#e0e7ff; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; color:#4f46e5; overflow:hidden; }
+    .user-avatar img{ width:100%; height:100%; object-fit:cover; }
+    .user-info{ display:flex; flex-direction:column; gap:4px; }
+    .user-name{ font-weight:700; color:#0f172a; }
+    .user-email{ font-size:12px; color:#64748b; }
+    .user-meta{ display:flex; gap:8px; flex-wrap:wrap; font-size:11px; color:#94a3b8; }
+    .user-badge{ background:#e0e7ff; color:#4f46e5; padding:2px 6px; border-radius:4px; font-weight:600; }
+    .user-badge.google{ background:#e8f5e9; color:#2e7d32; }
+    .user-stats{ display:flex; flex-direction:column; gap:4px; align-items:flex-end; }
+    .user-stat{ font-size:12px; color:#475569; }
+    .user-stat strong{ color:#0f172a; font-weight:700; }
     @media (max-width: 1100px){ .admin-grid{ grid-template-columns: 1fr; } .admin-list{ max-height:none; } }
   </style>
   
@@ -89,6 +103,7 @@
       <h2 class="section-title">Alerts</h2>
       <div class="admin-tabs">
         <button class="admin-tab active" data-tab="alerts">Alerts</button>
+        <button class="admin-tab" data-tab="users">Users</button>
         <button class="admin-tab" data-tab="tools">Tools</button>
         <button class="admin-tab" data-tab="upload">Upload</button>
       </div>
@@ -187,6 +202,23 @@
 
       </div>
 
+      <!-- Users tab content -->
+      <section id="users-pane" class="admin-pane" hidden>
+        <div class="tools-wrap">
+          <div class="field">
+            <label>Registered Users</label>
+            <div class="row" style="margin-bottom:8px; justify-content:space-between">
+              <div id="users-stats" class="note"></div>
+              <button id="btn-refresh-users" class="btn" type="button">Refresh</button>
+            </div>
+            <div class="field">
+              <input id="users-search-input" class="input search" placeholder="Search by name, email, or username…" />
+            </div>
+            <div id="users-list" class="admin-list" style="max-height:calc(100vh - 360px)"></div>
+          </div>
+        </div>
+      </section>
+
       <!-- Tools tab content -->
       <section id="tools-pane" class="admin-pane" hidden>
         <div class="tools-wrap">
@@ -255,14 +287,16 @@
   document.addEventListener('DOMContentLoaded', function(){
     const tabs = document.querySelectorAll('.admin-tab');
     const alertsPane = document.getElementById('alerts-pane');
+    const usersPane = document.getElementById('users-pane');
     const toolsPane = document.getElementById('tools-pane');
     const uploadPane = document.getElementById('upload-pane');
-    if (!tabs.length || !alertsPane || !toolsPane || !uploadPane) return;
+    if (!tabs.length || !alertsPane || !usersPane || !toolsPane || !uploadPane) return;
     tabs.forEach(t => t.addEventListener('click', () => {
       tabs.forEach(x => x.classList.remove('active'));
       t.classList.add('active');
       const activeTab = t.getAttribute('data-tab');
       alertsPane.hidden = activeTab !== 'alerts';
+      usersPane.hidden = activeTab !== 'users';
       toolsPane.hidden = activeTab !== 'tools';
       uploadPane.hidden = activeTab !== 'upload';
     }));
