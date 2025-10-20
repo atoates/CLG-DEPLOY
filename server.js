@@ -246,6 +246,13 @@ const SOURCE_TYPES = [
 /* ---------------- Middleware ---------------- */
 app.use(express.json());
 app.use(cookieParser());
+
+// Request logging for debugging Railway deployment
+app.use((req, res, next) => {
+  console.log(`📨 Incoming request: ${req.method} ${req.url} from ${req.ip}`);
+  next();
+});
+
 // Admin token + email helpers (reuse for admin-only APIs)
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'ali@crypto-lifeguard.com,jordan@crypto-lifeguard.com,george@crypto-lifeguard.com')
