@@ -193,7 +193,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const j = await r.json();
       if (j && j.symbol) CURRENCY_SYMBOL = String(j.symbol);
       if (j && j.currency) CURRENCY_CODE = String(j.currency);
-      if (j && j.logokitApiKey) LOGOKIT_API_KEY = String(j.logokitApiKey);
+      if (j && j.logokitApiKey) {
+        LOGOKIT_API_KEY = String(j.logokitApiKey);
+        window.logokitApiKey = LOGOKIT_API_KEY; // Expose to window for easy access
+      }
     }
   }catch(_e){}
 
@@ -958,11 +961,7 @@ function getAlertTagsArray(alert){
   return ['community','news'];
 }
 
-function renderAlertTags(alert, alertWrap) {
-  // construct wrapper regardless; we'll remove it if empty
-  const tagsWrap = document.createElement('div');
-  tagsWrap.className = 'alert-tags';
-
+function renderAlertTags(alert, container) {
   // Normalize tags: handle JSON string, array, or missing -> severity-based default
   const tags = getAlertTagsArray(alert);
 
@@ -972,22 +971,18 @@ function renderAlertTags(alert, alertWrap) {
     if (!info) return;
     const tagEl = document.createElement('span');
     tagEl.className = 'alert-tag';
+    tagEl.style.backgroundColor = info.color + '15'; // Light background
+    tagEl.style.borderColor = info.color + '40';
     tagEl.style.color = info.color;
+    const icon = document.createElement('span');
+    icon.className = 'tag-icon';
+    icon.textContent = info.icon;
     const label = document.createElement('span');
     label.textContent = info.label;
-    const icon = document.createElement('span');
-    icon.className = 'icon';
-    icon.textContent = info.icon;
-    tagEl.appendChild(label);
     tagEl.appendChild(icon);
-    tagsWrap.appendChild(tagEl);
+    tagEl.appendChild(label);
+    container.appendChild(tagEl);
   });
-
-  // Only insert if we have at least one tag element
-  if (tagsWrap.children.length > 0) {
-    // Append after the content so the grid order is: content (col 1) -> tags (col 2) -> dismiss (col 3)
-    alertWrap.appendChild(tagsWrap);
-  }
 }
 
 // SORT: nearest deadline first
@@ -1016,21 +1011,54 @@ function renderAlerts(){
     const hidden = isHidden(a);
     if (showAll && hidden) wrap.classList.add('is-hidden');
 
-    // LEFT: icon + text
-    const left = document.createElement('div');
-    left.className = 'content';
+    // COIN LOGO/SYMBOL SECTION
+    const coinSection = document.createElement('div');
+    coinSection.className = 'coin-section';
+    
+    const coinLogo = document.createElement('div');
+    coinLogo.className = 'coin-logo';
+    
+    const token = (a.token || '').toUpperCase();
+    const logoUrl = `https://api.logokit.dev/crypto/${token}.svg?key=${window.logokitApiKey || 'pk_fr3b615a522b603695a025'}`;
+    
+    const img = document.createElement('img');
+    img.className = 'coin-img';
+    img.src = logoUrl;
+    img.alt = `${token} logo`;
+    img.onerror = function() {
+      // Fallback to our custom logo on error
+      this.onerror = null;
+      this.src = '/logo192.png';
+    };
+    
+    coinLogo.appendChild(img);
+    
+    const coinSymbol = document.createElement('div');
+    coinSymbol.className = 'coin-symbol';
+    coinSymbol.textContent = token;
+    
+    coinSection.appendChild(coinLogo);
+    coinSection.appendChild(coinSymbol);
 
+    // SEVERITY INDICATOR
+    const severityBadge = document.createElement('div');
+    severityBadge.className = 'severity-badge';
     const icon = document.createElement('span');
-    icon.className = 'alert-icon';
+    icon.className = 'severity-icon';
     icon.textContent = a.severity === 'critical' ? '🚨' : (a.severity === 'warning' ? '⚠️' : '🛟');
+    severityBadge.appendChild(icon);
 
-  const text = document.createElement('div');
-  text.className = 'alert-text';
+    // MAIN CONTENT AREA
+    const contentArea = document.createElement('div');
+    contentArea.className = 'alert-content-area';
 
-  const title = document.createElement('div');
-  title.className = 'alert-title';
-  title.textContent = `${a.title} — ${(a.token || '').toUpperCase()}`;
-  text.appendChild(title);
+    const text = document.createElement('div');
+    text.className = 'alert-text';
+
+    const title = document.createElement('div');
+    title.className = 'alert-title';
+    title.textContent = a.title;
+    text.appendChild(title);
 
     const desc = document.createElement('div');
     desc.className = 'alert-desc';
@@ -1103,10 +1131,15 @@ function renderAlerts(){
       text.appendChild(more);
     }
 
-    left.appendChild(icon);
-    left.appendChild(text);
+    contentArea.appendChild(severityBadge);
+    contentArea.appendChild(text);
 
-    // RIGHT: divided dismiss column (title + checkbox)
+    // TAGS SECTION
+    const tagsSection = document.createElement('div');
+    tagsSection.className = 'alert-tags-section';
+    renderAlertTags(a, tagsSection);
+
+    // RIGHT: dismiss column
     const right = document.createElement('div');
     right.className = 'dismiss-col';
 
@@ -1128,11 +1161,10 @@ function renderAlerts(){
     right.appendChild(label);
     right.appendChild(chk);
 
-    wrap.appendChild(left);
-    
-    // Add tags before the dismiss column
-    renderAlertTags(a, wrap);
-    
+    // Assemble the card
+    wrap.appendChild(coinSection);
+    wrap.appendChild(contentArea);
+    wrap.appendChild(tagsSection);
     wrap.appendChild(right);
 
     // live tick function
