@@ -1243,6 +1243,15 @@ app.get('/api/market/config', (_req, res) => {
   });
 });
 
+// --- Environment API ---------------------------------------------------------
+app.get('/api/environment', (_req, res) => {
+  const env = process.env.NODE_ENV || process.env.RAILWAY_ENVIRONMENT || 'production';
+  res.json({ 
+    environment: env.toLowerCase(),
+    isProduction: env.toLowerCase() === 'production'
+  });
+});
+
 // --- AI Summary API ----------------------------------------------------------
 app.post('/api/summary/generate', async (req, res) => {
   try {

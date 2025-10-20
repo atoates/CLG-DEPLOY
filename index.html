@@ -7,6 +7,13 @@
   <link rel="stylesheet" href="./styles.css?v=20251003f" />
 </head>
 <body>
+  <!-- Environment Banner (only shown in test/staging) -->
+  <div id="env-banner" class="env-banner" hidden>
+    <span class="env-icon">🧪</span>
+    <span class="env-text">TEST ENVIRONMENT</span>
+    <span class="env-warning">Changes here won't affect production</span>
+  </div>
+
   <a href="./create.html" class="fab" aria-label="New alert" title="New alert">+</a>
 
   <header class="topbar" role="banner">

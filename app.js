@@ -139,8 +139,46 @@ function persistPrefsServerDebounced(){
   }, 250);
 }
 
+// --- Environment Detection ---------------------------------------------------
+async function checkEnvironment() {
+  try {
+    const response = await fetch('/api/environment');
+    if (response.ok) {
+      const data = await response.json();
+      if (data.environment && data.environment !== 'production') {
+        showEnvironmentBanner(data.environment);
+      }
+    }
+  } catch (error) {
+    console.log('Could not fetch environment info');
+  }
+}
+
+function showEnvironmentBanner(env) {
+  const banner = document.getElementById('env-banner');
+  if (banner) {
+    banner.hidden = false;
+    document.body.classList.add('has-env-banner');
+    
+    // Update banner text based on environment
+    const envText = banner.querySelector('.env-text');
+    if (envText) {
+      if (env === 'staging' || env === 'test') {
+        envText.textContent = '🧪 TEST ENVIRONMENT';
+      } else if (env === 'development') {
+        envText.textContent = '💻 DEVELOPMENT';
+      } else {
+        envText.textContent = `⚠️ ${env.toUpperCase()}`;
+      }
+    }
+  }
+}
+
 // --- User menu dropdown ------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
+  // Check environment and show banner if not production
+  checkEnvironment();
+
   const userMenuBtn = document.getElementById('user-menu-btn');
   const userMenu = document.getElementById('user-menu');
   const logoutItem = document.getElementById('menu-logout');
