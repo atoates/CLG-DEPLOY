@@ -2129,15 +2129,15 @@ app.post('/auth/logout', (req, res) => {
   res.json({ ok:true });
 });
 
-// Start server and keep a reference so we can gracefully shut down
-server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT} - DB: PostgreSQL (${DATABASE_URL ? 'configured' : 'not set'})`);
-});
-
 // Wildcard fallback should be last: point to dist or root index
 app.get('*', (_req,res) => {
   if (fs.existsSync(distIndex)) return res.sendFile(distIndex);
   if (fs.existsSync(rootIndex)) return res.sendFile(rootIndex);
   res.status(404).send('Not found');
+});
+
+// Start server and keep a reference so we can gracefully shut down
+server = app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT} - DB: PostgreSQL (${DATABASE_URL ? 'configured' : 'not set'})`);
 });
 
