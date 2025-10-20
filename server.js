@@ -7,19 +7,19 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
-const Database = require('better-sqlite3');
+const { Pool } = require('pg');
 const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, 'data');
-// Prefer an explicit DATABASE_PATH when provided (keeps migrate/backup scripts consistent)
-const DB_PATH = process.env.DATABASE_PATH || path.join(DATA_DIR, 'clg.sqlite');
+// PostgreSQL connection
+const DATABASE_URL = process.env.DATABASE_URL;
 // Backup dir (can be overridden by BACKUP_DIR env var)
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(DATA_DIR, 'backups');
 const RESTORE_FROM_FILE = String(process.env.RESTORE_FROM_FILE || '').toLowerCase() === 'true';
 
-// Ensure data directory exists (fallback for volume mount issues)
+// Ensure data directory exists for file storage (alerts.json, backups, etc)
 try {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   console.log('Data directory created/verified:', DATA_DIR);
@@ -58,9 +58,11 @@ function getDefaultTags(severity) {
 
 // Data directory and database initialized
 
-/* ---------------- DB setup (SQLite) ---------------- */
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
+/* ---------------- DB setup (PostgreSQL) ---------------- */
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
+});
 
 // Function to ensure tags are properly formatted
 function ensureValidTags(tags) {
@@ -73,72 +75,164 @@ function ensureValidTags(tags) {
   }
 }
 
-// Ensure required tables exist
-db.exec(`
-CREATE TABLE IF NOT EXISTS schema_migrations (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  filename TEXT NOT NULL UNIQUE,
-  applied_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
-);
+// Initialize database tables (migrations will handle schema properly, but ensure basics)
+async function initDB() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        id SERIAL PRIMARY KEY,
+        filename TEXT NOT NULL UNIQUE,
+        applied_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+      );
+    `);
 
-CREATE TABLE IF NOT EXISTS alerts (
-  id TEXT PRIMARY KEY,
-  token TEXT NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT,
-  severity TEXT NOT NULL DEFAULT 'info',
-  deadline TEXT NOT NULL,
-  tags TEXT DEFAULT '[]',
-  further_info TEXT,
-  source_type TEXT,
-  source_url TEXT
-);`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS alerts (
+        id TEXT PRIMARY KEY,
+        token TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        severity TEXT NOT NULL DEFAULT 'info',
+        deadline TEXT NOT NULL,
+        tags TEXT DEFAULT '[]',
+        further_info TEXT,
+        source_type TEXT,
+        source_url TEXT
+      );
+    `);
 
-// Token requests table for user submissions
-db.exec(`CREATE TABLE IF NOT EXISTS token_requests (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id TEXT NOT NULL,
-  symbol TEXT NOT NULL,
-  name TEXT NOT NULL,
-  reason TEXT NOT NULL,
-  website TEXT,
-  market_cap TEXT,
-  status TEXT DEFAULT 'pending',
-  submitted_at TEXT NOT NULL,
-  reviewed_at TEXT,
-  reviewed_by TEXT,
-  notes TEXT
-);`);
-// Simple audit log for profile-related events
-db.exec(`CREATE TABLE IF NOT EXISTS audit_log (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  ts INTEGER NOT NULL DEFAULT (strftime('%s','now')),
-  user_id TEXT,
-  email TEXT,
-  event TEXT,
-  detail TEXT
-)`);
-const qUpsertUser   = db.prepare('INSERT OR IGNORE INTO users (id) VALUES (?)');
-const qGetUser      = db.prepare('SELECT id, google_id, email, name, avatar, username FROM users WHERE id = ?');
-const qGetUserByUsername = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)');
-const qSetUsername  = db.prepare('UPDATE users SET username = ? WHERE id = ?');
-const qSetAvatar    = db.prepare('UPDATE users SET avatar = ? WHERE id = ?');
-const qGetPrefs     = db.prepare('SELECT * FROM user_prefs WHERE user_id = ?');
-const qUpsertPrefs  = db.prepare(`
-INSERT INTO user_prefs (user_id, watchlist_json, severity_json, show_all, dismissed_json, updated_at)
-VALUES (@user_id, @watchlist_json, @severity_json, @show_all, @dismissed_json, strftime('%s','now'))
-ON CONFLICT(user_id) DO UPDATE SET
-  watchlist_json = excluded.watchlist_json,
-  severity_json  = excluded.severity_json,
-  show_all       = excluded.show_all,
-  dismissed_json = excluded.dismissed_json,
-  updated_at     = excluded.updated_at
-`);
-const qInsertAudit = db.prepare('INSERT INTO audit_log (user_id, email, event, detail) VALUES (@user_id, @email, @event, @detail)');
-const qInsertAlert = db.prepare(`
-INSERT OR REPLACE INTO alerts (id, token, title, description, severity, deadline, tags, further_info, source_type, source_url)
-VALUES (@id, @token, @title, @description, @severity, @deadline, @tags, @further_info, @source_type, @source_url)
-`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS token_requests (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        symbol TEXT NOT NULL,
+        name TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        website TEXT,
+        market_cap TEXT,
+        status TEXT DEFAULT 'pending',
+        submitted_at TEXT NOT NULL,
+        reviewed_at TEXT,
+        reviewed_by TEXT,
+        notes TEXT
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id SERIAL PRIMARY KEY,
+        ts BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+        user_id TEXT,
+        email TEXT,
+        event TEXT,
+        detail TEXT
+      );
+    `);
+
+    console.log('Database tables initialized');
+  } catch (err) {
+    console.error('Error initializing database:', err);
+  }
+}
+
+// Call init on startup
+initDB().catch(console.error);
+
+/* ---------------- Database Helper Functions ---------------- */
+// Upsert user (INSERT ON CONFLICT DO NOTHING)
+async function upsertUser(userId) {
+  await pool.query('INSERT INTO users (id) VALUES ($1) ON CONFLICT (id) DO NOTHING', [userId]);
+}
+
+// Get user
+async function getUser(userId) {
+  const { rows } = await pool.query(
+    'SELECT id, google_id, email, name, avatar, username FROM users WHERE id = $1',
+    [userId]
+  );
+  return rows[0] || null;
+}
+
+// Get user by username
+async function getUserByUsername(username) {
+  const { rows } = await pool.query(
+    'SELECT id FROM users WHERE lower(username) = lower($1)',
+    [username]
+  );
+  return rows[0] || null;
+}
+
+// Set username
+async function setUsername(username, userId) {
+  await pool.query('UPDATE users SET username = $1 WHERE id = $2', [username, userId]);
+}
+
+// Set avatar
+async function setAvatar(avatar, userId) {
+  await pool.query('UPDATE users SET avatar = $1 WHERE id = $2', [avatar, userId]);
+}
+
+// Get user preferences
+async function getPrefs(userId) {
+  const { rows } = await pool.query('SELECT * FROM user_prefs WHERE user_id = $1', [userId]);
+  return rows[0] || null;
+}
+
+// Upsert preferences
+async function upsertPrefs(userId, watchlist, severity, showAll, dismissed) {
+  await pool.query(`
+    INSERT INTO user_prefs (user_id, watchlist_json, severity_json, show_all, dismissed_json, updated_at)
+    VALUES ($1, $2, $3, $4, $5, EXTRACT(EPOCH FROM NOW()))
+    ON CONFLICT(user_id) DO UPDATE SET
+      watchlist_json = excluded.watchlist_json,
+      severity_json = excluded.severity_json,
+      show_all = excluded.show_all,
+      dismissed_json = excluded.dismissed_json,
+      updated_at = excluded.updated_at
+  `, [userId, watchlist, severity, showAll, dismissed]);
+}
+
+// Insert audit log
+async function insertAudit(userId, email, event, detail) {
+  await pool.query(
+    'INSERT INTO audit_log (user_id, email, event, detail) VALUES ($1, $2, $3, $4)',
+    [userId, email, event, detail]
+  );
+}
+
+// Insert/update alert
+async function upsertAlert(alertData) {
+  await pool.query(`
+    INSERT INTO alerts (id, token, title, description, severity, deadline, tags, further_info, source_type, source_url)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    ON CONFLICT (id) DO UPDATE SET
+      token = excluded.token,
+      title = excluded.title,
+      description = excluded.description,
+      severity = excluded.severity,
+      deadline = excluded.deadline,
+      tags = excluded.tags,
+      further_info = excluded.further_info,
+      source_type = excluded.source_type,
+      source_url = excluded.source_url
+  `, [
+    alertData.id,
+    alertData.token,
+    alertData.title,
+    alertData.description,
+    alertData.severity,
+    alertData.deadline,
+    alertData.tags,
+    alertData.further_info,
+    alertData.source_type,
+    alertData.source_url
+  ]);
+}
+
+// Delete alert
+async function deleteAlert(alertId) {
+  await pool.query('DELETE FROM alerts WHERE id = $1', [alertId]);
+}
 
 // Allowed source types for alerts metadata
 const SOURCE_TYPES = [
@@ -164,7 +258,7 @@ function getAdminTokenFromReq(req){
   if (auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
   return auth;
 }
-function requireAdmin(req, res, next){
+async function requireAdmin(req, res, next){
   // Option 1: Header token
   const token = getAdminTokenFromReq(req);
   if (ADMIN_TOKEN && token && token === ADMIN_TOKEN) return next();
@@ -172,7 +266,7 @@ function requireAdmin(req, res, next){
   const sess = getSession(req);
   if (sess && sess.uid) {
     try{
-      const u = qGetUser.get(sess.uid);
+      const u = await getUser(sess.uid);
       const email = (u && u.email ? String(u.email).toLowerCase() : '');
       if (email && ADMIN_EMAILS.includes(email)) return next();
     }catch(e){ /* ignore */ }
@@ -222,14 +316,18 @@ function getSession(req){
 }
 
 // create anon user if missing cookie
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   let uid = req.cookies.uid;
   if (!uid) {
     uid = `usr_${Math.random().toString(36).slice(2,10)}`;
     res.cookie('uid', uid, { httpOnly: true, sameSite: 'lax', maxAge: 365*24*3600*1000, ...(COOKIE_SECURE ? { secure: true } : {}) });
   }
   req.uid = uid;
-  qUpsertUser.run(uid);
+  try {
+    await upsertUser(uid);
+  } catch (err) {
+    console.error('Error upserting user:', err);
+  }
   next();
 });
 
@@ -267,11 +365,11 @@ function persistAlerts(){ writeJsonSafe(ALERTS_PATH, alerts); }
 let usingDatabaseAlerts = false; // Track if we're using DB instead of JSON file
 
 // Function to reload alerts from database into memory
-function reloadAlertsFromDatabase() {
+async function reloadAlertsFromDatabase() {
   if (!usingDatabaseAlerts) return false;
   
   try {
-    const rows = db.prepare('SELECT id, token, title, description, severity, deadline, tags, further_info, source_type, source_url FROM alerts').all();
+    const { rows } = await pool.query('SELECT id, token, title, description, severity, deadline, tags, further_info, source_type, source_url FROM alerts');
     alerts = rows.map(r => ({
       id: r.id || `db_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
       token: String(r.token || '').toUpperCase(),
@@ -292,39 +390,46 @@ function reloadAlertsFromDatabase() {
 }
 
 // Prefer DB alerts if available (keeps start sequence consistent with restore-alerts.js)
-try {
-  const rows = db.prepare('SELECT id, token, title, description, severity, deadline, tags, further_info, source_type, source_url FROM alerts').all();
-  if (Array.isArray(rows) && rows.length > 0) {
-    alerts = rows.map(r => ({
-      id: r.id || `db_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
-      token: String(r.token || '').toUpperCase(),
-      title: String(r.title || ''),
-      description: String(r.description || ''),
-      severity: ['critical','warning','info'].includes(r.severity) ? r.severity : 'info',
-      deadline: new Date(r.deadline).toISOString(),
-      tags: (() => { try{ const t = typeof r.tags === 'string' ? JSON.parse(r.tags) : r.tags; return Array.isArray(t) ? t : []; } catch { return []; } })(),
-      further_info: String(r.further_info || ''),
-      source_type: SOURCE_TYPES.includes(String(r.source_type||'')) ? String(r.source_type) : '',
-      source_url: String(r.source_url || '')
-    }));
-    usingDatabaseAlerts = true;
-    // Alerts loaded from database - do NOT persist to JSON since DB is the master
-  } else {
-    // Using file-backed alerts
+(async () => {
+  try {
+    const { rows } = await pool.query('SELECT id, token, title, description, severity, deadline, tags, further_info, source_type, source_url FROM alerts');
+    if (Array.isArray(rows) && rows.length > 0) {
+      alerts = rows.map(r => ({
+        id: r.id || `db_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+        token: String(r.token || '').toUpperCase(),
+        title: String(r.title || ''),
+        description: String(r.description || ''),
+        severity: ['critical','warning','info'].includes(r.severity) ? r.severity : 'info',
+        deadline: new Date(r.deadline).toISOString(),
+        tags: (() => { try{ const t = typeof r.tags === 'string' ? JSON.parse(r.tags) : r.tags; return Array.isArray(t) ? t : []; } catch { return []; } })(),
+        further_info: String(r.further_info || ''),
+        source_type: SOURCE_TYPES.includes(String(r.source_type||'')) ? String(r.source_type) : '',
+        source_url: String(r.source_url || '')
+      }));
+      usingDatabaseAlerts = true;
+      // Alerts loaded from database - do NOT persist to JSON since DB is the master
+    } else {
+      // Using file-backed alerts
+    }
+  } catch (e) {
+    console.warn('Failed to load alerts from DB; using file-backed alerts.json', e && e.message);
   }
-} catch (e) {
-  console.warn('Failed to load alerts from DB; using file-backed alerts.json', e && e.message);
-}
+})();
 
 /* ---------------- Admin Info Endpoint ---------------- */
-app.get('/admin/info', requireAdmin, (req, res) => {
+app.get('/admin/info', requireAdmin, async (req, res) => {
   try{
-    const alertCount = db.prepare('SELECT COUNT(*) AS c FROM alerts').get().c;
-    const userCount = db.prepare("SELECT COUNT(*) AS c FROM users").get().c;
-    const prefsCount = db.prepare("SELECT COUNT(*) AS c FROM user_prefs").get().c;
+    const alertCountResult = await pool.query('SELECT COUNT(*) AS c FROM alerts');
+    const userCountResult = await pool.query('SELECT COUNT(*) AS c FROM users');
+    const prefsCountResult = await pool.query('SELECT COUNT(*) AS c FROM user_prefs');
+    
+    const alertCount = parseInt(alertCountResult.rows[0].c);
+    const userCount = parseInt(userCountResult.rows[0].c);
+    const prefsCount = parseInt(prefsCountResult.rows[0].c);
+    
     res.json({
       dataDir: DATA_DIR,
-      databasePath: DB_PATH,
+      databaseUrl: DATABASE_URL ? 'configured' : 'not set',
       backupDir: BACKUP_DIR,
       restoreFromFile: RESTORE_FROM_FILE,
       counts: { alerts: alertCount, users: userCount, user_prefs: prefsCount },
@@ -339,14 +444,14 @@ app.get('/admin/info', requireAdmin, (req, res) => {
 });
 
 /* ---------------- User prefs API ---------------- */
-app.get('/api/me', (req, res) => {
+app.get('/api/me', async (req, res) => {
   // If Google session exists, prefer that user id
   const sess = getSession(req);
   const effectiveUid = sess?.uid || req.uid;
-  const urow = qGetUser.get(effectiveUid);
+  const urow = await getUser(effectiveUid);
   const emailLower = (urow && urow.email ? String(urow.email).toLowerCase() : '');
   const isAdmin = !!(emailLower && ADMIN_EMAILS.includes(emailLower));
-  const row = qGetPrefs.get(effectiveUid);
+  const row = await getPrefs(effectiveUid);
   if (!row) {
     // first-time defaults
     const payload = {
@@ -359,14 +464,16 @@ app.get('/api/me', (req, res) => {
       isAdmin,
       profile: urow ? { name: urow.name || '', email: urow.email || '', avatar: urow.avatar || '', username: urow.username || '' } : { name:'', email:'', avatar:'', username:'' }
     };
-    qUpsertPrefs.run({
-      user_id: effectiveUid,
-      watchlist_json: JSON.stringify(payload.watchlist),
-      severity_json: JSON.stringify(payload.severity),
-      show_all: payload.showAll ? 1 : 0,
-      dismissed_json: JSON.stringify(payload.dismissed)
-    });
-    try { qInsertAudit.run({ user_id: effectiveUid, email: (urow&&urow.email)||'', event: 'profile_init', detail: JSON.stringify({ watchlist: payload.watchlist }) }); } catch {}
+    await upsertPrefs(
+      effectiveUid,
+      JSON.stringify(payload.watchlist),
+      JSON.stringify(payload.severity),
+      payload.showAll ? 1 : 0,
+      JSON.stringify(payload.dismissed)
+    );
+    try { 
+      await insertAudit(effectiveUid, (urow&&urow.email)||'', 'profile_init', JSON.stringify({ watchlist: payload.watchlist })); 
+    } catch {}
     return res.json({ ...payload, userId: effectiveUid });
   }
   res.json({
@@ -382,7 +489,7 @@ app.get('/api/me', (req, res) => {
 });
 
 // Set/update username
-app.post('/api/me/username', (req, res) => {
+app.post('/api/me/username', async (req, res) => {
   const sess = getSession(req);
   const effectiveUid = sess?.uid || req.uid;
   const { username } = req.body || {};
@@ -392,17 +499,20 @@ app.post('/api/me/username', (req, res) => {
     return res.status(400).json({ ok:false, error:'invalid_username', rules:'3-20 chars, letters/numbers/underscore, start with a letter' });
   }
   // uniqueness (case-insensitive)
-  const taken = qGetUserByUsername.get(val);
+  const taken = await getUserByUsername(val);
   if (taken && taken.id !== effectiveUid) {
     return res.status(409).json({ ok:false, error:'taken' });
   }
-  qSetUsername.run(val, effectiveUid);
-  try { const urow = qGetUser.get(effectiveUid); qInsertAudit.run({ user_id: effectiveUid, email: (urow&&urow.email)||'', event: 'username_set', detail: JSON.stringify({ username: val }) }); } catch {}
+  await setUsername(val, effectiveUid);
+  try { 
+    const urow = await getUser(effectiveUid); 
+    await insertAudit(effectiveUid, (urow&&urow.email)||'', 'username_set', JSON.stringify({ username: val })); 
+  } catch {}
   res.json({ ok:true, username: val });
 });
 
 // Set/update avatar (simple URL validation)
-app.post('/api/me/avatar', (req, res) => {
+app.post('/api/me/avatar', async (req, res) => {
   const sess = getSession(req);
   const effectiveUid = sess?.uid || req.uid;
   const { url } = req.body || {};
@@ -414,29 +524,35 @@ app.post('/api/me/avatar', (req, res) => {
   }catch(e){
     return res.status(400).json({ ok:false, error:'invalid_url' });
   }
-  qSetAvatar.run(val, effectiveUid);
-  try { const urow = qGetUser.get(effectiveUid); qInsertAudit.run({ user_id: effectiveUid, email: (urow&&urow.email)||'', event: 'avatar_set', detail: JSON.stringify({ avatar: val.slice(0,120) }) }); } catch {}
+  await setAvatar(val, effectiveUid);
+  try { 
+    const urow = await getUser(effectiveUid); 
+    await insertAudit(effectiveUid, (urow&&urow.email)||'', 'avatar_set', JSON.stringify({ avatar: val.slice(0,120) })); 
+  } catch {}
   res.json({ ok:true, avatar: val });
 });
 
-app.post('/api/me/prefs', (req, res) => {
+app.post('/api/me/prefs', async (req, res) => {
   const { watchlist = [], severity = ['critical','warning','info'], showAll = false, dismissed = [] } = req.body || {};
   const sess = getSession(req);
   const effectiveUid = sess?.uid || req.uid;
-  qUpsertPrefs.run({
-    user_id: effectiveUid,
-    watchlist_json: JSON.stringify([...new Set(watchlist.map(s => String(s).toUpperCase()))]),
-    severity_json: JSON.stringify(severity),
-    show_all: showAll ? 1 : 0,
-    dismissed_json: JSON.stringify(dismissed)
-  });
-  try { const urow = qGetUser.get(effectiveUid); qInsertAudit.run({ user_id: effectiveUid, email: (urow&&urow.email)||'', event: 'prefs_saved', detail: JSON.stringify({ watchlistLen: (watchlist||[]).length }) }); } catch {}
+  await upsertPrefs(
+    effectiveUid,
+    JSON.stringify([...new Set(watchlist.map(s => String(s).toUpperCase()))]),
+    JSON.stringify(severity),
+    showAll ? 1 : 0,
+    JSON.stringify(dismissed)
+  );
+  try { 
+    const urow = await getUser(effectiveUid); 
+    await insertAudit(effectiveUid, (urow&&urow.email)||'', 'prefs_saved', JSON.stringify({ watchlistLen: (watchlist||[]).length })); 
+  } catch {}
   res.json({ ok: true });
 });
 
 /* ---------------- Alerts API ---------------- */
 app.get('/api/alerts', (_req, res) => res.json(alerts));
-app.post('/api/alerts', requireAdmin, (req, res) => {
+app.post('/api/alerts', requireAdmin, async (req, res) => {
   const { token, title, description, severity, deadline, tags, further_info, source_type, source_url } = req.body || {};
   if (!token || !title || !deadline) return res.status(400).json({ error:'token, title, deadline are required' });
   
@@ -474,7 +590,7 @@ app.post('/api/alerts', requireAdmin, (req, res) => {
   // Also insert into database if using DB-backed alerts
   if (usingDatabaseAlerts) {
     try {
-      qInsertAlert.run({
+      await upsertAlert({
         id: item.id,
         token: item.token,
         title: item.title,
@@ -486,7 +602,7 @@ app.post('/api/alerts', requireAdmin, (req, res) => {
         source_type: item.source_type,
         source_url: item.source_url
       });
-      reloadAlertsFromDatabase();
+      await reloadAlertsFromDatabase();
     } catch (dbError) {
       console.warn('Failed to insert individual alert into database:', dbError.message);
     }
@@ -506,7 +622,7 @@ app.get('/api/alerts/:id', requireAdmin, (req, res) => {
 });
 
 // Update an alert (admin only)
-app.put('/api/alerts/:id', requireAdmin, (req, res) => {
+app.put('/api/alerts/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const idx = alerts.findIndex(a => a.id === id);
   if (idx === -1) return res.status(404).json({ error: 'not_found' });
@@ -555,7 +671,7 @@ app.put('/api/alerts/:id', requireAdmin, (req, res) => {
   // Also update in database if using DB-backed alerts
   if (usingDatabaseAlerts) {
     try {
-      qInsertAlert.run({
+      await upsertAlert({
         id: updated.id,
         token: updated.token,
         title: updated.title,
@@ -567,7 +683,7 @@ app.put('/api/alerts/:id', requireAdmin, (req, res) => {
         source_type: updated.source_type,
         source_url: updated.source_url
       });
-      reloadAlertsFromDatabase();
+      await reloadAlertsFromDatabase();
     } catch (dbError) {
       console.warn('Failed to update alert in database:', dbError.message);
     }
@@ -579,7 +695,7 @@ app.put('/api/alerts/:id', requireAdmin, (req, res) => {
 });
 
 // Delete an alert (admin only)
-app.delete('/api/alerts/:id', requireAdmin, (req, res) => {
+app.delete('/api/alerts/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const idx = alerts.findIndex(a => a.id === id);
   if (idx === -1) return res.status(404).json({ error: 'not_found' });
@@ -588,8 +704,8 @@ app.delete('/api/alerts/:id', requireAdmin, (req, res) => {
   // Also delete from database if using DB-backed alerts
   if (usingDatabaseAlerts) {
     try {
-      db.prepare('DELETE FROM alerts WHERE id = ?').run(removed.id);
-      reloadAlertsFromDatabase();
+      await deleteAlert(removed.id);
+      await reloadAlertsFromDatabase();
     } catch (dbError) {
       console.warn('Failed to delete alert from database:', dbError.message);
     }
@@ -600,7 +716,7 @@ app.delete('/api/alerts/:id', requireAdmin, (req, res) => {
 });
 
 // Bulk create alerts (admin only)
-app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
+app.post('/api/alerts/bulk', requireAdmin, async (req, res) => {
   const { alerts: alertsToCreate } = req.body || {};
   
   if (!Array.isArray(alertsToCreate) || alertsToCreate.length === 0) {
@@ -616,14 +732,15 @@ app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
   const createdAlerts = [];
   const errors = [];
 
-  alertsToCreate.forEach((alertData, index) => {
+  for (let index = 0; index < alertsToCreate.length; index++) {
+    const alertData = alertsToCreate[index];
     try {
       const { token, title, description, severity, deadline, tags, further_info, source_type, source_url } = alertData;
       
       // Validate required fields
       if (!token || !title || !deadline) {
         errors.push(`Alert ${index + 1}: token, title, deadline are required`);
-        return;
+        continue;
       }
 
       // Validate and normalize fields
@@ -646,7 +763,7 @@ app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
       const deadlineDate = new Date(deadline);
       if (isNaN(deadlineDate.getTime())) {
         errors.push(`Alert ${index + 1}: Invalid deadline format`);
-        return;
+        continue;
       }
 
       const item = {
@@ -666,7 +783,7 @@ app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
       
       // Also insert into database if we're using DB-backed alerts
       try {
-        qInsertAlert.run({
+        await upsertAlert({
           id: item.id,
           token: item.token,
           title: item.title,
@@ -687,7 +804,7 @@ app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
     } catch (error) {
       errors.push(`Alert ${index + 1}: ${error.message}`);
     }
-  });
+  }
 
   // Persist if any alerts were created (only to JSON if not using DB)
   if (createdAlerts.length > 0 && !usingDatabaseAlerts) {
@@ -696,7 +813,7 @@ app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
 
   // Reload alerts from database to sync in-memory array
   if (createdAlerts.length > 0 && usingDatabaseAlerts) {
-    reloadAlertsFromDatabase();
+    await reloadAlertsFromDatabase();
   }
 
   const response = {
@@ -717,7 +834,7 @@ app.post('/api/alerts/bulk', requireAdmin, (req, res) => {
 });
 
 /* ---------------- Token Requests API ---------------- */
-app.post('/api/token-requests', (req, res) => {
+app.post('/api/token-requests', async (req, res) => {
   const sess = getSession(req);
   const effectiveUid = sess?.uid || req.uid;
   
@@ -773,12 +890,14 @@ app.post('/api/token-requests', (req, res) => {
   }
   
   // Check for duplicate recent submissions from this user
-  const recentSubmissions = db.prepare(`
+  const recentSubmissionsResult = await pool.query(`
     SELECT COUNT(*) as count FROM token_requests 
-    WHERE user_id = ? AND symbol = ? AND submitted_at > datetime('now', '-24 hours')
-  `).get(effectiveUid, cleanSymbol);
+    WHERE user_id = $1 AND symbol = $2 AND submitted_at > NOW() - INTERVAL '24 hours'
+  `, [effectiveUid, cleanSymbol]);
   
-  if (recentSubmissions.count > 0) {
+  const recentSubmissions = parseInt(recentSubmissionsResult.rows[0].count);
+  
+  if (recentSubmissions > 0) {
     return res.status(429).json({ 
       error: 'duplicate_request', 
       message: 'You have already submitted a request for this token in the last 24 hours' 
@@ -787,12 +906,11 @@ app.post('/api/token-requests', (req, res) => {
   
   try {
     // Insert token request
-    const insertRequest = db.prepare(`
+    const result = await pool.query(`
       INSERT INTO token_requests (user_id, symbol, name, reason, website, market_cap, submitted_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    
-    const result = insertRequest.run(
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id
+    `, [
       effectiveUid,
       cleanSymbol,
       cleanName,
@@ -800,24 +918,24 @@ app.post('/api/token-requests', (req, res) => {
       cleanWebsite,
       String(marketCap || '').trim(),
       new Date().toISOString()
-    );
+    ]);
     
     // Log audit event
     try { 
-      const urow = qGetUser.get(effectiveUid); 
-      qInsertAudit.run({ 
-        user_id: effectiveUid, 
-        email: (urow && urow.email) || '', 
-        event: 'token_request_submitted', 
-        detail: JSON.stringify({ symbol: cleanSymbol, name: cleanName }) 
-      }); 
+      const urow = await getUser(effectiveUid); 
+      await insertAudit(
+        effectiveUid, 
+        (urow && urow.email) || '', 
+        'token_request_submitted', 
+        JSON.stringify({ symbol: cleanSymbol, name: cleanName })
+      ); 
     } catch (auditError) {
       console.warn('Failed to log token request audit:', auditError.message);
     }
     
     res.status(201).json({ 
       success: true, 
-      id: result.lastInsertRowid,
+      id: result.rows[0].id,
       message: 'Token request submitted successfully' 
     });
     
@@ -831,19 +949,19 @@ app.post('/api/token-requests', (req, res) => {
 });
 
 // Get user's token requests (for potential future use)
-app.get('/api/token-requests/mine', (req, res) => {
+app.get('/api/token-requests/mine', async (req, res) => {
   const sess = getSession(req);
   const effectiveUid = sess?.uid || req.uid;
   
   try {
-    const requests = db.prepare(`
+    const result = await pool.query(`
       SELECT id, symbol, name, reason, website, market_cap, status, submitted_at, reviewed_at, notes
       FROM token_requests 
-      WHERE user_id = ? 
+      WHERE user_id = $1 
       ORDER BY submitted_at DESC
-    `).all(effectiveUid);
+    `, [effectiveUid]);
     
-    res.json(requests);
+    res.json(result.rows);
   } catch (error) {
     console.error('Error fetching user token requests:', error);
     res.status(500).json({ error: 'Failed to fetch requests' });
@@ -851,16 +969,16 @@ app.get('/api/token-requests/mine', (req, res) => {
 });
 
 // Admin endpoint to view all token requests
-app.get('/api/admin/token-requests', requireAdmin, (req, res) => {
+app.get('/api/admin/token-requests', requireAdmin, async (req, res) => {
   try {
-    const requests = db.prepare(`
+    const result = await pool.query(`
       SELECT tr.*, u.email, u.name as user_name
       FROM token_requests tr
       LEFT JOIN users u ON tr.user_id = u.id
       ORDER BY tr.submitted_at DESC
-    `).all();
+    `);
     
-    res.json(requests);
+    res.json(result.rows);
   } catch (error) {
     console.error('Error fetching admin token requests:', error);
     res.status(500).json({ error: 'Failed to fetch requests' });
@@ -1446,10 +1564,10 @@ app.get('/debug/env', (req, res) => {
 app.get('/healthz', (_req,res)=>res.json({ ok:true }));
 
 // Readiness endpoint: verify DB is accessible with a trivial query
-app.get('/ready', (_req, res) => {
+app.get('/ready', async (_req, res) => {
   try {
-    // simple query to ensure DB file and engine are responsive
-    db.prepare('SELECT 1').get();
+    // simple query to ensure DB connection is responsive
+    await pool.query('SELECT 1');
     res.json({ ok: true, db: true });
   } catch (err) {
     console.error('Readiness check failed', err && err.stack ? err.stack : err);
@@ -1514,12 +1632,11 @@ app.post('/admin/sql', requireAdmin, async (req, res) => {
   }
   
   try {
-    if (sql.toLowerCase().startsWith('select') || sql.toLowerCase().startsWith('pragma')) {
-      const result = db.prepare(sql).all();
-      return res.json({ ok: true, result });
+    const result = await pool.query(sql);
+    if (result.rows) {
+      return res.json({ ok: true, result: result.rows });
     } else {
-      db.exec(sql);
-      return res.json({ ok: true, message: 'SQL executed successfully' });
+      return res.json({ ok: true, message: 'SQL executed successfully', rowCount: result.rowCount });
     }
   } catch (e) {
     console.error('SQL execution failed:', e);
@@ -1530,14 +1647,28 @@ app.post('/admin/sql', requireAdmin, async (req, res) => {
 app.post('/admin/schema', requireAdmin, async (req, res) => {
   
   try {
-    const userColumns = db.prepare('PRAGMA table_info(users)').all();
-    const userPrefsColumns = db.prepare('PRAGMA table_info(user_prefs)').all();
-    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+    const tablesResult = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `);
+    
+    const userColumnsResult = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'users'
+    `);
+    
+    const userPrefsColumnsResult = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'user_prefs'
+    `);
     
     return res.json({ 
-      tables: tables.map(t => t.name),
-      users_columns: userColumns,
-      user_prefs_columns: userPrefsColumns
+      tables: tablesResult.rows.map(t => t.table_name),
+      users_columns: userColumnsResult.rows,
+      user_prefs_columns: userPrefsColumnsResult.rows
     });
   } catch (e) {
     return res.status(500).json({ ok: false, error: String(e) });
@@ -1547,68 +1678,47 @@ app.post('/admin/schema', requireAdmin, async (req, res) => {
 app.post('/admin/migrate', requireAdmin, async (req, res) => {
   
   try {
-    // Check if users table has the required columns
-    const userColumns = db.prepare('PRAGMA table_info(users)').all();
-    const columnNames = userColumns.map(col => col.name);
+    // For PostgreSQL, migrations should be run via migrate.js script
+    // This endpoint provides schema information only
+    const userColumnsResult = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'users'
+    `);
     
-    // Users table columns verified
+    const columnNames = userColumnsResult.rows.map(col => col.column_name);
     
-    const missingColumns = [];
-    if (!columnNames.includes('google_id')) missingColumns.push('google_id TEXT');
-    if (!columnNames.includes('email')) missingColumns.push('email TEXT');
-    if (!columnNames.includes('name')) missingColumns.push('name TEXT');
-    if (!columnNames.includes('avatar')) missingColumns.push('avatar TEXT');
-    if (!columnNames.includes('created_at')) missingColumns.push('created_at INTEGER DEFAULT (strftime(\'%s\',\'now\'))');
+    const expectedColumns = ['id', 'google_id', 'email', 'name', 'avatar', 'username', 'created_at'];
+    const missingColumns = expectedColumns.filter(col => !columnNames.includes(col));
     
     if (missingColumns.length > 0) {
-      // Adding missing database columns
-      for (const column of missingColumns) {
-        const sql = `ALTER TABLE users ADD COLUMN ${column}`;
-        // Executing column addition
-        db.exec(sql);
-      }
-      
-      // Also create user_prefs table if it doesn't exist
-      db.exec(`CREATE TABLE IF NOT EXISTS user_prefs (
-        user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-        watchlist_json TEXT NOT NULL DEFAULT '[]',
-        severity_json  TEXT NOT NULL DEFAULT '["critical","warning","info"]',
-        show_all       INTEGER NOT NULL DEFAULT 0,
-        dismissed_json TEXT NOT NULL DEFAULT '[]',
-        updated_at     INTEGER NOT NULL DEFAULT (strftime('%s','now'))
-      )`);
-      
-      // Database schema updated
-      return res.json({ ok: true, added: missingColumns, message: 'Schema updated' });
+      return res.json({ 
+        ok: false, 
+        message: 'Migrations needed. Run: npm run migrate', 
+        missing: missingColumns 
+      });
     } else {
-      return res.json({ ok: true, message: 'Schema already up to date' });
+      return res.json({ ok: true, message: 'Schema up to date' });
     }
   } catch (e) {
-    console.error('Migration failed:', e);
+    console.error('Migration check failed:', e);
     return res.status(500).json({ ok: false, error: String(e) });
   }
 });
 
 app.post('/admin/backup', requireAdmin, async (req, res) => {
   try {
-    fs.mkdirSync(BACKUP_DIR, { recursive: true });
-    const iso = new Date().toISOString().replace(/[:.]/g, '-');
-    const out = path.join(BACKUP_DIR, `app-${iso}.db`);
-
-    // Try VACUUM INTO (safe); fall back to file copy
-    try {
-      db.pragma('journal_mode = WAL');
-      db.exec(`VACUUM INTO '${out.replace(/'/g, "''")}'`);
-      // Admin backup created (VACUUM)
-      return res.json({ ok: true, method: 'vacuum', path: out });
-    } catch (e) {
-      console.warn('VACUUM INTO failed, falling back to copy:', e && e.message);
-      fs.copyFileSync(DB_PATH, out);
-      // Admin backup created (copy)
-      return res.json({ ok: true, method: 'copy', path: out });
-    }
+    // For PostgreSQL, backups are managed by Railway
+    // Railway provides automatic backups for PostgreSQL databases
+    
+    return res.json({ 
+      ok: true, 
+      message: 'PostgreSQL backups are managed by Railway automatically',
+      command: 'For local backups, use: pg_dump $DATABASE_URL > backup.sql',
+      note: 'Railway provides point-in-time recovery for PostgreSQL'
+    });
   } catch (e) {
-    console.error('Admin backup failed', e && e.stack ? e.stack : e);
+    console.error('Admin backup info failed', e && e.stack ? e.stack : e);
     return res.status(500).json({ ok: false, error: String(e) });
   }
 });
@@ -1644,33 +1754,27 @@ app.get('/admin/backups/:file', requireAdmin, (req, res) => {
 });
 
 // Get users list as JSON (admin only)
-app.get('/admin/users', requireAdmin, (req, res) => {
+app.get('/admin/users', requireAdmin, async (req, res) => {
   try{
     // Get users with their preferences
-    let users;
-    try{
-      users = db.prepare(`
-        SELECT 
-          u.id, 
-          u.email, 
-          u.name, 
-          u.username, 
-          u.avatar, 
-          u.google_id,
-          u.created_at,
-          p.watchlist_json,
-          p.updated_at as prefs_updated_at
-        FROM users u
-        LEFT JOIN user_prefs p ON u.id = p.user_id
-        ORDER BY u.created_at DESC
-      `).all();
-    }catch{
-      users = db.prepare('SELECT id, email, name, username, avatar, google_id FROM users ORDER BY id').all();
-      users.forEach(r => { r.created_at = null; r.watchlist_json = '[]'; r.prefs_updated_at = null; });
-    }
+    const result = await pool.query(`
+      SELECT 
+        u.id, 
+        u.email, 
+        u.name, 
+        u.username, 
+        u.avatar, 
+        u.google_id,
+        u.created_at,
+        p.watchlist_json,
+        p.updated_at as prefs_updated_at
+      FROM users u
+      LEFT JOIN user_prefs p ON u.id = p.user_id
+      ORDER BY u.created_at DESC
+    `);
     
     // Parse watchlist and add metadata
-    const enriched = users.map(u => {
+    const enriched = result.rows.map(u => {
       let watchlist = [];
       try {
         watchlist = JSON.parse(u.watchlist_json || '[]');
@@ -1698,16 +1802,11 @@ app.get('/admin/users', requireAdmin, (req, res) => {
 });
 
 // Export users as CSV
-app.get('/admin/export/users.csv', requireAdmin, (req, res) => {
+app.get('/admin/export/users.csv', requireAdmin, async (req, res) => {
   try{
-    // Try to include created_at if present
-    let rows;
-    try{
-      rows = db.prepare('SELECT id, email, name, username, avatar, created_at FROM users').all();
-    }catch{
-      rows = db.prepare('SELECT id, email, name, username, avatar FROM users').all();
-      rows.forEach(r => r.created_at = null);
-    }
+    const result = await pool.query('SELECT id, email, name, username, avatar, created_at FROM users');
+    const rows = result.rows;
+    
     const header = ['id','email','name','username','avatar','created_at'];
     const lines = [header.join(',')];
     const esc = v => {
@@ -1726,11 +1825,16 @@ app.get('/admin/export/users.csv', requireAdmin, (req, res) => {
 });
 
 // Export recent audit logs as CSV (default 30 days)
-app.get('/admin/export/audit.csv', requireAdmin, (req, res) => {
+app.get('/admin/export/audit.csv', requireAdmin, async (req, res) => {
   try{
     const days = Math.max(1, Math.min(365, parseInt(String(req.query.days||'30')) || 30));
-    const since = db.prepare("SELECT strftime('%s','now') - ? AS cutoff").get(days*86400).cutoff;
-    const rows = db.prepare('SELECT ts, user_id, email, event, detail FROM audit_log WHERE ts >= ? ORDER BY ts DESC').all(since);
+    const cutoffSeconds = Math.floor(Date.now()/1000) - (days * 86400);
+    const result = await pool.query(
+      'SELECT ts, user_id, email, event, detail FROM audit_log WHERE ts >= $1 ORDER BY ts DESC',
+      [cutoffSeconds]
+    );
+    const rows = result.rows;
+    
     const header = ['ts_iso','user_id','email','event','detail'];
     const lines = [header.join(',')];
     const esc = v => {
@@ -1927,8 +2031,11 @@ app.get('/auth/google/callback', async (req, res) => {
     const uid = `usr_${googleId}`; // simple mapping for demo
     // Creating new user
     
-    qUpsertUser.run(uid);
-    db.prepare('UPDATE users SET google_id=?, email=?, name=?, avatar=? WHERE id=?').run(googleId, email, name, avatar, uid);
+    await upsertUser(uid);
+    await pool.query(
+      'UPDATE users SET google_id=$1, email=$2, name=$3, avatar=$4 WHERE id=$5',
+      [googleId, email, name, avatar, uid]
+    );
     setSession(res, { uid });
     console.log('OAuth success, redirecting to profile');
     res.redirect('/profile');
@@ -1946,7 +2053,7 @@ app.post('/auth/logout', (req, res) => {
 
 // Start server and keep a reference so we can gracefully shut down
 server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT} - DB: ${maskPath(DB_PATH)} Backup: ${maskPath(BACKUP_DIR)}`);
+  console.log(`Server running on http://localhost:${PORT} - DB: PostgreSQL (${DATABASE_URL ? 'configured' : 'not set'})`);
 });
 
 // Wildcard fallback should be last: point to dist or root index

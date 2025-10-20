@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT,
   name TEXT,
   avatar TEXT,
-  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+  created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
 );
 
 CREATE TABLE IF NOT EXISTS user_prefs (
@@ -14,5 +14,5 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   severity_json  TEXT NOT NULL DEFAULT '["critical","warning","info"]',
   show_all       INTEGER NOT NULL DEFAULT 0,
   dismissed_json TEXT NOT NULL DEFAULT '[]',
-  updated_at     INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+  updated_at     BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
 );

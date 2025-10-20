@@ -1,51 +1,69 @@
 // Script to update tags for existing alerts
-const Database = require('better-sqlite3');
+const { Pool } = require('pg');
 const path = require('path');
 
-const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, 'data');
-const DB_PATH = process.env.DATABASE_PATH || path.join(DATA_DIR, 'clg.sqlite');
+const DATABASE_URL = process.env.DATABASE_URL;
 
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
+if (!DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL environment variable is required');
+  process.exit(1);
+}
 
-// Get the count of alerts before update
-const countBefore = db.prepare('SELECT COUNT(*) as count FROM alerts').get().count;
-console.log(`Found ${countBefore} alerts total`);
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
+});
 
-// First ensure the alerts table exists
-db.exec(`
-  CREATE TABLE IF NOT EXISTS alerts (
-    id TEXT PRIMARY KEY,
-    token TEXT NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    severity TEXT NOT NULL DEFAULT 'info',
-    deadline TEXT NOT NULL,
-    tags TEXT DEFAULT '[]'
-  );
-`);
+async function updateTags() {
+  try {
+    // Get the count of alerts before update
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM alerts');
+    const countBefore = parseInt(countResult.rows[0].count);
+    console.log(`Found ${countBefore} alerts total`);
 
-// Initialize any NULL tags to empty array
-db.exec(`UPDATE alerts SET tags = '[]' WHERE tags IS NULL;`);
+    // First ensure the alerts table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS alerts (
+        id TEXT PRIMARY KEY,
+        token TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        severity TEXT NOT NULL DEFAULT 'info',
+        deadline TEXT NOT NULL,
+        tags TEXT DEFAULT '[]'
+      );
+    `);
 
-// First check all alerts in the database
-const alerts = db.prepare('SELECT * FROM alerts').all();
-console.log('Found alerts:', alerts);
+    // Initialize any NULL tags to empty array
+    await pool.query(`UPDATE alerts SET tags = '[]' WHERE tags IS NULL;`);
 
-// Update all alerts, forcing new tag format based on severity
-const updateTags = db.prepare(`
-  UPDATE alerts 
-  SET tags = CASE 
-    WHEN severity = 'critical' THEN '["hack","exploit"]'
-    WHEN severity = 'warning' THEN '["community","migration"]'
-    WHEN severity = 'info' THEN '["community","news"]'
-    ELSE '[]'
-  END
-  WHERE tags = '[]' OR tags IS NULL OR tags = '' OR json_valid(tags) = 0;
-`);
+    // First check all alerts in the database
+    const alertsResult = await pool.query('SELECT * FROM alerts');
+    console.log('Found alerts:', alertsResult.rows);
 
-console.log('Updating tags for existing alerts...');
-const result = updateTags.run();
-console.log(`Updated ${result.changes} alerts`);
+    // Update all alerts, forcing new tag format based on severity
+    // PostgreSQL doesn't have json_valid, but we can check for empty/null
+    console.log('Updating tags for existing alerts...');
+    const result = await pool.query(`
+      UPDATE alerts 
+      SET tags = CASE 
+        WHEN severity = 'critical' THEN '["hack","exploit"]'
+        WHEN severity = 'warning' THEN '["community","migration"]'
+        WHEN severity = 'info' THEN '["community","news"]'
+        ELSE '[]'
+      END
+      WHERE tags = '[]' OR tags IS NULL OR tags = '';
+    `);
+    
+    console.log(`Updated ${result.rowCount} alerts`);
 
-db.close();
+    await pool.end();
+    console.log('Tag update complete');
+  } catch (error) {
+    console.error('Tag update error:', error);
+    await pool.end();
+    process.exit(1);
+  }
+}
+
+updateTags();
