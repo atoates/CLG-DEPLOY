@@ -37,10 +37,6 @@ async function updateTags() {
     // Initialize any NULL tags to empty array
     await pool.query(`UPDATE alerts SET tags = '[]' WHERE tags IS NULL;`);
 
-    // First check all alerts in the database
-    const alertsResult = await pool.query('SELECT * FROM alerts');
-    console.log('Found alerts:', alertsResult.rows);
-
     // Update all alerts, forcing new tag format based on severity
     // PostgreSQL doesn't have json_valid, but we can check for empty/null
     console.log('Updating tags for existing alerts...');
