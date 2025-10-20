@@ -2141,6 +2141,20 @@ app.get('*', (_req,res) => {
 // Start server and keep a reference so we can gracefully shut down
 // Listen on 0.0.0.0 so Railway can proxy traffic to the container
 server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT} - DB: PostgreSQL (${DATABASE_URL ? 'configured' : 'not set'})`);
+  console.log(`✅ Server running on port ${PORT} - DB: PostgreSQL (${DATABASE_URL ? 'configured' : 'not set'})`);
+  console.log(`✅ Server listening on 0.0.0.0:${PORT}`);
+  console.log(`✅ Process ID: ${process.pid}`);
+  console.log(`✅ Node version: ${process.version}`);
 });
+
+server.on('error', (error) => {
+  console.error('❌ Server error:', error);
+  process.exit(1);
+});
+
+// Keep the process alive
+process.stdin.resume();
+
+console.log('🔄 Server.js execution continuing after app.listen...');
+
 
