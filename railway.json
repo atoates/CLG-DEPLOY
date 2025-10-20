@@ -4,7 +4,9 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "node migrate.js && node restore-alerts.js && node update-tags.js && node update-specific-tags.js && node server.js",
+    "startCommand": "node server.js",
+    "healthcheckPath": "/healthz",
+    "preDeployCommand": "node migrate.js && node restore-alerts.js && node update-tags.js && node update-specific-tags.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
