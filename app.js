@@ -275,6 +275,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load alerts and enrich token suggestions from them
   await loadAlertsFromServer();
   await enrichTokensFromAlerts();
+  // Fetch token metadata for autocomplete
+  await fetchTokenMetadata();
+  initTokenAutocomplete();
   loadMarket();
   updateFilterVisibility('alerts'); // default tab
   // Wire the top-row 'Show all' toggle to control watchlist ignoring (local only)
@@ -287,17 +290,241 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 })();
 
-// --- Datalist ----------------------------------------------------------------
-function renderDatalist(){
-  if (!tokenDatalist) return;
-  tokenDatalist.innerHTML = '';
-  // sort + dedupe at render time to be safe
-  const list = Array.from(new Set(ALL_TOKENS.map(s=>String(s).toUpperCase()))).sort();
-  list.forEach(t => {
-    const opt = document.createElement('option');
-    opt.value = t;
-    tokenDatalist.appendChild(opt);
+// --- Token Autocomplete ------------------------------------------------------
+let tokenMetadata = []; // Array of {symbol: "BTC", name: "Bitcoin"}
+let autocompleteContainer = null;
+let selectedAutocompleteIndex = -1;
+
+async function fetchTokenMetadata() {
+  try {
+    const r = await fetch('/api/tokens');
+    if (r.ok) {
+      const data = await r.json();
+      tokenMetadata = data.tokens || [];
+      console.log(`Loaded ${tokenMetadata.length} tokens from ${data.provider || 'unknown'}`);
+    }
+  } catch (e) {
+    console.error('Failed to fetch token metadata:', e);
+    // Fallback to existing ALL_TOKENS
+    tokenMetadata = ALL_TOKENS.map(symbol => ({ symbol, name: symbol }));
+  }
+}
+
+function createAutocompleteContainer() {
+  if (autocompleteContainer) return;
+  
+  autocompleteContainer = document.createElement('div');
+  autocompleteContainer.className = 'token-autocomplete';
+  autocompleteContainer.style.display = 'none';
+  
+  // Insert after token input
+  if (tokenInput && tokenInput.parentNode) {
+    tokenInput.parentNode.style.position = 'relative';
+    tokenInput.parentNode.appendChild(autocompleteContainer);
+  }
+}
+
+function filterTokens(query) {
+  if (!query || query.length < 1) return [];
+  
+  const q = query.toLowerCase().trim();
+  
+  return tokenMetadata
+    .filter(token => {
+      const symbolMatch = token.symbol.toLowerCase().includes(q);
+      const nameMatch = token.name.toLowerCase().includes(q);
+      return symbolMatch || nameMatch;
+    })
+    .slice(0, 50) // Limit to 50 results
+    .sort((a, b) => {
+      // Prioritize exact matches at start
+      const aSymbolStart = a.symbol.toLowerCase().startsWith(q);
+      const bSymbolStart = b.symbol.toLowerCase().startsWith(q);
+      if (aSymbolStart && !bSymbolStart) return -1;
+      if (!aSymbolStart && bSymbolStart) return 1;
+      
+      const aNameStart = a.name.toLowerCase().startsWith(q);
+      const bNameStart = b.name.toLowerCase().startsWith(q);
+      if (aNameStart && !bNameStart) return -1;
+      if (!aNameStart && bNameStart) return 1;
+      
+      // Then alphabetically by symbol
+      return a.symbol.localeCompare(b.symbol);
+    });
+}
+
+function highlightMatch(text, query) {
+  if (!query) return text;
+  
+  const index = text.toLowerCase().indexOf(query.toLowerCase());
+  if (index === -1) return text;
+  
+  const before = text.slice(0, index);
+  const match = text.slice(index, index + query.length);
+  const after = text.slice(index + query.length);
+  
+  return `${before}<strong>${match}</strong>${after}`;
+}
+
+function showAutocomplete(matches, query) {
+  if (!autocompleteContainer) return;
+  
+  if (!matches.length) {
+    autocompleteContainer.style.display = 'none';
+    return;
+  }
+  
+  autocompleteContainer.innerHTML = '';
+  selectedAutocompleteIndex = -1;
+  
+  matches.forEach((token, idx) => {
+    const item = document.createElement('div');
+    item.className = 'autocomplete-item';
+    item.dataset.index = idx;
+    item.dataset.symbol = token.symbol;
+    
+    const displayText = `${token.name} | ${token.symbol}`;
+    item.innerHTML = highlightMatch(displayText, query);
+    
+    item.addEventListener('click', () => {
+      selectToken(token.symbol);
+    });
+    
+    item.addEventListener('mouseenter', () => {
+      selectedAutocompleteIndex = idx;
+      updateAutocompleteSelection();
+    });
+    
+    autocompleteContainer.appendChild(item);
   });
+  
+  autocompleteContainer.style.display = 'block';
+}
+
+function hideAutocomplete() {
+  if (autocompleteContainer) {
+    autocompleteContainer.style.display = 'none';
+    selectedAutocompleteIndex = -1;
+  }
+}
+
+function updateAutocompleteSelection() {
+  if (!autocompleteContainer) return;
+  
+  const items = autocompleteContainer.querySelectorAll('.autocomplete-item');
+  items.forEach((item, idx) => {
+    if (idx === selectedAutocompleteIndex) {
+      item.classList.add('selected');
+    } else {
+      item.classList.remove('selected');
+    }
+  });
+}
+
+function selectToken(symbol) {
+  const upper = symbol.toUpperCase().trim();
+  if (!upper || selectedTokens.includes(upper)) {
+    hideAutocomplete();
+    tokenInput.value = '';
+    return;
+  }
+  
+  selectedTokens.push(upper);
+  persistPrefsServerDebounced();
+  renderAll();
+  loadMarket();
+  loadAutoAlerts().then(renderAlerts);
+  
+  tokenInput.value = '';
+  hideAutocomplete();
+  tokenInput.focus();
+}
+
+function initTokenAutocomplete() {
+  if (!tokenInput) return;
+  
+  createAutocompleteContainer();
+  
+  // Remove datalist attribute if present
+  tokenInput.removeAttribute('list');
+  
+  // Input event for filtering
+  tokenInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    if (query.length < 1) {
+      hideAutocomplete();
+      return;
+    }
+    
+    const matches = filterTokens(query);
+    showAutocomplete(matches, query);
+  });
+  
+  // Keyboard navigation
+  tokenInput.addEventListener('keydown', (e) => {
+    if (!autocompleteContainer || autocompleteContainer.style.display === 'none') {
+      if (e.key === 'Enter') {
+        // Try to add current value as-is
+        const val = tokenInput.value.toUpperCase().trim();
+        if (val) selectToken(val);
+      }
+      return;
+    }
+    
+    const items = autocompleteContainer.querySelectorAll('.autocomplete-item');
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectedAutocompleteIndex = Math.min(selectedAutocompleteIndex + 1, items.length - 1);
+      updateAutocompleteSelection();
+      
+      // Scroll into view
+      if (items[selectedAutocompleteIndex]) {
+        items[selectedAutocompleteIndex].scrollIntoView({ block: 'nearest' });
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectedAutocompleteIndex = Math.max(selectedAutocompleteIndex - 1, -1);
+      updateAutocompleteSelection();
+      
+      if (selectedAutocompleteIndex >= 0 && items[selectedAutocompleteIndex]) {
+        items[selectedAutocompleteIndex].scrollIntoView({ block: 'nearest' });
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedAutocompleteIndex >= 0 && items[selectedAutocompleteIndex]) {
+        const symbol = items[selectedAutocompleteIndex].dataset.symbol;
+        selectToken(symbol);
+      } else {
+        // Select first match
+        if (items.length > 0) {
+          const symbol = items[0].dataset.symbol;
+          selectToken(symbol);
+        }
+      }
+    } else if (e.key === 'Escape') {
+      hideAutocomplete();
+      tokenInput.blur();
+    }
+  });
+  
+  // Hide on blur (with delay to allow click events)
+  tokenInput.addEventListener('blur', () => {
+    setTimeout(() => hideAutocomplete(), 200);
+  });
+  
+  // Show all on focus if empty
+  tokenInput.addEventListener('focus', () => {
+    if (tokenInput.value.trim().length === 0) {
+      const topTokens = tokenMetadata.slice(0, 50);
+      showAutocomplete(topTokens, '');
+    }
+  });
+}
+
+// Legacy function for compatibility
+function renderDatalist() {
+  // No longer needed - using custom autocomplete
 }
 
 // Add-all control: adds entire suggestions list to watchlist
@@ -381,30 +608,28 @@ function updateFilterVisibility(tab){
 
 // --- Token Add ---------------------------------------------------------------
 addTokenBtn.addEventListener('click', tryAddTokenFromInput);
-tokenInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') tryAddTokenFromInput();
-});
-// Add on input change: when a datalist option is chosen, this fires; try add if valid
-tokenInput.addEventListener('change', () => {
-  tryAddTokenFromInput();
-});
+
 function tryAddTokenFromInput(){
   const val = (tokenInput.value || '').toUpperCase().trim();
   if (!val) return;
-  // Accept user-provided symbols that pass basic validation, even if not pre-listed
-  if (!ALL_TOKENS.includes(val)){
-    if (/^[A-Z0-9]{2,15}$/.test(val)) { ALL_TOKENS.push(val); renderDatalist(); }
-    else { tokenInput.value = ''; return; }
+  
+  // Try to match against token metadata first
+  const match = tokenMetadata.find(t => 
+    t.symbol.toUpperCase() === val || 
+    t.name.toUpperCase() === val
+  );
+  
+  const symbolToAdd = match ? match.symbol.toUpperCase() : val;
+  
+  // Accept user-provided symbols that pass basic validation, even if not in metadata
+  if (!match && !/^[A-Z0-9]{2,15}$/.test(val)) {
+    tokenInput.value = '';
+    hideAutocomplete();
+    return;
   }
-  if (!selectedTokens.includes(val)){
-    selectedTokens.push(val);
-    persistPrefsServerDebounced();
-    renderAll();
-    loadMarket();
-    loadAutoAlerts().then(renderAlerts);
-  }
-  tokenInput.value = '';
-  tokenInput.focus();
+  
+  // Use selectToken helper which handles all the logic
+  selectToken(symbolToAdd);
 }
 
 // --- Show all toggle ---------------------------------------------------------

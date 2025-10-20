@@ -1067,6 +1067,75 @@ async function getCmcIdsForSymbols(symbols) {
   return ids;
 }
 
+// Cache for token metadata (symbol + name)
+let cachedTokenList = null;
+let tokenListTimestamp = 0;
+const TOKEN_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+app.get('/api/tokens', async (req, res) => {
+  // Return cached list if valid
+  if (cachedTokenList && (Date.now() - tokenListTimestamp < TOKEN_CACHE_TTL)) {
+    return res.json({ tokens: cachedTokenList, cached: true });
+  }
+
+  const tokens = [];
+
+  // If CMC API is configured, fetch comprehensive token list
+  if (CMC_API_KEY) {
+    try {
+      // Fetch top 5000 tokens by market cap
+      const url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/map?limit=5000&sort=cmc_rank';
+      const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
+      if (r.ok) {
+        const j = await r.json();
+        const rows = Array.isArray(j?.data) ? j.data : [];
+        rows.forEach(row => {
+          const symbol = String(row.symbol || '').toUpperCase();
+          const name = String(row.name || '').trim();
+          if (symbol && name) {
+            tokens.push({ symbol, name });
+          }
+        });
+        
+        // Cache the results
+        cachedTokenList = tokens;
+        tokenListTimestamp = Date.now();
+        
+        return res.json({ tokens, cached: false, provider: 'cmc' });
+      }
+    } catch (err) {
+      console.error('Failed to fetch CMC token list:', err.message);
+    }
+  }
+
+  // Fallback: Get unique tokens from database alerts
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT token 
+      FROM alerts 
+      WHERE token IS NOT NULL 
+      ORDER BY token
+    `);
+    
+    result.rows.forEach(row => {
+      const symbol = String(row.token || '').toUpperCase();
+      if (symbol) {
+        // Use symbol as name if we don't have CMC data
+        tokens.push({ symbol, name: symbol });
+      }
+    });
+    
+    // Cache fallback results too
+    cachedTokenList = tokens;
+    tokenListTimestamp = Date.now();
+    
+    return res.json({ tokens, cached: false, provider: 'fallback' });
+  } catch (err) {
+    console.error('Failed to fetch tokens from database:', err.message);
+    return res.status(500).json({ error: 'Failed to fetch token list' });
+  }
+});
+
 app.get('/api/market/snapshot', async (req, res) => {
   const symbols = String(req.query.symbols||'').split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
   if (!symbols.length) return res.json({ items:[], note:'No symbols selected.', provider: CMC_API_KEY ? 'cmc' : 'none' });
