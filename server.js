@@ -2121,8 +2121,9 @@ app.post('/auth/logout', (req, res) => {
 });
 
 // Start server and keep a reference so we can gracefully shut down
-server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT} - DB: PostgreSQL (${DATABASE_URL ? 'configured' : 'not set'})`);
+// Listen on 0.0.0.0 so Railway can proxy traffic to the container
+server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT} - DB: PostgreSQL (${DATABASE_URL ? 'configured' : 'not set'})`);
 });
 
 // Wildcard fallback should be last: point to dist or root index
