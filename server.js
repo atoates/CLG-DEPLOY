@@ -2164,4 +2164,9 @@ process.stdin.resume();
 
 console.log('🔄 Server.js execution continuing after app.listen...');
 
+// Periodic heartbeat log to verify the container stays up and responsive
+setInterval(() => {
+  console.log(`💓 heartbeat ${new Date().toISOString()}`);
+}, 15000);
+
 
