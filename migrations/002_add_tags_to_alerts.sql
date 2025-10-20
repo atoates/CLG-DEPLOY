@@ -10,10 +10,10 @@ SET tags = CASE
 END
 WHERE tags IS NULL OR tags = '';
 
--- Add new columns for extended alert metadata
-ALTER TABLE alerts ADD COLUMN further_info TEXT DEFAULT '';
-ALTER TABLE alerts ADD COLUMN source_type TEXT DEFAULT '';
-ALTER TABLE alerts ADD COLUMN source_url TEXT DEFAULT '';
+-- Add new columns for extended alert metadata (PostgreSQL 9.6+ supports IF NOT EXISTS)
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS further_info TEXT DEFAULT '';
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT '';
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS source_url TEXT DEFAULT '';
 
 -- Ensure tags is not NULL for any alerts
 UPDATE alerts SET tags = '[]' WHERE tags IS NULL;
