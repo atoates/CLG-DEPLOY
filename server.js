@@ -1669,10 +1669,12 @@ function gracefulShutdown(code = 0) {
   server.close(() => {
     console.log('HTTP server closed');
     try {
-      db.close();
-      console.log('Database closed');
+      if (pool) {
+        pool.end();
+        console.log('Database pool closed');
+      }
     } catch (e) {
-      console.error('Error closing database', e);
+      console.error('Error closing database pool', e);
     }
     process.exit(code);
   });
@@ -1680,7 +1682,7 @@ function gracefulShutdown(code = 0) {
   // Force exit if shutdown takes too long
   setTimeout(() => {
     console.error('Forcing shutdown after timeout');
-    try { db.close(); } catch (e) {}
+    try { if (pool) pool.end(); } catch (e) {}
     process.exit(1);
   }, 10_000).unref();
 }
