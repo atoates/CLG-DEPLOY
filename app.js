@@ -103,6 +103,7 @@ const pillsRow        = document.getElementById('selected-tokens');
 const tabs            = document.querySelectorAll('.tab');
 const panelAlerts     = document.getElementById('panel-alerts');
 const panelSummary    = document.getElementById('panel-summary');
+const summaryModelSel = document.getElementById('summary-model');
 const panelNews       = document.getElementById('panel-news');
 const panelMarket     = document.getElementById('panel-market');
 
@@ -309,6 +310,14 @@ document.addEventListener('DOMContentLoaded', () => {
   
   if (showAllTokensToggle) showAllTokensToggle.checked = !!showAllTokens;
   syncSevUi();
+
+  // Restore summary model selection
+  if (summaryModelSel){
+    try {
+      const savedModel = localStorage.getItem('clg_summary_model');
+      if (savedModel) summaryModelSel.value = savedModel;
+    } catch {}
+  }
 
   // Render + load data
   renderDatalist();
@@ -1296,7 +1305,8 @@ async function renderSummary(){
         alerts: visibleAlerts,
         tokens: showAllTokens ? getUniqueTokensFromAlerts(visibleAlerts) : selectedTokens,
         sevFilter: sevFilter,
-        tagFilter: tagFilter
+        tagFilter: tagFilter,
+        model: getSelectedModel()
       })
     });
 
@@ -1384,6 +1394,21 @@ function updateSummaryIfActive() {
   if (!panelSummary.hidden) {
     renderSummary();
   }
+}
+
+// --- Summary model selection -----------------------------------------------
+function getSelectedModel(){
+  try {
+    if (summaryModelSel && summaryModelSel.value) return summaryModelSel.value;
+    const saved = localStorage.getItem('clg_summary_model');
+    return saved || 'auto';
+  } catch { return 'auto'; }
+}
+if (summaryModelSel){
+  summaryModelSel.addEventListener('change', () => {
+    try { localStorage.setItem('clg_summary_model', summaryModelSel.value); } catch {}
+    updateSummaryIfActive();
+  });
 }
 
 // Helper function to get unique tokens from alerts
