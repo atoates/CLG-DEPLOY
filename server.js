@@ -2158,7 +2158,17 @@ if (fs.existsSync(distDir)) {
 // Always serve the Vite public/ directory (for icons, static assets)
 const publicDir = path.resolve(__dirname, 'public');
 if (fs.existsSync(publicDir)) {
+  // Serve entire public directory
   app.use(express.static(publicDir));
+  // Explicit mount for /icons to avoid SPA fallback and add cache headers
+  const publicIconsDir = path.join(publicDir, 'icons');
+  if (fs.existsSync(publicIconsDir)) {
+    app.use('/icons', express.static(publicIconsDir, {
+      setHeaders: (res, filePath) => {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    }));
+  }
 }
 // In local dev without a Vite build, also serve static files from the project root
 app.use(express.static(__dirname));

@@ -168,7 +168,7 @@ body{
   font-family: 'Poppins', 'Montserrat', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
     "Helvetica Neue", Arial, "Noto Sans";
   color:var(--ink);
-  background: var(--sandy-beige);
+  background: var(--sandy-beige) url('/background.webp') center/cover no-repeat fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   animation: pageFadeIn .4s ease-out both;
@@ -994,6 +994,8 @@ button#user-menu-btn.menu-btn{
 .alert-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top: 8px; }
 .alert-actions .btn{ height:36px; padding: 8px 12px; border-radius: 10px; font-size: 13px; }
 .alert-actions .btn-ghost{ color: var(--ocean-blue); border: 1px solid rgba(30,144,255,0.2); }
+/* Hide Acknowledge button from alert actions */
+.alert-actions .btn.btn-primary{ display:none !important; }
 
 /* Read more UI for alert cards */
 .more-toggle {

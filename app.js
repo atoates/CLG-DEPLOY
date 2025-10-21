@@ -1220,14 +1220,6 @@ function renderAlerts(){
     const actions = document.createElement('div');
     actions.className = 'alert-actions';
 
-    const ack = document.createElement('button');
-    ack.className = 'btn btn-primary';
-    ack.textContent = 'Acknowledge Alert';
-    ack.addEventListener('click', () => {
-      dismissAlert(a);
-    });
-    actions.appendChild(ack);
-
     const discuss = document.createElement('button');
     discuss.className = 'btn btn-ghost';
     discuss.textContent = 'Discuss';
