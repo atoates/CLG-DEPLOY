@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# Build stamp: 2025-10-21 force rebuild
 
 # --- Builder: install dev deps and build frontend ---
 FROM node:18-alpine AS builder
