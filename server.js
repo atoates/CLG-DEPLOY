@@ -1739,15 +1739,21 @@ ${upcomingDeadlines.length > 0 ?
 // News fetching function using CryptoNews API
 async function fetchNewsForTokens(tokens) {
   try {
-    const cryptoNewsApiKey = process.env.NEWSAPI_KEY;
+    // Support multiple env var aliases to avoid staging/prod drift
+    const cryptoNewsApiKey = (
+      process.env.NEWSAPI_KEY
+      || process.env.NEWS_API
+      || process.env.CRYPTONEWS_API_KEY
+      || process.env.CRYPTO_NEWS_API_KEY
+    );
     
     // Validate API key is present and not a placeholder/invalid value
     const invalidKeys = ['undefined', 'null', '', 'fs', 'your-key-here', 'xxx'];
     if (!cryptoNewsApiKey || invalidKeys.includes(cryptoNewsApiKey.toLowerCase().trim())) {
-      console.warn(`[News API] Invalid or missing NEWSAPI_KEY: "${cryptoNewsApiKey}"`);
+      console.warn(`[News API] Invalid or missing NEWS API key. Checked env vars: NEWSAPI_KEY | NEWS_API | CRYPTONEWS_API_KEY | CRYPTO_NEWS_API_KEY. Got: "${cryptoNewsApiKey}"`);
       return [{
         title: "CryptoNews API Key Missing",
-        description: "NEWSAPI_KEY environment variable is not configured or invalid",
+        description: "NEWS API key environment variable is not configured or invalid (expected one of: NEWSAPI_KEY, NEWS_API, CRYPTONEWS_API_KEY)",
         url: "#",
         publishedAt: new Date().toISOString(),
         source: { name: "Configuration Error" },
@@ -1769,7 +1775,8 @@ async function fetchNewsForTokens(tokens) {
     // Log basic context for debugging in staging/test
     try {
       const envName = (process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV || 'production').toLowerCase();
-      console.log(`[News API] env=${envName} tokens=${Array.isArray(tokens)?tokens.join(','):''}`);
+      const keyUsed = cryptoNewsApiKey ? `${String(cryptoNewsApiKey).slice(0,6)}…(${String(cryptoNewsApiKey).length})` : 'none';
+      console.log(`[News API] env=${envName} key=${keyUsed} tokens=${Array.isArray(tokens)?tokens.join(','):''}`);
     } catch {}
 
     // Fetch news for each token individually to ensure coverage
@@ -1938,6 +1945,10 @@ app.get('/debug/env', (req, res) => {
     CMC_API_KEY_SET: !!CMC_API_KEY,
     CMC_API_KEY_LENGTH: CMC_API_KEY ? CMC_API_KEY.length : 0,
     CMC_API_KEY_FIRST_8: CMC_API_KEY ? CMC_API_KEY.substring(0, 8) : 'not_set',
+    NEWS_API_KEY_SET: !!(process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY),
+    NEWS_API_KEY_PREFIX: (process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY)
+      ? (process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY).slice(0, 8)
+      : 'not_set',
     MARKET_CURRENCY_RESOLVED: MARKET_CURRENCY,
     MARKET_CURRENCY_RAW: process.env.MARKET_CURRENCY || 'not_set_defaulting_to_GBP',
     RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT || 'not_set',
