@@ -27,3 +27,5 @@ A zero-dependency web prototype you can open in any modern browser. It lets user
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - Visit `/signup` to start; `/profile` shows current user and prefs.
 // Trigger deployment Thu Oct  2 12:53:35 BST 2025
+
+
