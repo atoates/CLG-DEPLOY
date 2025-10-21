@@ -1741,10 +1741,13 @@ async function fetchNewsForTokens(tokens) {
   try {
     const cryptoNewsApiKey = process.env.NEWSAPI_KEY;
     
-    if (!cryptoNewsApiKey || cryptoNewsApiKey === 'undefined') {
+    // Validate API key is present and not a placeholder/invalid value
+    const invalidKeys = ['undefined', 'null', '', 'fs', 'your-key-here', 'xxx'];
+    if (!cryptoNewsApiKey || invalidKeys.includes(cryptoNewsApiKey.toLowerCase().trim())) {
+      console.warn(`[News API] Invalid or missing NEWSAPI_KEY: "${cryptoNewsApiKey}"`);
       return [{
         title: "CryptoNews API Key Missing",
-        description: "NEWSAPI_KEY environment variable is not configured",
+        description: "NEWSAPI_KEY environment variable is not configured or invalid",
         url: "#",
         publishedAt: new Date().toISOString(),
         source: { name: "Configuration Error" },
@@ -1778,6 +1781,11 @@ async function fetchNewsForTokens(tokens) {
         if (response.ok) {
           const data = await response.json();
           
+          // Log API response for debugging
+          if (!data.data || data.data.length === 0) {
+            console.log(`[News API] No articles returned for ${token}. Response:`, JSON.stringify(data).substring(0, 200));
+          }
+          
           if (data.data && Array.isArray(data.data) && data.data.length > 0) {
             const tokenArticles = data.data.map(article => ({
               title: article.title || 'No title available',
@@ -1793,6 +1801,8 @@ async function fetchNewsForTokens(tokens) {
             
             allArticles.push(...tokenArticles);
           }
+        } else {
+          console.error(`[News API] HTTP ${response.status} for ${token}:`, await response.text().catch(() => 'Unable to read response'));
         }
         
         // Small delay between requests to be respectful to the API
