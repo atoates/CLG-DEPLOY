@@ -91,27 +91,45 @@ app.get('/api/logo/:symbol', async (req, res) => {
       return res.send(hit.body);
     }
 
-    // Try LogoKit primary
-    const primaryUrl = `https://api.logokit.dev/crypto/${sym}.svg?key=${LOGOKIT_API_KEY}`;
-    let r = await fetch(primaryUrl);
-    if (!r.ok) {
-      // Try secondary CDN
-      const cdnUrl = `https://img.logokit.com/crypto/${sym}?token=${LOGOKIT_API_KEY}&size=64&fallback=monogram`;
-      r = await fetch(cdnUrl);
+    // Helper to try a URL
+    async function tryUrl(url){
+      const resp = await fetch(url);
+      if (!resp.ok) return null;
+      const buf = Buffer.from(await resp.arrayBuffer());
+      const ct = resp.headers.get('content-type') || (url.endsWith('.svg') ? 'image/svg+xml' : 'image/png');
+      return { buf, ct };
     }
-    if (!r.ok) throw new Error(`logo http ${r.status}`);
 
-    const body = await r.arrayBuffer();
-    const ct = r.headers.get('content-type') || 'image/svg+xml';
-    logoCache.set(cacheKey, { t: Date.now(), contentType: ct, body: Buffer.from(body) });
-    res.setHeader('Content-Type', ct);
-    return res.send(Buffer.from(body));
+    // 1) LogoKit API (token param)
+    const urls = [
+      `https://api.logokit.dev/crypto/${sym}.svg?token=${LOGOKIT_API_KEY}`,
+      `https://img.logokit.com/crypto/${sym}?token=${LOGOKIT_API_KEY}&size=128`,
+    ];
+
+    // 2) Open-source cryptoicons fallback (SVG, color) — symbol is lowercase
+    const lower = sym.toLowerCase();
+    urls.push(`https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/svg/color/${lower}.svg`);
+
+    let found = null;
+    for (const u of urls){
+      try {
+        found = await tryUrl(u);
+        if (found) break;
+      } catch(_) {}
+    }
+    if (!found) throw new Error('no_logo');
+
+    logoCache.set(cacheKey, { t: Date.now(), contentType: found.ct, body: found.buf });
+    res.setHeader('Content-Type', found.ct);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.send(found.buf);
   } catch (e) {
     try {
       // Fallback to monogram SVG
       const sym = String(req.params.symbol || '').toUpperCase().slice(0,4);
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#e2e8f0"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="22" font-weight="700" fill="#1f2937">${sym}</text></svg>`;
       res.setHeader('Content-Type','image/svg+xml');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
       return res.send(svg);
     } catch(_e) {
       return res.status(204).end();
