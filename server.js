@@ -2282,7 +2282,7 @@ function getBaseUrl(req){
   try {
     const proto = (req.headers['x-forwarded-proto'] || req.protocol || '').toString().split(',')[0].trim() || 'http';
     const host = req.get('host');
-    if (host) return `${proto}://${host}`.replace(/\/+$/,'');
+  if (host) return `${proto}://${host}`.replace(/\/+$/,'');
   } catch {}
   return '';
 }
