@@ -12,6 +12,47 @@ const showAllToggle   = document.getElementById('toggle-show-all');
 
 const sevButtons      = document.querySelectorAll('.sev-btn');
 
+// --- Global UI/state bindings (restored) ------------------------------------
+// Safe defaults for user/session state
+let selectedTokens = [];
+let sevFilter = ['critical', 'warning', 'info'];
+let showAll = false;
+let hiddenKeys = new Set();
+let showAllTokens = false; // may be overridden by localStorage
+let isLoggedIn = false;
+
+// Alerts caches used across views
+let serverAlerts = [];
+let autoAlerts = [];
+
+// Currency/config placeholders populated by /api/market/config
+let CURRENCY_SYMBOL = '$';
+let CURRENCY_CODE = 'USD';
+let LOGOKIT_API_KEY = '';
+
+// DOM references used later in the module
+const tokenInput = document.getElementById('token-input');
+const showAllTokensToggle = document.getElementById('toggle-show-all-tokens');
+
+const alertsListEl = document.getElementById('alerts-list');
+const noAlertsEl = document.getElementById('no-alerts');
+
+const panelAlerts = document.getElementById('panel-alerts');
+const panelSummary = document.getElementById('panel-summary');
+const panelNews = document.getElementById('panel-news');
+const panelMarket = document.getElementById('panel-market');
+
+// Summary controls
+const summaryPrevBtn = document.getElementById('summary-prev');
+const summaryNextBtn = document.getElementById('summary-next');
+const summaryRefreshBtn = document.getElementById('summary-refresh');
+const summaryStampEl = document.getElementById('summary-stamp');
+
+// Tag/source dictionaries (fallback to globals if present)
+// alerts-tags.js (admin) exposes window.ALERT_TAGS; main app safeguards if not loaded
+const ALERT_TAGS = (window.ALERT_TAGS || {});
+const ALERT_SOURCE_TYPES = (window.ALERT_SOURCE_TYPES || {});
+
 // --- Server-backed prefs -----------------------------------------------------
 function persistPrefsServerDebounced(){
   clearTimeout(persistPrefsServerDebounced._t);
