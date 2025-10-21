@@ -12,10 +12,11 @@
     "update-tags": "node update-tags.js"
   },
   "dependencies": {
-    "pg": "^8.11.3",
     "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
     "dotenv": "^17.2.3",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "pg": "^8.11.3"
   },
   "devDependencies": {
     "vite": "^5.4.20"
