@@ -91,6 +91,11 @@ let tagPillsExpanded = false;
 let marketItems = [];
 let marketProvider = 'none';
 
+// Summary navigation button references (assigned in DOMContentLoaded)
+let summaryPrevBtn = null;
+let summaryNextBtn = null;
+let summaryRefreshBtn = null;
+
 // --- Helpers ---------------------------------------------------------------
 function fmtTimeLeft(ms){
   if (!Number.isFinite(ms)) return '';
@@ -367,10 +372,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Summary history navigation buttons (must run after DOM loads)
-  const summaryPrevBtn = document.getElementById('summary-prev');
-  const summaryNextBtn = document.getElementById('summary-next');
-  const summaryRefreshBtn = document.getElementById('summary-refresh');
+  // Summary history navigation buttons (assign to global variables, must run after DOM loads)
+  summaryPrevBtn = document.getElementById('summary-prev');
+  summaryNextBtn = document.getElementById('summary-next');
+  summaryRefreshBtn = document.getElementById('summary-refresh');
 
   if (summaryPrevBtn){
     summaryPrevBtn.addEventListener('click', async ()=>{
