@@ -1900,6 +1900,19 @@ app.get('/debug/env', (req, res) => {
   });
 });
 
+// OAuth debug to verify redirect URI & client configuration
+app.get('/debug/oauth', (req, res) => {
+  const base = getBaseUrl(req);
+  const redirectUri = `${String(base||'').replace(/\/+$/,'')}/auth/google/callback`;
+  res.json({
+    base,
+    redirectUri,
+    hasBaseEnv: !!BASE_URL,
+    GOOGLE_CLIENT_ID_PRESENT: !!GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_ID_PREFIX: GOOGLE_CLIENT_ID ? GOOGLE_CLIENT_ID.slice(0,16) : null
+  });
+});
+
 /* ---------------- Health + static SPA ---------------- */
 app.get('/healthz', (_req,res)=>res.json({ ok:true }));
 
