@@ -369,6 +369,62 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // Summary history navigation buttons (must run after DOM loads)
+  const summaryPrevBtn = document.getElementById('summary-prev');
+  const summaryNextBtn = document.getElementById('summary-next');
+  const summaryRefreshBtn = document.getElementById('summary-refresh');
+
+  if (summaryPrevBtn){
+    summaryPrevBtn.addEventListener('click', async ()=>{
+      if (!summaryHistory.length){
+        summaryHistory = await fetchRecentSummaries(10);
+        summaryIndex = 0;
+      }
+      const nextIdx = Math.min(summaryIndex + 1, summaryHistory.length - 1);
+      if (nextIdx !== summaryIndex){
+        summaryIndex = nextIdx;
+        const item = summaryHistory[summaryIndex];
+        renderSummaryFromSaved(item);
+        updateSummaryStamp(item);
+        updateSummaryHistoryNav(summaryHistory, summaryIndex);
+      }
+    });
+  }
+
+  if (summaryNextBtn){
+    summaryNextBtn.addEventListener('click', async ()=>{
+      if (!summaryHistory.length){
+        summaryHistory = await fetchRecentSummaries(10);
+        summaryIndex = 0;
+      }
+      const nextIdx = Math.max(summaryIndex - 1, 0);
+      if (nextIdx !== summaryIndex){
+        summaryIndex = nextIdx;
+        const item = summaryHistory[summaryIndex];
+        renderSummaryFromSaved(item);
+        updateSummaryStamp(item);
+        updateSummaryHistoryNav(summaryHistory, summaryIndex);
+      }
+    });
+  }
+
+  if (summaryRefreshBtn){
+    summaryRefreshBtn.addEventListener('click', async ()=>{
+      // Force generate a fresh summary using the existing renderSummary() flow
+      summaryHistory = [];
+      summaryIndex = -1;
+      renderSummary();
+      // After generation, fetch and bind latest list again to enable nav
+      setTimeout(async ()=>{
+        const list = await fetchRecentSummaries(10);
+        if (list.length){
+          updateSummaryHistoryNav(list, 0);
+          updateSummaryStamp(list[0]);
+        }
+      }, 1000);
+    });
+  }
 });
 
 // --- Init (boot) -------------------------------------------------------------
@@ -1512,57 +1568,6 @@ async function fetchRecentSummaries(limit=10){
     const j = await r.json();
     return Array.isArray(j.summaries) ? j.summaries : [];
   }catch{ return []; }
-}
-
-if (summaryPrevBtn){
-  summaryPrevBtn.addEventListener('click', async ()=>{
-    if (!summaryHistory.length){
-      summaryHistory = await fetchRecentSummaries(10);
-      summaryIndex = 0;
-    }
-    const nextIdx = Math.min(summaryIndex + 1, summaryHistory.length - 1);
-    if (nextIdx !== summaryIndex){
-      summaryIndex = nextIdx;
-      const item = summaryHistory[summaryIndex];
-      renderSummaryFromSaved(item);
-      updateSummaryStamp(item);
-      updateSummaryHistoryNav(summaryHistory, summaryIndex);
-    }
-  });
-}
-
-if (summaryNextBtn){
-  summaryNextBtn.addEventListener('click', async ()=>{
-    if (!summaryHistory.length){
-      summaryHistory = await fetchRecentSummaries(10);
-      summaryIndex = 0;
-    }
-    const nextIdx = Math.max(summaryIndex - 1, 0);
-    if (nextIdx !== summaryIndex){
-      summaryIndex = nextIdx;
-      const item = summaryHistory[summaryIndex];
-      renderSummaryFromSaved(item);
-      updateSummaryStamp(item);
-      updateSummaryHistoryNav(summaryHistory, summaryIndex);
-    }
-  });
-}
-
-if (summaryRefreshBtn){
-  summaryRefreshBtn.addEventListener('click', async ()=>{
-    // Force generate a fresh summary using the existing renderSummary() flow
-    summaryHistory = [];
-    summaryIndex = -1;
-    renderSummary();
-    // After generation, fetch and bind latest list again to enable nav
-    setTimeout(async ()=>{
-      const list = await fetchRecentSummaries(10);
-      if (list.length){
-        updateSummaryHistoryNav(list, 0);
-        updateSummaryStamp(list[0]);
-      }
-    }, 1000);
-  });
 }
 
 // Helper function to get visible alerts (same logic as main view)
