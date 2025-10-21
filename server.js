@@ -1766,6 +1766,12 @@ async function fetchNewsForTokens(tokens) {
       }];
     }
     
+    // Log basic context for debugging in staging/test
+    try {
+      const envName = (process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV || 'production').toLowerCase();
+      console.log(`[News API] env=${envName} tokens=${Array.isArray(tokens)?tokens.join(','):''}`);
+    } catch {}
+
     // Fetch news for each token individually to ensure coverage
     const allArticles = [];
     const itemsPerToken = Math.max(3, Math.ceil(15 / tokens.length)); // At least 3 per token, up to 15 total
@@ -1824,6 +1830,35 @@ async function fetchNewsForTokens(tokens) {
         .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
         .slice(0, 20); // Return up to 20 articles total
     } else {
+      // Fallback: try CryptoPanic public feed (rate-limited but better than empty)
+      try {
+        const top = tokens.slice(0, 5).join(',');
+        const cpUrl = `https://cryptopanic.com/api/v1/posts/?currencies=${encodeURIComponent(top)}&public=true&page_size=20`;
+        console.log(`[News Fallback] CryptoPanic ${cpUrl}`);
+        const r = await fetch(cpUrl, { timeout: 10000 });
+        if (r.ok) {
+          const cp = await r.json();
+          if (cp && Array.isArray(cp.results) && cp.results.length) {
+            const mapped = cp.results.map(p => ({
+              title: p.title || 'News',
+              description: p.description || p.title || '',
+              url: p.url || '#',
+              publishedAt: p.published_at || p.created_at || new Date().toISOString(),
+              source: { name: (p.source && (p.source.title || p.source.domain)) || 'CryptoPanic' },
+              sentiment: 'neutral',
+              tickers: Array.isArray(p.currencies) ? p.currencies.map(c => (c.code || '').toUpperCase()).filter(Boolean) : undefined,
+              token: Array.isArray(p.currencies) && p.currencies[0] ? (p.currencies[0].code || '').toUpperCase() : undefined
+            }));
+            console.log(`[News Fallback] CryptoPanic returned ${mapped.length} posts`);
+            return mapped.slice(0, 20);
+          }
+        } else {
+          console.error(`[News Fallback] CryptoPanic HTTP ${r.status}:`, await r.text().catch(()=>''));
+        }
+      } catch (e) {
+        console.error('[News Fallback] CryptoPanic error:', e && e.message ? e.message : e);
+      }
+
       return [{
         title: "No News Available",
         description: "No recent cryptocurrency news found for your selected tokens",
