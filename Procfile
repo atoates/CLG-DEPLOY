@@ -1,1 +1,1 @@
-web: node migrate.js && node restore-alerts.js && node update-tags.js && node update-specific-tags.js && node server.js
+web: node server.js

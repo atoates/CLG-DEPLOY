@@ -106,44 +106,19 @@ async function main() {
       );
       
       if (result.rowCount > 0) {
-        console.log(`✅ Updated: ${update.token} - ${update.title}`);
+        // Silently count updates to avoid log flooding
         updatedCount++;
       } else {
-        console.log(`⚠️  Not found: ${update.token} - ${update.title}`);
         notFoundCount++;
       }
     } catch (e) {
-      console.error(`❌ Error updating ${update.token} - ${update.title}:`, e.message);
+      console.error(`Error updating ${update.token} - ${update.title}:`, e.message);
     }
   }
 
-  console.log(`\nSummary:`);
-  console.log(`- Successfully updated: ${updatedCount} alerts`);
-  console.log(`- Not found: ${notFoundCount} alerts`);
-  console.log(`- Total attempted: ${alertUpdates.length} alerts`);
-
-  // Verify the updates
-  if (updatedCount > 0) {
-    console.log('\nVerifying updates...');
-    for (const update of alertUpdates) {
-      try {
-        const result = await pool.query(
-          'SELECT token, title, tags FROM alerts WHERE token = $1 AND title = $2',
-          [update.token, update.title]
-        );
-        
-        if (result.rows[0]) {
-          const alert = result.rows[0];
-          console.log(`${alert.token} - ${alert.title}: ${alert.tags}`);
-        }
-      } catch (e) {
-        console.error(`Error verifying ${update.token}:`, e.message);
-      }
-    }
-  }
+  console.log(`Tag updates: ${updatedCount} successful, ${notFoundCount} not found (${alertUpdates.length} total)`);
 
   await pool.end();
-  console.log('\nTag update script completed.');
 }
 
 main().catch(err => {

@@ -75,6 +75,68 @@ function ensureValidTags(tags) {
   }
 }
 
+/* ---------------- Token Logo Proxy (with caching) ---------------- */
+const logoCache = new Map(); // key -> { t, contentType, body }
+const LOGO_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+app.get('/api/logo/:symbol', async (req, res) => {
+  try {
+    const sym = String(req.params.symbol || '').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if (!sym) return res.status(400).send('bad symbol');
+
+    const cacheKey = `logo:${sym}`;
+    const hit = logoCache.get(cacheKey);
+    if (hit && Date.now() - hit.t < LOGO_TTL_MS) {
+      res.setHeader('Content-Type', hit.contentType || 'image/svg+xml');
+      return res.send(hit.body);
+    }
+
+    // Helper to try a URL
+    async function tryUrl(url){
+      const resp = await fetch(url);
+      if (!resp.ok) return null;
+      const buf = Buffer.from(await resp.arrayBuffer());
+      const ct = resp.headers.get('content-type') || (url.endsWith('.svg') ? 'image/svg+xml' : 'image/png');
+      return { buf, ct };
+    }
+
+    // 1) LogoKit API (token param)
+    const urls = [
+      `https://api.logokit.dev/crypto/${sym}.svg?token=${LOGOKIT_API_KEY}`,
+      `https://img.logokit.com/crypto/${sym}?token=${LOGOKIT_API_KEY}&size=128`,
+    ];
+
+    // 2) Open-source cryptoicons fallback (SVG, color) — symbol is lowercase
+    const lower = sym.toLowerCase();
+    urls.push(`https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/svg/color/${lower}.svg`);
+
+    let found = null;
+    for (const u of urls){
+      try {
+        found = await tryUrl(u);
+        if (found) break;
+      } catch(_) {}
+    }
+    if (!found) throw new Error('no_logo');
+
+    logoCache.set(cacheKey, { t: Date.now(), contentType: found.ct, body: found.buf });
+    res.setHeader('Content-Type', found.ct);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.send(found.buf);
+  } catch (e) {
+    try {
+      // Fallback to monogram SVG
+      const sym = String(req.params.symbol || '').toUpperCase().slice(0,4);
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#e2e8f0"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="22" font-weight="700" fill="#1f2937">${sym}</text></svg>`;
+      res.setHeader('Content-Type','image/svg+xml');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.send(svg);
+    } catch(_e) {
+      return res.status(204).end();
+    }
+  }
+});
+
 // Initialize database tables (migrations will handle schema properly, but ensure basics)
 async function initDB() {
   try {
@@ -246,6 +308,15 @@ const SOURCE_TYPES = [
 /* ---------------- Middleware ---------------- */
 app.use(express.json());
 app.use(cookieParser());
+
+// Request logging only when DEBUG_HTTP=true
+if (String(process.env.DEBUG_HTTP).toLowerCase() === 'true') {
+  app.use((req, res, next) => {
+    console.log(`📨 Incoming request: ${req.method} ${req.url} from ${req.ip}`);
+    next();
+  });
+}
+
 // Admin token + email helpers (reuse for admin-only APIs)
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'ali@crypto-lifeguard.com,jordan@crypto-lifeguard.com,george@crypto-lifeguard.com')
@@ -1243,6 +1314,15 @@ app.get('/api/market/config', (_req, res) => {
   });
 });
 
+// --- Environment API ---------------------------------------------------------
+app.get('/api/environment', (_req, res) => {
+  const env = process.env.NODE_ENV || process.env.RAILWAY_ENVIRONMENT || 'production';
+  res.json({ 
+    environment: env.toLowerCase(),
+    isProduction: env.toLowerCase() === 'production'
+  });
+});
+
 // --- AI Summary API ----------------------------------------------------------
 app.post('/api/summary/generate', async (req, res) => {
   try {
@@ -1660,10 +1740,12 @@ function gracefulShutdown(code = 0) {
   server.close(() => {
     console.log('HTTP server closed');
     try {
-      db.close();
-      console.log('Database closed');
+      if (pool) {
+        pool.end();
+        console.log('Database pool closed');
+      }
     } catch (e) {
-      console.error('Error closing database', e);
+      console.error('Error closing database pool', e);
     }
     process.exit(code);
   });
@@ -1671,7 +1753,7 @@ function gracefulShutdown(code = 0) {
   // Force exit if shutdown takes too long
   setTimeout(() => {
     console.error('Forcing shutdown after timeout');
-    try { db.close(); } catch (e) {}
+    try { if (pool) pool.end(); } catch (e) {}
     process.exit(1);
   }, 10_000).unref();
 }
@@ -1973,9 +2055,20 @@ function maskPath(p){
 
 // Start server and keep a reference so we can gracefully shut down
 /* ---------------- Google OAuth (minimal) ---------------- */
+// Compute a base URL from the incoming request when BASE_URL env isn't set.
+function getBaseUrl(req){
+  if (BASE_URL) return BASE_URL;
+  try {
+    const proto = (req.headers['x-forwarded-proto'] || req.protocol || '').toString().split(',')[0].trim() || 'http';
+    const host = req.get('host');
+    if (host) return `${proto}://${host}`;
+  } catch {}
+  return '';
+}
+
 function assertAuthConfig(){
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !BASE_URL) {
-    throw new Error('Missing GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/BASE_URL');
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    throw new Error('Missing GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET');
   }
 }
 
@@ -1999,9 +2092,10 @@ app.get('/auth/google', (req, res) => {
   
   // OAuth state generated
   
+  const base = getBaseUrl(req);
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
-    redirect_uri: `${BASE_URL}/auth/google/callback`,
+    redirect_uri: `${base}/auth/google/callback`,
     response_type: 'code',
     scope: 'openid email profile',
     state,
@@ -2054,12 +2148,13 @@ app.get('/auth/google/callback', async (req, res) => {
   
   try{
     // Exchange code
+    const base = getBaseUrl(req);
     const tokenParams = new URLSearchParams({
       client_id: GOOGLE_CLIENT_ID,
       client_secret: GOOGLE_CLIENT_SECRET,
       code: String(code),
       grant_type: 'authorization_code',
-      redirect_uri: `${BASE_URL}/auth/google/callback`
+      redirect_uri: `${base}/auth/google/callback`
     });
     
     // Exchanging OAuth code for tokens
@@ -2119,17 +2214,37 @@ app.post('/auth/logout', (req, res) => {
   if (sid) { sessions.delete(sid); res.clearCookie('sid', COOKIE_SECURE ? { secure: true, sameSite: 'lax', httpOnly: true } : undefined); }
   res.json({ ok:true });
 });
-
-// Start server and keep a reference so we can gracefully shut down
-// Listen on 0.0.0.0 so Railway can proxy traffic to the container
-server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT} - DB: PostgreSQL (${DATABASE_URL ? 'configured' : 'not set'})`);
-});
-
 // Wildcard fallback should be last: point to dist or root index
 app.get('*', (_req,res) => {
   if (fs.existsSync(distIndex)) return res.sendFile(distIndex);
   if (fs.existsSync(rootIndex)) return res.sendFile(rootIndex);
   res.status(404).send('Not found');
 });
+
+// Start server and keep a reference so we can gracefully shut down
+// Listen on 0.0.0.0 so Railway can proxy traffic to the container
+server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server running on port ${PORT} - DB: PostgreSQL (${DATABASE_URL ? 'configured' : 'not set'})`);
+  console.log(`✅ Server listening on 0.0.0.0:${PORT}`);
+  console.log(`✅ Process ID: ${process.pid}`);
+  console.log(`✅ Node version: ${process.version}`);
+});
+
+server.on('error', (error) => {
+  console.error('❌ Server error:', error);
+  process.exit(1);
+});
+
+// Keep the process alive
+process.stdin.resume();
+
+console.log('🔄 Server.js execution continuing after app.listen...');
+
+// Optional heartbeat only when DEBUG_HTTP=true
+if (String(process.env.DEBUG_HTTP).toLowerCase() === 'true') {
+  setInterval(() => {
+    console.log(`💓 heartbeat ${new Date().toISOString()}`);
+  }, 15000);
+}
+
 
