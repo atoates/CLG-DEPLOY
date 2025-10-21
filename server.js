@@ -2276,11 +2276,13 @@ function maskPath(p){
 /* ---------------- Google OAuth (minimal) ---------------- */
 // Compute a base URL from the incoming request when BASE_URL env isn't set.
 function getBaseUrl(req){
-  if (BASE_URL) return BASE_URL;
+  if (BASE_URL) {
+    try { return String(BASE_URL).replace(/\/+$/,''); } catch { return BASE_URL; }
+  }
   try {
     const proto = (req.headers['x-forwarded-proto'] || req.protocol || '').toString().split(',')[0].trim() || 'http';
     const host = req.get('host');
-    if (host) return `${proto}://${host}`;
+    if (host) return `${proto}://${host}`.replace(/\/+$/,'');
   } catch {}
   return '';
 }
