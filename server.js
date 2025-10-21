@@ -2037,9 +2037,20 @@ function maskPath(p){
 
 // Start server and keep a reference so we can gracefully shut down
 /* ---------------- Google OAuth (minimal) ---------------- */
+// Compute a base URL from the incoming request when BASE_URL env isn't set.
+function getBaseUrl(req){
+  if (BASE_URL) return BASE_URL;
+  try {
+    const proto = (req.headers['x-forwarded-proto'] || req.protocol || '').toString().split(',')[0].trim() || 'http';
+    const host = req.get('host');
+    if (host) return `${proto}://${host}`;
+  } catch {}
+  return '';
+}
+
 function assertAuthConfig(){
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !BASE_URL) {
-    throw new Error('Missing GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/BASE_URL');
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    throw new Error('Missing GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET');
   }
 }
 
@@ -2063,9 +2074,10 @@ app.get('/auth/google', (req, res) => {
   
   // OAuth state generated
   
+  const base = getBaseUrl(req);
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
-    redirect_uri: `${BASE_URL}/auth/google/callback`,
+    redirect_uri: `${base}/auth/google/callback`,
     response_type: 'code',
     scope: 'openid email profile',
     state,
@@ -2118,12 +2130,13 @@ app.get('/auth/google/callback', async (req, res) => {
   
   try{
     // Exchange code
+    const base = getBaseUrl(req);
     const tokenParams = new URLSearchParams({
       client_id: GOOGLE_CLIENT_ID,
       client_secret: GOOGLE_CLIENT_SECRET,
       code: String(code),
       grant_type: 'authorization_code',
-      redirect_uri: `${BASE_URL}/auth/google/callback`
+      redirect_uri: `${base}/auth/google/callback`
     });
     
     // Exchanging OAuth code for tokens
