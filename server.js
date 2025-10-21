@@ -2155,6 +2155,11 @@ if (fs.existsSync(distDir)) {
   // When built with Vite, prefer dist assets
   app.use(express.static(distDir));
 }
+// Always serve the Vite public/ directory (for icons, static assets)
+const publicDir = path.resolve(__dirname, 'public');
+if (fs.existsSync(publicDir)) {
+  app.use(express.static(publicDir));
+}
 // In local dev without a Vite build, also serve static files from the project root
 app.use(express.static(__dirname));
 // Also serve standalone pages explicitly
