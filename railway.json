@@ -6,7 +6,7 @@
   "deploy": {
     "startCommand": "node server.js",
     "healthcheckPath": "/healthz",
-    "preDeployCommand": "npm ci --omit=dev && npm run build || true && node migrate.js && node restore-alerts.js && node update-tags.js && node update-specific-tags.js",
+    "preDeployCommand": "npm ci && npm run build && node migrate.js && node restore-alerts.js && node update-tags.js && node update-specific-tags.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
