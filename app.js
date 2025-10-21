@@ -1058,7 +1058,14 @@ function renderAlerts(){
     const hidden = isHidden(a);
     if (showAll && hidden) wrap.classList.add('is-hidden');
 
-    // COIN LOGO/SYMBOL SECTION
+  // Accent strip (severity, with migration override)
+  const accent = document.createElement('div');
+  accent.className = 'alert-accent';
+  const tagsArrForAccent = getAlertTagsArray(a);
+  if (tagsArrForAccent.includes('migration')) accent.classList.add('accent-migration');
+  wrap.appendChild(accent);
+
+  // COIN LOGO/SYMBOL SECTION
     const coinSection = document.createElement('div');
     coinSection.className = 'coin-section';
     
@@ -1120,6 +1127,17 @@ function renderAlerts(){
     metaChip.textContent = fmtTimeLeft(msLeft);
     metaWrap.appendChild(metaChip);
 
+    // Migration banner pill when applicable
+    try {
+      const tagsForPill = getAlertTagsArray(a);
+      if (tagsForPill.includes('migration')){
+        const mig = document.createElement('span');
+        mig.className = 'alert-pill-migration';
+        mig.innerHTML = '<span class="icon">⛑️</span><span>Token Migration</span>';
+        metaWrap.appendChild(mig);
+      }
+    } catch {}
+
     text.appendChild(metaWrap);
 
     // Read more: shows further_info and source details when expanded
@@ -1180,6 +1198,30 @@ function renderAlerts(){
 
     contentArea.appendChild(severityBadge);
     contentArea.appendChild(text);
+
+    // Actions row: Acknowledge + Discuss
+    const actions = document.createElement('div');
+    actions.className = 'alert-actions';
+
+    const ack = document.createElement('button');
+    ack.className = 'btn btn-primary';
+    ack.textContent = 'Acknowledge Alert';
+    ack.addEventListener('click', () => {
+      dismissAlert(a);
+    });
+    actions.appendChild(ack);
+
+    const discuss = document.createElement('button');
+    discuss.className = 'btn btn-ghost';
+    discuss.textContent = 'Discuss';
+    discuss.addEventListener('click', () => {
+      // Prefer source_url if present
+      const href = (a.source_url && /^https?:\/\//i.test(a.source_url)) ? a.source_url : 'https://github.com/atoates/CLG-DEPLOY/discussions';
+      window.open(href, '_blank');
+    });
+    actions.appendChild(discuss);
+
+    text.appendChild(actions);
 
     // TAGS SECTION
     const tagsSection = document.createElement('div');
