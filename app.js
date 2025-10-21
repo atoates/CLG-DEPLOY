@@ -1097,10 +1097,17 @@ function renderAlerts(){
     // SEVERITY INDICATOR
     const severityBadge = document.createElement('div');
     severityBadge.className = 'severity-badge';
-    const icon = document.createElement('span');
-    icon.className = 'severity-icon';
-    icon.textContent = a.severity === 'critical' ? '🚨' : (a.severity === 'warning' ? '⚠️' : '🛟');
-    severityBadge.appendChild(icon);
+    const iconImg = document.createElement('img');
+    iconImg.alt = `${a.severity || 'info'} icon`;
+    iconImg.className = 'severity-icon-img';
+    iconImg.decoding = 'async';
+    iconImg.fetchPriority = 'low';
+    // Choose icon by severity
+    const sev = a.severity || 'info';
+    iconImg.src = sev === 'critical' 
+      ? '/icons/siren@64px.svg' 
+      : (sev === 'warning' ? '/icons/flag@64px.svg' : '/icons/lifebuoy@64px.svg');
+    severityBadge.appendChild(iconImg);
 
     // MAIN CONTENT AREA
     const contentArea = document.createElement('div');
@@ -1133,7 +1140,17 @@ function renderAlerts(){
       if (tagsForPill.includes('migration')){
         const mig = document.createElement('span');
         mig.className = 'alert-pill-migration';
-        mig.innerHTML = '<span class="icon">⛑️</span><span>Token Migration</span>';
+        const icon = document.createElement('span');
+        icon.className = 'icon';
+        const img = document.createElement('img');
+        img.src = '/icons/lifebuoy@64px.svg';
+        img.alt = '';
+        img.className = 'icon-img';
+        icon.appendChild(img);
+        const label = document.createElement('span');
+        label.textContent = 'Token Migration';
+        mig.appendChild(icon);
+        mig.appendChild(label);
         metaWrap.appendChild(mig);
       }
     } catch {}
