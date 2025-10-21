@@ -61,10 +61,30 @@ const marketGridEl = document.getElementById('market-grid');
 const marketEmptyEl = document.getElementById('market-empty');
 const marketNoteEl = document.getElementById('market-note');
 
-// Tag/source dictionaries (fallback to globals if present)
-// alerts-tags.js (admin) exposes window.ALERT_TAGS; main app safeguards if not loaded
-const ALERT_TAGS = (window.ALERT_TAGS || {});
-const ALERT_SOURCE_TYPES = (window.ALERT_SOURCE_TYPES || {});
+// Tag/source dictionaries (inlined for main app)
+const ALERT_TAGS = {
+  'price-change': { icon: '📊', label: 'Price Change', color: '#4ade80' },
+  'migration': { icon: '🔄', label: 'Migration', color: '#60a5fa' },
+  'hack': { icon: '🔓', label: 'Hack', color: '#f87171' },
+  'fork': { icon: '🔱', label: 'Fork', color: '#a78bfa' },
+  'scam': { icon: '⚠️', label: 'Scam', color: '#fbbf24' },
+  'airdrop': { icon: '🪂', label: 'Airdrop', color: '#34d399' },
+  'whale': { icon: '🐋', label: 'Whale Alert', color: '#818cf8' },
+  'news': { icon: '📰', label: 'News', color: '#94a3b8' },
+  'community': { icon: '👥', label: 'Community', color: '#fb923c' },
+  'exploit': { icon: '⚡', label: 'Exploit', color: '#f43f5e' },
+  'privacy': { icon: '🛡️', label: 'Privacy', color: '#22c55e' },
+  'community-vote': { icon: '🗳️', label: 'Community Vote', color: '#8b5cf6' },
+  'token-unlocks': { icon: '🔒', label: 'Token Unlocks', color: '#f59e0b' }
+};
+
+const ALERT_SOURCE_TYPES = {
+  'anonymous': { icon: '🙈', label: 'Anonymous' },
+  'mainstream-media': { icon: '📰', label: 'Mainstream media' },
+  'trusted-source': { icon: '✅', label: 'Trusted source' },
+  'social-media': { icon: '💬', label: 'Social media' },
+  'dev-team': { icon: '🛠️', label: 'Dev. Team' }
+};
 
 // --- Additional state -------------------------------------------------------
 let tagFilter = [];
