@@ -42,10 +42,7 @@ const panelSummary = document.getElementById('panel-summary');
 const panelNews = document.getElementById('panel-news');
 const panelMarket = document.getElementById('panel-market');
 
-// Summary controls
-const summaryPrevBtn = document.getElementById('summary-prev');
-const summaryNextBtn = document.getElementById('summary-next');
-const summaryRefreshBtn = document.getElementById('summary-refresh');
+// Summary controls (buttons will be bound in DOMContentLoaded)
 const summaryStampEl = document.getElementById('summary-stamp');
 const summaryModelSel = document.getElementById('summary-model');
 
