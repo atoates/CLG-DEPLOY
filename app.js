@@ -1057,16 +1057,16 @@ function renderAlerts(){
     coinLogo.className = 'coin-logo';
     
     const token = (a.token || '').toUpperCase();
-    const logoUrl = `https://api.logokit.dev/crypto/${token}.svg?key=${window.logokitApiKey || 'pk_fr3b615a522b603695a025'}`;
+  const logoUrl = `/api/logo/${token}`;
     
     const img = document.createElement('img');
     img.className = 'coin-img';
     img.src = logoUrl;
     img.alt = `${token} logo`;
     img.onerror = function() {
-      // Fallback to our custom logo on error
+      // Fallback to monogram service on error
       this.onerror = null;
-      this.src = '/logo192.png';
+      this.src = `/api/logo/${token}`; // proxy will return monogram
     };
     
     coinLogo.appendChild(img);
@@ -1613,7 +1613,7 @@ function renderMarket(){
     
     // Use LogoKit Crypto Logo API for token icons
     const icon = document.createElement('img');
-    icon.src = `https://img.logokit.com/crypto/${it.token}?token=${LOGOKIT_API_KEY}&size=64&fallback=monogram`;
+  icon.src = `/api/logo/${it.token}`;
     icon.alt = `${it.token} logo`;
     icon.className = 'mk-icon';
     icon.onerror = function() {

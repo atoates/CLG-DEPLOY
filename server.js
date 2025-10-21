@@ -75,6 +75,50 @@ function ensureValidTags(tags) {
   }
 }
 
+/* ---------------- Token Logo Proxy (with caching) ---------------- */
+const logoCache = new Map(); // key -> { t, contentType, body }
+const LOGO_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+app.get('/api/logo/:symbol', async (req, res) => {
+  try {
+    const sym = String(req.params.symbol || '').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if (!sym) return res.status(400).send('bad symbol');
+
+    const cacheKey = `logo:${sym}`;
+    const hit = logoCache.get(cacheKey);
+    if (hit && Date.now() - hit.t < LOGO_TTL_MS) {
+      res.setHeader('Content-Type', hit.contentType || 'image/svg+xml');
+      return res.send(hit.body);
+    }
+
+    // Try LogoKit primary
+    const primaryUrl = `https://api.logokit.dev/crypto/${sym}.svg?key=${LOGOKIT_API_KEY}`;
+    let r = await fetch(primaryUrl);
+    if (!r.ok) {
+      // Try secondary CDN
+      const cdnUrl = `https://img.logokit.com/crypto/${sym}?token=${LOGOKIT_API_KEY}&size=64&fallback=monogram`;
+      r = await fetch(cdnUrl);
+    }
+    if (!r.ok) throw new Error(`logo http ${r.status}`);
+
+    const body = await r.arrayBuffer();
+    const ct = r.headers.get('content-type') || 'image/svg+xml';
+    logoCache.set(cacheKey, { t: Date.now(), contentType: ct, body: Buffer.from(body) });
+    res.setHeader('Content-Type', ct);
+    return res.send(Buffer.from(body));
+  } catch (e) {
+    try {
+      // Fallback to monogram SVG
+      const sym = String(req.params.symbol || '').toUpperCase().slice(0,4);
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#e2e8f0"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="22" font-weight="700" fill="#1f2937">${sym}</text></svg>`;
+      res.setHeader('Content-Type','image/svg+xml');
+      return res.send(svg);
+    } catch(_e) {
+      return res.status(204).end();
+    }
+  }
+});
+
 // Initialize database tables (migrations will handle schema properly, but ensure basics)
 async function initDB() {
   try {
@@ -247,11 +291,13 @@ const SOURCE_TYPES = [
 app.use(express.json());
 app.use(cookieParser());
 
-// Request logging for debugging Railway deployment
-app.use((req, res, next) => {
-  console.log(`📨 Incoming request: ${req.method} ${req.url} from ${req.ip}`);
-  next();
-});
+// Request logging only when DEBUG_HTTP=true
+if (String(process.env.DEBUG_HTTP).toLowerCase() === 'true') {
+  app.use((req, res, next) => {
+    console.log(`📨 Incoming request: ${req.method} ${req.url} from ${req.ip}`);
+    next();
+  });
+}
 
 // Admin token + email helpers (reuse for admin-only APIs)
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
@@ -2164,9 +2210,11 @@ process.stdin.resume();
 
 console.log('🔄 Server.js execution continuing after app.listen...');
 
-// Periodic heartbeat log to verify the container stays up and responsive
-setInterval(() => {
-  console.log(`💓 heartbeat ${new Date().toISOString()}`);
-}, 15000);
+// Optional heartbeat only when DEBUG_HTTP=true
+if (String(process.env.DEBUG_HTTP).toLowerCase() === 'true') {
+  setInterval(() => {
+    console.log(`💓 heartbeat ${new Date().toISOString()}`);
+  }, 15000);
+}
 
 
