@@ -47,11 +47,209 @@ const summaryPrevBtn = document.getElementById('summary-prev');
 const summaryNextBtn = document.getElementById('summary-next');
 const summaryRefreshBtn = document.getElementById('summary-refresh');
 const summaryStampEl = document.getElementById('summary-stamp');
+const summaryModelSel = document.getElementById('summary-model');
+
+// Tabs and ancillary controls
+const tabs = document.querySelectorAll('.tab');
+const sevFilterEl = document.getElementById('sev-filter');
+const showAllWrap = document.getElementById('showall-wrap');
+const selectedTokensEl = document.getElementById('selected-tokens');
+const addTokenBtn = document.getElementById('add-token-btn');
+
+// Market tab elements
+const marketGridEl = document.getElementById('market-grid');
+const marketEmptyEl = document.getElementById('market-empty');
+const marketNoteEl = document.getElementById('market-note');
 
 // Tag/source dictionaries (fallback to globals if present)
 // alerts-tags.js (admin) exposes window.ALERT_TAGS; main app safeguards if not loaded
 const ALERT_TAGS = (window.ALERT_TAGS || {});
 const ALERT_SOURCE_TYPES = (window.ALERT_SOURCE_TYPES || {});
+
+// --- Additional state -------------------------------------------------------
+let tagFilter = [];
+let tagPillsExpanded = false;
+
+// Market state
+let marketItems = [];
+let marketProvider = 'none';
+
+// --- Helpers ---------------------------------------------------------------
+function fmtTimeLeft(ms){
+  if (!Number.isFinite(ms)) return '';
+  const past = ms < 0;
+  const abs = Math.abs(ms);
+  const sec = Math.round(abs / 1000);
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const parts = [];
+  if (d) parts.push(`${d}d`);
+  if (h) parts.push(`${h}h`);
+  if (!d && m) parts.push(`${m}m`);
+  if (!parts.length) parts.push('now');
+  return past ? `Expired ${parts.join(' ')} ago` : `Due in ${parts.join(' ')}`;
+}
+
+function moneyFmt(n){
+  if (typeof n !== 'number' || !Number.isFinite(n)) return `${CURRENCY_SYMBOL}—`;
+  try{
+    return new Intl.NumberFormat(undefined, { style:'currency', currency: CURRENCY_CODE, maximumFractionDigits: 2 }).format(n);
+  }catch{
+    return `${CURRENCY_SYMBOL}${n.toFixed(2)}`;
+  }
+}
+
+function pctFmt(n){
+  if (n === null || n === undefined || !Number.isFinite(Number(n))) return '—';
+  const v = Number(n);
+  const sign = v > 0 ? '+' : '';
+  return `${sign}${v.toFixed(2)}%`;
+}
+
+function volumeFmt(n){
+  if (typeof n !== 'number' || !Number.isFinite(n)) return '—';
+  const abs = Math.abs(n);
+  if (abs >= 1e12) return `${(n/1e12).toFixed(2)}T`;
+  if (abs >= 1e9)  return `${(n/1e9).toFixed(2)}B`;
+  if (abs >= 1e6)  return `${(n/1e6).toFixed(2)}M`;
+  if (abs >= 1e3)  return `${(n/1e3).toFixed(2)}K`;
+  return `${n.toFixed(0)}`;
+}
+
+function alertKey(a){
+  return a.id || `${(a.token||'').toUpperCase()}::${a.title||''}::${a.deadline||''}`;
+}
+function isHidden(a){
+  return hiddenKeys.has(alertKey(a));
+}
+function dismissAlert(a){
+  hiddenKeys.add(alertKey(a));
+  persistPrefsServerDebounced();
+  renderAlerts();
+}
+function unhideAlert(a){
+  hiddenKeys.delete(alertKey(a));
+  persistPrefsServerDebounced();
+  renderAlerts();
+}
+
+// Pills for selected tokens
+function renderPills(){
+  if (!selectedTokensEl) return;
+  selectedTokensEl.innerHTML = '';
+  if (!selectedTokens.length){
+    const hint = document.createElement('span');
+    hint.className = 'muted';
+    hint.textContent = 'No tokens selected yet.';
+    selectedTokensEl.appendChild(hint);
+    return;
+  }
+  selectedTokens.forEach(sym => {
+    const pill = document.createElement('span');
+    pill.className = 'pill';
+    pill.textContent = sym;
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'pill-x';
+    x.setAttribute('aria-label', `Remove ${sym}`);
+    x.textContent = '×';
+    x.addEventListener('click', () => {
+      selectedTokens = selectedTokens.filter(s => s !== sym);
+      persistPrefsServerDebounced();
+      renderPills();
+      renderAlerts();
+      loadMarket();
+      loadNews();
+    });
+    pill.appendChild(x);
+    selectedTokensEl.appendChild(pill);
+  });
+}
+
+// Severity filter UI binding + sync
+let _sevBound = false;
+function syncSevUi(){
+  sevButtons.forEach(btn => {
+    const sev = btn.getAttribute('data-sev');
+    const active = sevFilter.includes(sev);
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', String(active));
+  });
+  if (!_sevBound){
+    _sevBound = true;
+    sevButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sev = btn.getAttribute('data-sev');
+        if (!sev) return;
+        if (sevFilter.includes(sev)) {
+          sevFilter = sevFilter.filter(s => s !== sev);
+        } else {
+          sevFilter = [...new Set([...sevFilter, sev])];
+        }
+        // Ensure at least one severity remains selected
+        if (!sevFilter.length) sevFilter = ['critical','warning','info'];
+        syncSevUi();
+        persistPrefsServerDebounced();
+        renderAlerts();
+        updateSummaryIfActive();
+      });
+    });
+  }
+}
+
+// Top-row toggles
+if (addTokenBtn){
+  addTokenBtn.addEventListener('click', () => {
+    const val = (tokenInput?.value || '').trim();
+    if (val) selectToken(val);
+  });
+}
+if (showAllToggle){
+  showAllToggle.addEventListener('change', () => {
+    showAll = !!showAllToggle.checked;
+    persistPrefsServerDebounced();
+    renderAlerts();
+    updateSummaryIfActive();
+  });
+}
+
+// Tabs wiring
+function switchTab(tab){
+  const name = String(tab || 'alerts');
+  // Panels
+  if (panelAlerts) panelAlerts.hidden = (name !== 'alerts');
+  if (panelSummary) panelSummary.hidden = (name !== 'summary');
+  if (panelNews) panelNews.hidden = (name !== 'news');
+  if (panelMarket) panelMarket.hidden = (name !== 'market');
+  // Tabs active state
+  tabs.forEach(t => {
+    const is = t.getAttribute('data-tab') === name;
+    t.classList.toggle('active', is);
+    t.setAttribute('aria-selected', String(is));
+  });
+  updateFilterVisibility(name);
+  if (name === 'summary') renderSummary();
+  if (name === 'news') loadNews();
+  if (name === 'market') loadMarket();
+}
+
+function initTabs(){
+  if (!tabs || !tabs.length) return;
+  tabs.forEach(t => {
+    t.addEventListener('click', (e) => {
+      e.preventDefault();
+      const name = t.getAttribute('data-tab');
+      switchTab(name);
+    });
+  });
+}
+
+function updateFilterVisibility(activeTab){
+  const alertsView = (activeTab === 'alerts');
+  if (sevFilterEl) sevFilterEl.style.display = alertsView ? '' : 'none';
+  if (showAllWrap) showAllWrap.style.display = alertsView ? '' : 'none';
+}
 
 // --- Server-backed prefs -----------------------------------------------------
 function persistPrefsServerDebounced(){
@@ -182,7 +380,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Control visibility of logout in menu
       try{
-        if (logoutItem) logoutItem.hidden = !me.loggedIn;
+        const logoutNode = document.getElementById('menu-logout');
+        if (logoutNode) logoutNode.hidden = !me.loggedIn;
       }catch(_e){}
 
       // If logged in, replace the Account dropdown with avatar + name button to Profile
@@ -259,6 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Fetch token metadata for autocomplete
   await fetchTokenMetadata();
   initTokenAutocomplete();
+  initTabs();
   loadMarket();
   updateFilterVisibility('alerts'); // default tab
   // Wire the top-row 'Show all' toggle to control watchlist ignoring (local only)
