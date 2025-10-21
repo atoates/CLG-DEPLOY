@@ -112,14 +112,22 @@
     </section>
 
     <section id="panel-summary" class="card" hidden role="tabpanel">
-      <div class="summary-toolbar" style="display:flex;align-items:center;gap:8px;justify-content:flex-end;margin-bottom:8px;">
-        <label for="summary-model" style="font-size:12px;color:#475569;">Model:</label>
-        <select id="summary-model" style="padding:6px 8px;border-radius:8px;border:1px solid rgba(2,6,23,0.12);font-size:13px;">
-          <option value="auto">Auto</option>
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic</option>
-          <option value="xai">xAI (Grok)</option>
-        </select>
+      <div class="summary-toolbar" style="display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;">
+        <div class="summary-history" style="display:flex;align-items:center;gap:8px;">
+          <button id="summary-prev" class="btn" aria-label="Previous summary" title="Previous" disabled>← Prev</button>
+          <div id="summary-stamp" class="muted" style="min-width:220px"></div>
+          <button id="summary-next" class="btn" aria-label="Next summary" title="Next" disabled>Next →</button>
+        </div>
+        <div class="summary-actions" style="display:flex;align-items:center;gap:8px;">
+          <label for="summary-model" style="font-size:12px;color:#475569;">Model:</label>
+          <select id="summary-model" style="padding:6px 8px;border-radius:8px;border:1px solid rgba(2,6,23,0.12);font-size:13px;">
+            <option value="auto">Auto</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="xai">xAI (Grok)</option>
+          </select>
+          <button id="summary-refresh" class="btn" aria-label="Generate new summary" title="Refresh">Refresh</button>
+        </div>
       </div>
       <div id="summary-content" class="summary"></div>
     </section>

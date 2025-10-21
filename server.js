@@ -297,6 +297,49 @@ async function upsertPrefs(userId, watchlist, severity, showAll, dismissed) {
   `, [userId, watchlist, severity, showAll, dismissed]);
 }
 
+// Insert a saved AI summary for a logged-in user
+async function insertUserSummary(userId, { model, tokens, sevFilter, tagFilter, alertIds, content, usage }) {
+  const id = `sum_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+  await pool.query(
+    `INSERT INTO user_summaries (id, user_id, model, tokens_json, sev_filter_json, tag_filter_json, alert_ids_json, content, usage_json)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [
+      id,
+      userId,
+      String(model || ''),
+      JSON.stringify(Array.isArray(tokens) ? tokens : []),
+      JSON.stringify(Array.isArray(sevFilter) ? sevFilter : []),
+      JSON.stringify(Array.isArray(tagFilter) ? tagFilter : []),
+      JSON.stringify(Array.isArray(alertIds) ? alertIds : []),
+      String(content || ''),
+      usage ? JSON.stringify(usage) : null
+    ]
+  );
+  return id;
+}
+
+// Fetch recent summaries for a user
+async function getRecentUserSummaries(userId, limit = 10) {
+  const lim = Math.max(1, Math.min(50, parseInt(limit) || 10));
+  const { rows } = await pool.query(
+    `SELECT id, user_id, created_at, model, tokens_json, sev_filter_json, tag_filter_json, alert_ids_json, content, usage_json
+     FROM user_summaries WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2`,
+    [userId, lim]
+  );
+  return rows.map(r => ({
+    id: r.id,
+    user_id: r.user_id,
+    created_at: r.created_at ? new Date(Number(r.created_at) * 1000).toISOString() : null,
+    model: r.model || '',
+    tokens: (()=>{ try{return JSON.parse(r.tokens_json||'[]')}catch{return[]} })(),
+    sevFilter: (()=>{ try{return JSON.parse(r.sev_filter_json||'[]')}catch{return[]} })(),
+    tagFilter: (()=>{ try{return JSON.parse(r.tag_filter_json||'[]')}catch{return[]} })(),
+    alertIds: (()=>{ try{return JSON.parse(r.alert_ids_json||'[]')}catch{return[]} })(),
+    content: r.content || '',
+    usage: (()=>{ try{return r.usage_json ? JSON.parse(r.usage_json) : null }catch{return null} })()
+  }));
+}
+
 // Insert audit log
 async function insertAudit(userId, email, event, detail) {
   await pool.query(
@@ -1379,6 +1422,25 @@ app.post('/api/summary/generate', async (req, res) => {
   const summary = await generateAISummary(alerts, tokens || [], sevFilter || [], tagFilter || [], model);
     const news = await fetchNewsForTokens(tokens || []);
     
+    // Persist for logged-in users only (not anonymous/cached users)
+    try {
+      const sess = getSession(req);
+      if (sess && sess.uid) {
+        const alertIds = (alerts || []).map(a => a.id).filter(Boolean);
+        await insertUserSummary(sess.uid, {
+          model: summary.model,
+          tokens: tokens || [],
+          sevFilter: sevFilter || [],
+          tagFilter: tagFilter || [],
+          alertIds,
+          content: summary.content,
+          usage: summary.usage || null
+        });
+      }
+    } catch (persistErr) {
+      console.warn('Failed to persist user summary (non-fatal):', persistErr && persistErr.message);
+    }
+
     res.json({ 
       summary: summary.content,
       model: summary.model,
@@ -1394,6 +1456,20 @@ app.post('/api/summary/generate', async (req, res) => {
       error: 'Failed to generate summary',
       fallback: generateFallbackSummary(req.body.alerts || [], req.body.tokens || [])
     });
+  }
+});
+
+// Recent summaries for the logged-in user
+app.get('/api/summary/recent', async (req, res) => {
+  try {
+    const sess = getSession(req);
+    if (!sess || !sess.uid) return res.json({ summaries: [] }); // not logged in → nothing
+    const lim = req.query.limit ? parseInt(String(req.query.limit)) : 10;
+    const items = await getRecentUserSummaries(sess.uid, lim);
+    res.json({ summaries: items });
+  } catch (e) {
+    console.error('Failed to fetch recent summaries:', e && e.message);
+    res.status(500).json({ summaries: [] });
   }
 });
 
