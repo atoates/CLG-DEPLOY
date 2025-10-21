@@ -1239,21 +1239,7 @@ function renderAlerts(){
     contentArea.appendChild(severityBadge);
     contentArea.appendChild(text);
 
-    // Actions row: Acknowledge + Discuss
-    const actions = document.createElement('div');
-    actions.className = 'alert-actions';
-
-    const discuss = document.createElement('button');
-    discuss.className = 'btn btn-ghost';
-    discuss.textContent = 'Discuss';
-    discuss.addEventListener('click', () => {
-      // Prefer source_url if present
-      const href = (a.source_url && /^https?:\/\//i.test(a.source_url)) ? a.source_url : 'https://github.com/atoates/CLG-DEPLOY/discussions';
-      window.open(href, '_blank');
-    });
-    actions.appendChild(discuss);
-
-    text.appendChild(actions);
+    // No action buttons on card per design (removed Discuss/Acknowledge)
 
     // TAGS SECTION
     const tagsSection = document.createElement('div');
