@@ -40,6 +40,7 @@ const LOGOKIT_API_KEY = process.env.LOGOKIT_API_KEY || 'pk_fr3b615a522b603695a02
 // AI API keys for summary generation
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
+const XAI_API_KEY = process.env.XAI_API_KEY || process.env.XAI_APIKEY || process.env.XAI_TOKEN || '';
 const MARKET_CURRENCY = (process.env.MARKET_CURRENCY || 'GBP').toUpperCase();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
@@ -78,6 +79,38 @@ function ensureValidTags(tags) {
 /* ---------------- Token Logo Proxy (with caching) ---------------- */
 const logoCache = new Map(); // key -> { t, contentType, body }
 const LOGO_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const LOGO_CACHE_DIR = path.join(DATA_DIR, 'logo-cache');
+try { fs.mkdirSync(LOGO_CACHE_DIR, { recursive: true }); } catch {}
+
+function diskPathFor(sym, ext){
+  return path.join(LOGO_CACHE_DIR, `${sym}.${ext}`);
+}
+function extForContentType(ct){
+  return (ct && ct.includes('svg')) ? 'svg' : 'png';
+}
+function readFromDiskCache(sym){
+  try {
+    const candidates = ['svg','png'];
+    for (const ext of candidates){
+      const p = diskPathFor(sym, ext);
+      if (fs.existsSync(p)){
+        const st = fs.statSync(p);
+        if (Date.now() - st.mtimeMs < LOGO_TTL_MS){
+          const buf = fs.readFileSync(p);
+          const ct = ext === 'svg' ? 'image/svg+xml' : 'image/png';
+          return { buf, ct };
+        }
+      }
+    }
+  } catch {}
+  return null;
+}
+function writeToDiskCache(sym, buf, ct){
+  try {
+    const ext = extForContentType(ct);
+    fs.writeFileSync(diskPathFor(sym, ext), buf);
+  } catch {}
+}
 
 app.get('/api/logo/:symbol', async (req, res) => {
   try {
@@ -89,6 +122,15 @@ app.get('/api/logo/:symbol', async (req, res) => {
     if (hit && Date.now() - hit.t < LOGO_TTL_MS) {
       res.setHeader('Content-Type', hit.contentType || 'image/svg+xml');
       return res.send(hit.body);
+    }
+
+    // Disk cache
+    const disk = readFromDiskCache(sym);
+    if (disk){
+      logoCache.set(cacheKey, { t: Date.now(), contentType: disk.ct, body: disk.buf });
+      res.setHeader('Content-Type', disk.ct);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.send(disk.buf);
     }
 
     // Helper to try a URL
@@ -119,7 +161,8 @@ app.get('/api/logo/:symbol', async (req, res) => {
     }
     if (!found) throw new Error('no_logo');
 
-    logoCache.set(cacheKey, { t: Date.now(), contentType: found.ct, body: found.buf });
+  logoCache.set(cacheKey, { t: Date.now(), contentType: found.ct, body: found.buf });
+  writeToDiskCache(sym, found.buf, found.ct);
     res.setHeader('Content-Type', found.ct);
     res.setHeader('Cache-Control', 'public, max-age=86400');
     return res.send(found.buf);
@@ -1326,14 +1369,14 @@ app.get('/api/environment', (_req, res) => {
 // --- AI Summary API ----------------------------------------------------------
 app.post('/api/summary/generate', async (req, res) => {
   try {
-    const { alerts, tokens, sevFilter, tagFilter } = req.body;
+    const { alerts, tokens, sevFilter, tagFilter, model } = req.body;
     
     if (!alerts || !Array.isArray(alerts)) {
       return res.status(400).json({ error: 'Invalid alerts data' });
     }
 
     // Generate AI summary using available API
-    const summary = await generateAISummary(alerts, tokens || [], sevFilter || [], tagFilter || []);
+  const summary = await generateAISummary(alerts, tokens || [], sevFilter || [], tagFilter || [], model);
     const news = await fetchNewsForTokens(tokens || []);
     
     res.json({ 
@@ -1379,7 +1422,7 @@ app.post('/api/news', async (req, res) => {
 });
 
 // AI Summary generation function
-async function generateAISummary(alerts, tokens, sevFilter, tagFilter) {
+async function generateAISummary(alerts, tokens, sevFilter, tagFilter, selectedModel) {
   // Prepare alerts data for AI analysis
   const alertsData = alerts.map(alert => ({
     token: alert.token,
@@ -1410,7 +1453,38 @@ Please provide:
 
 Keep it concise, actionable, and focused on portfolio management decisions.`;
 
-  // Try OpenAI first, then Anthropic, then fallback
+  // Respect user-selected model if provided
+  const prefer = (selectedModel||'auto').toLowerCase();
+
+  // Helper to try providers in order
+  async function tryOpenAI(){
+    if (!OPENAI_API_KEY) throw new Error('no-openai');
+    return await callOpenAI(prompt);
+  }
+  async function tryAnthropic(){
+    if (!ANTHROPIC_API_KEY) throw new Error('no-anthropic');
+    return await callAnthropic(prompt);
+  }
+  async function tryXAI(){
+    if (!XAI_API_KEY) throw new Error('no-xai');
+    return await callXAI(prompt);
+  }
+
+  try {
+    if (prefer === 'xai' || prefer === 'grok') return {
+      ...(await tryXAI()), alertCount: alerts.length, tokenCount: tokens.length
+    };
+    if (prefer === 'openai') return {
+      ...(await tryOpenAI()), alertCount: alerts.length, tokenCount: tokens.length
+    };
+    if (prefer === 'anthropic') return {
+      ...(await tryAnthropic()), alertCount: alerts.length, tokenCount: tokens.length
+    };
+  } catch (e) {
+    console.warn('Preferred model failed, falling back:', e.message);
+  }
+
+  // Auto order: OpenAI -> Anthropic -> xAI
   if (OPENAI_API_KEY) {
     try {
       const response = await callOpenAI(prompt);
@@ -1438,6 +1512,21 @@ Keep it concise, actionable, and focused on portfolio management decisions.`;
       };
     } catch (error) {
       console.error('Anthropic API error:', error.message);
+    }
+  }
+
+  if (XAI_API_KEY) {
+    try {
+      const response = await callXAI(prompt);
+      return {
+        content: response.content,
+        model: response.model,
+        usage: response.usage,
+        alertCount: alerts.length,
+        tokenCount: tokens.length
+      };
+    } catch (error) {
+      console.error('xAI API error:', error.message);
     }
   }
 
@@ -1507,6 +1596,32 @@ async function callAnthropic(prompt) {
     content: data.content[0].text.trim(),
     model: `Anthropic ${model}`,
     usage: data.usage
+  };
+}
+
+// xAI API call (Grok)
+async function callXAI(prompt){
+  const model = 'grok-2-latest';
+  const response = await fetch('https://api.x.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${XAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 2000,
+      temperature: 0.3
+    })
+  });
+  if (!response.ok) throw new Error(`xAI API error: ${response.status}`);
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || '';
+  return {
+    content: content.trim(),
+    model: `xAI ${model}`,
+    usage: data.usage || null
   };
 }
 
