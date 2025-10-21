@@ -1058,6 +1058,23 @@ function renderAlerts(){
     const hidden = isHidden(a);
     if (showAll && hidden) wrap.classList.add('is-hidden');
 
+    // Compact dismiss button (cross) in top-left of the card
+    const dismissBtn = document.createElement('button');
+    dismissBtn.type = 'button';
+    dismissBtn.className = 'alert-dismiss-btn';
+    dismissBtn.setAttribute('aria-label', hidden ? 'Unhide alert' : 'Dismiss alert');
+    dismissBtn.title = hidden ? 'Unhide alert' : 'Dismiss alert';
+    dismissBtn.textContent = '×';
+    dismissBtn.addEventListener('click', () => {
+      // Toggle dismiss/undismiss
+      if (isHidden(a)) {
+        unhideAlert(a);
+      } else {
+        dismissAlert(a);
+      }
+    });
+    wrap.appendChild(dismissBtn);
+
   // Accent strip (severity, with migration override)
   const accent = document.createElement('div');
   accent.className = 'alert-accent';
@@ -1243,33 +1260,10 @@ function renderAlerts(){
     tagsSection.className = 'alert-tags-section';
     renderAlertTags(a, tagsSection);
 
-    // RIGHT: dismiss column
-    const right = document.createElement('div');
-    right.className = 'dismiss-col';
-
-    const label = document.createElement('div');
-    label.className = 'dismiss-title';
-    label.textContent = 'Dismiss';
-
-    const chk = document.createElement('input');
-    chk.type = 'checkbox';
-    chk.className = 'chk-dismiss';
-    chk.checked = hidden;
-    chk.title = hidden ? 'Unhide alert' : 'Dismiss alert';
-    chk.setAttribute('aria-label', chk.title);
-
-    chk.addEventListener('change', () => {
-      if (chk.checked) dismissAlert(a); else unhideAlert(a);
-    });
-
-    right.appendChild(label);
-    right.appendChild(chk);
-
     // Assemble the card
     wrap.appendChild(coinSection);
     wrap.appendChild(contentArea);
     wrap.appendChild(tagsSection);
-    wrap.appendChild(right);
 
     // live tick function
     wrap._tick = () => {
