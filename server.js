@@ -2314,9 +2314,10 @@ app.get('/auth/google', (req, res) => {
   // OAuth state generated
   
   const base = getBaseUrl(req);
+  const redirectUri = `${String(base||'').replace(/\/+$/,'')}/auth/google/callback`;
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
-    redirect_uri: `${base}/auth/google/callback`,
+    redirect_uri: redirectUri,
     response_type: 'code',
     scope: 'openid email profile',
     state,
@@ -2370,12 +2371,13 @@ app.get('/auth/google/callback', async (req, res) => {
   try{
     // Exchange code
     const base = getBaseUrl(req);
+    const redirectUri = `${String(base||'').replace(/\/+$/,'')}/auth/google/callback`;
     const tokenParams = new URLSearchParams({
       client_id: GOOGLE_CLIENT_ID,
       client_secret: GOOGLE_CLIENT_SECRET,
       code: String(code),
       grant_type: 'authorization_code',
-      redirect_uri: `${base}/auth/google/callback`
+      redirect_uri: redirectUri
     });
     
     // Exchanging OAuth code for tokens
