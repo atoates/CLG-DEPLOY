@@ -1104,9 +1104,14 @@ function renderAlerts(){
     iconImg.fetchPriority = 'low';
     // Choose icon by severity
     const sev = a.severity || 'info';
+    const v = '20251021c';
     iconImg.src = sev === 'critical' 
-      ? '/icons/siren@64px.svg' 
-      : (sev === 'warning' ? '/icons/flag@64px.svg' : '/icons/lifebuoy@64px.svg');
+      ? `/icons/siren@64px.svg?v=${v}` 
+      : (sev === 'warning' ? `/icons/flag@64px.svg?v=${v}` : `/icons/lifebuoy@64px.svg?v=${v}`);
+    iconImg.onerror = function(){
+      // Hide broken icon to avoid layout jank
+      this.style.display = 'none';
+    };
     severityBadge.appendChild(iconImg);
 
     // MAIN CONTENT AREA
@@ -1143,9 +1148,10 @@ function renderAlerts(){
         const icon = document.createElement('span');
         icon.className = 'icon';
         const img = document.createElement('img');
-        img.src = '/icons/lifebuoy@64px.svg';
+  img.src = `/icons/lifebuoy@64px.svg?v=${v}`;
         img.alt = '';
         img.className = 'icon-img';
+  img.onerror = function(){ this.style.display = 'none'; };
         icon.appendChild(img);
         const label = document.createElement('span');
         label.textContent = 'Token Migration';

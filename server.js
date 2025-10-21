@@ -2168,6 +2168,19 @@ if (fs.existsSync(publicDir)) {
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       }
     }));
+    // Belt-and-braces: explicit route for icons with proper content-type
+    app.get('/icons/:file', (req, res, next) => {
+      try {
+        const fname = String(req.params.file || '');
+        const p = path.join(publicIconsDir, fname);
+        if (!fs.existsSync(p)) return res.status(404).end();
+        if (fname.toLowerCase().endsWith('.svg')) res.type('image/svg+xml');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        return res.sendFile(p);
+      } catch (e) {
+        return next();
+      }
+    });
   }
 }
 // In local dev without a Vite build, also serve static files from the project root
