@@ -1901,7 +1901,7 @@ app.get('/debug/env', (req, res) => {
 });
 
 // OAuth debug to verify redirect URI & client configuration
-app.get('/debug/oauth', (req, res) => {
+app.get('/debug/oauth', requireAdmin, (req, res) => {
   const base = getBaseUrl(req);
   const redirectUri = `${String(base||'').replace(/\/+$/,'')}/auth/google/callback`;
   res.json({

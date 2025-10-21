@@ -93,6 +93,7 @@ let serverAlerts = [];
 let autoAlerts   = [];
 let marketItems  = [];
 let marketProvider = 'none'; // 'cmc' | 'none'
+let isLoggedIn = false;      // session status
 
 // --- DOM ---------------------------------------------------------------------
 const tokenInput      = document.getElementById('token-input');
@@ -252,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
       sevFilter      = Array.isArray(me.severity) ? me.severity : ['critical','warning','info'];
       showAll        = !!me.showAll;
       hiddenKeys     = new Set(Array.isArray(me.dismissed) ? me.dismissed : []);
+      isLoggedIn     = !!me.loggedIn;
 
       // Control visibility of logout in menu
       try{
@@ -594,150 +596,114 @@ async function enrichTokensFromAlerts(){
         const tok = String(a.token||'').toUpperCase().trim();
         if (tok && /^[A-Z0-9]{2,15}$/.test(tok)) set.add(tok);
       });
-      // Also include any tokens already in the user's watchlist
-      selectedTokens.forEach(t => set.add(String(t||'').toUpperCase().trim()));
-      // Replace ALL_TOKENS contents in-place to preserve references
-      ALL_TOKENS.splice(0, ALL_TOKENS.length, ...Array.from(set).sort());
-      renderDatalist();
-    }
-  }catch(_e){ /* ignore; fallback seed remains */ }
-}
-
-// --- Pills -------------------------------------------------------------------
-function renderPills(){
-  pillsRow.innerHTML = '';
-  selectedTokens.forEach(t => {
-    const pill = document.createElement('div');
-    pill.className = 'pill';
-    pill.textContent = t;
-
-    const btn = document.createElement('button');
-    btn.className = 'remove';
-    btn.setAttribute('aria-label', `Remove ${t}`);
-    btn.textContent = '×';
-    btn.addEventListener('click', () => {
-      selectedTokens = selectedTokens.filter(x => x !== t);
-      persistPrefsServerDebounced();
-      renderAll();
-      loadMarket();
-      loadAutoAlerts().then(renderAlerts);
-    });
-
-    pill.appendChild(btn);
-    pillsRow.appendChild(pill);
-  });
-}
-
-// --- Tabs --------------------------------------------------------------------
-tabs.forEach(btn => {
-  btn.addEventListener('click', () => {
-    tabs.forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-
-    const tab = btn.getAttribute('data-tab');
-    const isAlerts  = tab === 'alerts';
-    const isSummary = tab === 'summary';
-    const isNews    = tab === 'news';
-    const isMarket  = tab === 'market';
-
-    panelAlerts.hidden  = !isAlerts;
-    panelSummary.hidden = !isSummary;
-    panelNews.hidden    = !isNews;
-    panelMarket.hidden  = !isMarket;
-
-    updateFilterVisibility(tab);
-
-    if (isSummary) renderSummary();
-    if (isNews) loadNews();
-    if (isMarket)  loadMarket();
-  });
-});
-
-function updateFilterVisibility(tab){
-  const visible = (tab === 'alerts');
-  // Hide these in Summary view per request
-  if (sevFilterWrap) sevFilterWrap.hidden = !visible;
-  if (showAllWrap)   showAllWrap.hidden   = !visible;
-  if (tagFilterCard) tagFilterCard.hidden = !visible;
-}
-
-// --- Token Add ---------------------------------------------------------------
-addTokenBtn.addEventListener('click', tryAddTokenFromInput);
-
-function tryAddTokenFromInput(){
-  const val = (tokenInput.value || '').toUpperCase().trim();
-  if (!val) return;
   
-  // Try to match against token metadata first
-  const match = tokenMetadata.find(t => 
-    t.symbol.toUpperCase() === val || 
-    t.name.toUpperCase() === val
-  );
+          // First, try to load the most recent saved summary for logged-in users
+          try {
+            const recent = await fetchRecentSummaries(10);
+            if (recent && recent.length > 0){
+              const item = recent[0];
+              renderSummaryFromSaved(item);
+              updateSummaryStamp(item);
+              updateSummaryHistoryNav(recent, 0);
+              return; // show last generated response
+            }
+          } catch(_) {}
+
+          // If logged in and no saved summaries, show a friendly hint instead of auto-generating
+          if (isLoggedIn) {
+            sc.innerHTML = '<p class="muted">No saved summaries yet. Click <strong>Refresh</strong> to generate your first summary.</p>';
+            updateSummaryHistoryNav([], -1);
+            return;
+          }
+
+          // Anonymous users: keep existing behavior and generate on-the-fly if possible
+          if (!selectedTokens.length && !showAllTokens) {
+            sc.innerHTML = '<p class="muted">Select some tokens to see an AI-generated summary of your alerts.</p>';
+            return;
+          }
+
+          // Show loading state with countdown (only for on-demand generation)
+          sc.innerHTML = `
+            <div class="loading-state">
+              <div class="countdown-container">
+                <div class="countdown-circle">
+                  <svg class="countdown-svg" viewBox="0 0 100 100">
+                    <circle class="countdown-track" cx="50" cy="50" r="45" fill="none" stroke="#e2e8f0" stroke-width="8"/>
+                    <circle class="countdown-progress" cx="50" cy="50" r="45" fill="none" stroke="#3b82f6" stroke-width="8" 
+                            stroke-linecap="round" transform="rotate(-90 50 50)"/>
+                  </svg>
+                  <div class="countdown-number">30</div>
+                </div>
+                <p class="countdown-text">🤖 Generating AI summary...</p>
+              </div>
+            </div>
+          `;
   
-  const symbolToAdd = match ? match.symbol.toUpperCase() : val;
-  
-  // Accept user-provided symbols that pass basic validation, even if not in metadata
-  if (!match && !/^[A-Z0-9]{2,15}$/.test(val)) {
-    tokenInput.value = '';
-    hideAutocomplete();
-    return;
-  }
-  
-  // Use selectToken helper which handles all the logic
-  selectToken(symbolToAdd);
-}
+          let countdownSeconds = 30;
+          const countdownNumber = sc.querySelector('.countdown-number');
+          const countdownProgress = sc.querySelector('.countdown-progress');
+          const circumference = 2 * Math.PI * 45;
+          countdownProgress.style.strokeDasharray = circumference;
+          countdownProgress.style.strokeDashoffset = 0;
+          window.currentCountdownInterval = setInterval(() => {
+            countdownSeconds--;
+            countdownNumber.textContent = countdownSeconds;
+            const progress = (30 - countdownSeconds) / 30;
+            const offset = circumference * (1 - progress);
+            countdownProgress.style.strokeDashoffset = offset;
+            if (countdownSeconds <= 0) {
+              clearInterval(window.currentCountdownInterval);
+              countdownNumber.textContent = '⏳';
+              sc.querySelector('.countdown-text').textContent = '🤖 Finalizing summary...';
+            }
+          }, 1000);
 
-// --- Show all toggle ---------------------------------------------------------
-if (showAllToggle) {
-  showAllToggle.addEventListener('change', () => {
-    showAll = showAllToggle.checked;
-    persistPrefsServerDebounced();
-    renderAlerts();
-    updateSummaryIfActive();
-  });
-}
-
-// --- Severity selector buttons ----------------------------------------------
-function syncSevUi(){
-  sevButtons.forEach(btn => {
-    const sev = btn.dataset.sev;
-    const on = sevFilter.includes(sev);
-    btn.classList.toggle('active', on);
-    btn.setAttribute('aria-pressed', String(on));
-  });
-}
-sevButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    const sev = btn.dataset.sev;
-    const idx = sevFilter.indexOf(sev);
-    if (idx >= 0) sevFilter.splice(idx, 1);
-    else sevFilter.push(sev);
-    syncSevUi();
-    persistPrefsServerDebounced();
-    renderAlerts();
-    updateSummaryIfActive();
-  });
-});
-
-// --- Hidden alerts helpers ---------------------------------------------------
-function persistHidden(){
-  // keep local shadow if you want, but server is the source of truth now
-  persistPrefsServerDebounced();
-}
-function isHidden(a){ return hiddenKeys.has(alertKey(a)); }
-function dismissAlert(a){
-  hiddenKeys.add(alertKey(a));
-  persistHidden();
-  renderAlerts();
-  updateSummaryIfActive();
-}
-function unhideAlert(a){
-  hiddenKeys.delete(alertKey(a));
-  persistHidden();
-  renderAlerts();
-  updateSummaryIfActive();
-}
-
+          try {
+            const visibleAlerts = getVisibleAlerts();
+            if (visibleAlerts.length === 0) {
+              sc.innerHTML = '<p class="muted">No alerts match your current filters. Adjust your severity or tag filters to see a summary.</p>';
+              return;
+            }
+            const response = await fetch('/api/summary/generate', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                alerts: visibleAlerts,
+                tokens: showAllTokens ? getUniqueTokensFromAlerts(visibleAlerts) : selectedTokens,
+                sevFilter, tagFilter, model: getSelectedModel()
+              })
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            if (window.currentCountdownInterval) clearInterval(window.currentCountdownInterval);
+            sc.innerHTML = '';
+            const header = document.createElement('div');
+            header.className = 'summary-header';
+            let usageInfo = '';
+            if (data.usage) {
+              if (data.usage.total_tokens) usageInfo = ` • ${data.usage.total_tokens} API tokens`;
+              else if (data.usage.input_tokens && data.usage.output_tokens) usageInfo = ` • ${data.usage.input_tokens + data.usage.output_tokens} API tokens`;
+            }
+            const ts = new Date(data.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', year:'numeric', month:'short', day:'2-digit', timeZoneName:'short' });
+            header.innerHTML = `
+              <h2 class="section-title">🤖 AI Portfolio Summary</h2>
+              <div class="summary-meta">
+                <span>${data.alertCount} alerts • ${data.tokenCount} crypto tokens${usageInfo}</span>
+                <span class="model-info">Generated by ${data.model} • ${ts}</span>
+              </div>
+            `;
+            sc.appendChild(header);
+            const summaryContent = document.createElement('div');
+            summaryContent.className = 'summary-text';
+            summaryContent.innerHTML = formatSummaryText(data.summary);
+            sc.appendChild(summaryContent);
+            if (data.news && data.news.length > 0) updateNewsTab(data.news); else clearNewsTab();
+          } catch (error) {
+            console.error('Failed to generate AI summary:', error);
+            sc.innerHTML = '';
+            const header = document.createElement('h2'); header.className = 'section-title'; header.textContent = '📊 Basic Summary'; sc.appendChild(header);
+            const fallback = generateBasicSummary(); const content = document.createElement('div'); content.innerHTML = fallback; sc.appendChild(content);
+            const note = document.createElement('p'); note.className = 'muted'; note.textContent = 'AI summary unavailable. Check API configuration.'; sc.appendChild(note);
+          }
 // --- Alerts (Saved + Auto) ---------------------------------------------------
 async function loadAlertsFromServer(){
   try{
@@ -1281,14 +1247,21 @@ function startTicking(){
 async function renderSummary(){
   const sc = document.getElementById('summary-content');
   // Try to load the most recent saved summary first (for logged-in users)
-  const recent = await fetchRecentSummaries(1);
-  if (recent && recent.length > 0){
-    const item = recent[0];
-    renderSummaryFromSaved(item);
-    updateSummaryHistoryNav(recent, 0);
-    // Also refresh the News tab with context if we can approximate tokens
-    updateSummaryStamp(item);
-    return; // Show last generated response immediately
+  try {
+    const recent = await fetchRecentSummaries(10);
+    if (recent && recent.length > 0){
+      const item = recent[0];
+      renderSummaryFromSaved(item);
+      updateSummaryHistoryNav(recent, 0);
+      updateSummaryStamp(item);
+      return; // Show last generated response immediately
+    }
+  } catch(_) {}
+  // If logged in and no history, show a helpful hint instead of auto-generating
+  if (isLoggedIn) {
+    sc.innerHTML = '<p class="muted">No saved summaries yet. Click <strong>Refresh</strong> to generate your first summary.</p>';
+    updateSummaryHistoryNav([], -1);
+    return;
   }
   
   // Show loading state with countdown
@@ -1389,11 +1362,12 @@ async function renderSummary(){
       }
     }
     
+    const ts = new Date(data.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', year:'numeric', month:'short', day:'2-digit', timeZoneName:'short' });
     header.innerHTML = `
       <h2 class="section-title">🤖 AI Portfolio Summary</h2>
       <div class="summary-meta">
         <span>${data.alertCount} alerts • ${data.tokenCount} crypto tokens${usageInfo}</span>
-        <span class="model-info">Generated by ${data.model} • ${new Date(data.timestamp).toLocaleTimeString()}</span>
+        <span class="model-info">Generated by ${data.model} • ${ts}</span>
       </div>
     `;
     sc.appendChild(header);
@@ -1444,7 +1418,10 @@ function updateSummaryStamp(item){
   if (!summaryStampEl) return;
   try{
     const t = item.created_at || item.timestamp;
-    if (t) summaryStampEl.textContent = `Generated ${new Date(t).toLocaleString()}`;
+    if (t) {
+      const ts = new Date(t).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', year:'numeric', month:'short', day:'2-digit', timeZoneName:'short' });
+      summaryStampEl.textContent = `Generated ${ts}`;
+    }
     else summaryStampEl.textContent = '';
   }catch{ summaryStampEl.textContent = ''; }
 }
