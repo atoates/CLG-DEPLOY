@@ -2138,6 +2138,19 @@ app.get('/debug/oauth', requireAdmin, (req, res) => {
 /* ---------------- Health + static SPA ---------------- */
 app.get('/healthz', (_req,res)=>res.json({ ok:true }));
 
+// Debug endpoint to check API configuration
+app.get('/api/debug/config', (_req, res) => {
+  const newsKey = process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY;
+  res.json({
+    newsApiConfigured: !!newsKey,
+    newsApiKeyLength: newsKey ? newsKey.length : 0,
+    newsApiKeyPreview: newsKey ? `${newsKey.substring(0, 8)}...` : 'NOT SET',
+    envVarsChecked: ['NEWSAPI_KEY', 'NEWS_API', 'CRYPTONEWS_API_KEY', 'CRYPTO_NEWS_API_KEY'],
+    nodeVersion: process.version,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Readiness endpoint: verify DB is accessible with a trivial query
 app.get('/ready', async (_req, res) => {
   try {
