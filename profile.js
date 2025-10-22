@@ -42,17 +42,20 @@ function setAvatar(profile){
 function renderPills(){
   pillsEl.innerHTML = '';
   (me.watchlist || []).forEach(t => {
-    const pill = document.createElement('div');
-    pill.className = 'pill small';
+    const pill = document.createElement('span');
+    pill.className = 'pill';
     pill.textContent = t;
-    const btn = document.createElement('button');
-    btn.className = 'remove'; btn.textContent = '×'; btn.setAttribute('aria-label', `Remove ${t}`);
-    btn.addEventListener('click', () => {
-      me.watchlist = me.watchlist.filter(x => x !== t);
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'pill-x';
+    x.setAttribute('aria-label', `Remove ${t}`);
+    x.textContent = '×';
+    x.addEventListener('click', () => {
+      me.watchlist = me.watchlist.filter(sym => sym !== t);
       savePrefs();
       renderPills();
     });
-    pill.appendChild(btn);
+    pill.appendChild(x);
     pillsEl.appendChild(pill);
   });
 }
