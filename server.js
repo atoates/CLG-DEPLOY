@@ -83,7 +83,6 @@ const corsOptions = {
 // Apply CORS middleware ONLY to API/auth routes - NOT to static files
 app.use('/api', cors(corsOptions));
 app.use('/auth', cors(corsOptions));
-app.use('/admin', cors(corsOptions));
 app.use('/debug', cors(corsOptions));
 app.options('*', cors(corsOptions)); // Handle preflight requests
 
@@ -2361,7 +2360,6 @@ app.use(express.static(__dirname));
 // Also serve standalone pages explicitly
 app.get('/signup', (_req,res) => res.sendFile(path.join(__dirname, 'signup.html')));
 app.get('/profile', (_req,res) => res.sendFile(path.join(__dirname, 'profile.html')));
-app.get('/admin', (_req,res) => res.sendFile(path.join(__dirname, 'admin.html')));
 
 // Mask paths for logging (basic)
 function maskPath(p){
