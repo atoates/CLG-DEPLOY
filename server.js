@@ -80,8 +80,16 @@ const corsOptions = {
   exposedHeaders: ['Content-Range', 'X-Content-Range']
 };
 
-// Apply CORS middleware
-app.use(cors(corsOptions));
+// Apply CORS middleware only to API routes, not static assets
+app.use((req, res, next) => {
+  // Skip CORS for static assets
+  if (req.path.startsWith('/assets/') || 
+      req.path.startsWith('/icons/') || 
+      req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|webp|woff|woff2|ttf|eot|ico|html)$/)) {
+    return next();
+  }
+  cors(corsOptions)(req, res, next);
+});
 app.options('*', cors(corsOptions)); // Handle preflight requests
 
 // Function to get default tags based on severity
