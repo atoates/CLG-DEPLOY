@@ -284,99 +284,52 @@
       </div>
     </section>
 
-    <section class="card">
-      <div class="profile-grid">
-        <div class="profile-section">
-          <h3>Username & avatar</h3>
-          <div class="token-select-row" style="margin: 8px 0 10px;">
-            <input id="prof-username-input" class="input" placeholder="Choose a username (e.g., alice_01)" />
-            <button id="prof-username-save" class="btn">Save username</button>
-          </div>
-          <div class="muted" style="margin:6px 0 8px">Choose a default avatar:</div>
-          <div id="avatar-presets" class="pill-row"></div>
-        </div>
-
-        <div class="profile-section">
-          <h3>Watchlist</h3>
-          <div id="prof-watch-pills" class="pill-row"></div>
-          <div class="token-select-row" style="margin-top:8px;">
-            <input id="prof-token-input" class="input" type="text" placeholder="Add a token (e.g., ETH)" list="token-datalist" />
-            <datalist id="token-datalist"></datalist>
-            <button id="prof-add-token" class="btn">Add</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
+    <!-- Watchlist Section - Top Priority -->
     <section class="card">
       <div class="profile-section">
-        <h3>Alert preferences</h3>
-        <div class="prefs-row" style="margin-bottom:8px">
-          <span class="muted">Severities:</span>
-          <button class="sev-btn" data-sev="critical" title="Critical">🚨 Critical</button>
-          <button class="sev-btn" data-sev="warning" title="Warning">⚠️ Warning</button>
-          <button class="sev-btn" data-sev="info" title="Info">🛟 Info</button>
+        <h3>Watchlist</h3>
+        <div id="prof-watch-pills" class="pill-row" style="margin-bottom: 12px;"></div>
+        <div class="token-select-row">
+          <input id="prof-token-input" class="input" type="text" placeholder="Type token name or symbol (e.g., Bitcoin, BTC) and press Enter..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+          <button id="prof-add-token" class="btn">Add</button>
         </div>
-        <label class="switch small" title="Include closed/dismissed alerts">
-          <span class="switch-caption">Show closed</span>
-          <input type="checkbox" id="prof-show-all" />
-          <span class="slider" aria-hidden="true"></span>
-        </label>
       </div>
     </section>
 
+    <!-- Alert Preferences - Compact -->
+    <section class="card" style="padding: 20px 28px;">
+      <div class="profile-section">
+        <h3 style="margin-bottom: 12px;">Alert Preferences</h3>
+        <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="muted" style="font-size: 14px;">Severities:</span>
+            <button class="sev-btn" data-sev="critical" title="Critical" style="padding: 6px 12px; font-size: 13px;">🚨</button>
+            <button class="sev-btn" data-sev="warning" title="Warning" style="padding: 6px 12px; font-size: 13px;">⚠️</button>
+            <button class="sev-btn" data-sev="info" title="Info" style="padding: 6px 12px; font-size: 13px;">🛟</button>
+          </div>
+          <label class="switch small" title="Include closed/dismissed alerts" style="margin: 0;">
+            <span class="switch-caption">Show closed</span>
+            <input type="checkbox" id="prof-show-all" />
+            <span class="slider" aria-hidden="true"></span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Username & Avatar Section -->
     <section class="card">
       <div class="profile-section">
-        <h3>🚀 Request New Token</h3>
-        <p class="muted" style="margin-bottom: 12px;">
-          Suggest a token for us to add to the monitoring system. We'll review your submission and add it if it meets our criteria.
-        </p>
-        
-        <div class="token-submission-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="submit-token-symbol">Token Symbol *</label>
-              <input id="submit-token-symbol" class="input" type="text" placeholder="e.g., ARB" maxlength="10" style="text-transform: uppercase;" />
-            </div>
-            <div class="form-group">
-              <label for="submit-token-name">Token Name *</label>
-              <input id="submit-token-name" class="input" type="text" placeholder="e.g., Arbitrum" maxlength="50" />
-            </div>
-          </div>
-          
-          <div class="form-group">
-            <label for="submit-token-reason">Why should we monitor this token? *</label>
-            <textarea id="submit-token-reason" class="input" placeholder="Describe why this token is important to monitor (upcoming events, high trading volume, innovative project, etc.)" maxlength="500" rows="3"></textarea>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-group">
-              <label for="submit-token-website">Official Website</label>
-              <input id="submit-token-website" class="input" type="url" placeholder="https://..." />
-            </div>
-            <div class="form-group">
-              <label for="submit-token-market-cap">Approximate Market Cap</label>
-              <select id="submit-token-market-cap" class="input">
-                <option value="">Select range</option>
-                <option value="under-1m">Under $1M</option>
-                <option value="1m-10m">$1M - $10M</option>
-                <option value="10m-100m">$10M - $100M</option>
-                <option value="100m-1b">$100M - $1B</option>
-                <option value="over-1b">Over $1B</option>
-              </select>
-            </div>
-          </div>
-          
-          <div class="form-actions">
-            <button id="btn-submit-token" class="btn">Submit Request</button>
-            <button id="btn-clear-submission" class="btn gray">Clear Form</button>
-          </div>
-          
-          <p id="submission-msg" class="muted" style="margin-top: 8px;"></p>
+        <h3>Username & Avatar</h3>
+        <div class="token-select-row" style="margin-bottom: 16px;">
+          <input id="prof-username-input" class="input" placeholder="Choose a username (e.g., alice_01)" />
+          <button id="prof-username-save" class="btn">Save</button>
         </div>
+        <div class="muted" style="margin-bottom: 10px;">Choose a default avatar:</div>
+        <div id="avatar-presets" class="pill-row"></div>
       </div>
     </section>
 
+    <!-- Account Actions -->
     <section class="card">
       <div class="profile-section">
         <h3>Account</h3>
