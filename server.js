@@ -1464,9 +1464,6 @@ app.get('/api/environment', (_req, res) => {
 
 // --- News API with Database Caching ------------------------------------------
 app.post('/api/news', async (req, res) => {
-  console.log('[News API] POST /api/news - Request received');
-  console.log('[News API] Request body:', JSON.stringify(req.body));
-  
   try {
     const { tokens } = req.body;
     
@@ -1474,8 +1471,6 @@ app.post('/api/news', async (req, res) => {
     const tokensToFetch = Array.isArray(tokens) && tokens.length > 0 
       ? tokens 
       : ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
-    
-    console.log('[News API] Tokens to fetch:', tokensToFetch);
     
     let cachedNews = null;
     let usedCache = false;
@@ -1507,7 +1502,6 @@ app.post('/api/news', async (req, res) => {
         usedCache = true;
       }
     } catch (cacheError) {
-      console.warn('[News API] Cache lookup failed (DB may not be available):', cacheError.message);
       // Continue without cache - will fetch fresh news
     }
     
@@ -1521,7 +1515,6 @@ app.post('/api/news', async (req, res) => {
     }
     
     // Otherwise, fetch fresh news from API
-    console.log('[News API] Fetching fresh news for tokens:', tokensToFetch.join(','));
     const freshNews = await fetchNewsForTokens(tokensToFetch);
     
     // Try to cache the news articles in database (gracefully fail if DB unavailable)
@@ -1550,18 +1543,10 @@ app.post('/api/news', async (req, res) => {
         ]);
         cachedCount++;
       } catch (dbError) {
-        console.warn('[News API] Failed to cache article:', dbError.message);
         // Continue even if caching fails
       }
     }
     
-    if (cachedCount > 0) {
-      console.log(`[News API] Cached ${cachedCount}/${freshNews.length} fresh articles`);
-    } else {
-      console.log(`[News API] Serving ${freshNews.length} fresh articles (caching unavailable)`);
-    }
-    
-    console.log('[News API] Returning', freshNews.length, 'articles to client');
     res.json({ 
       news: freshNews, 
       cached: false,
@@ -1569,8 +1554,7 @@ app.post('/api/news', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('[News API] Endpoint error:', error);
-    console.error('[News API] Error stack:', error.stack);
+    console.error('[News API] Error:', error.message);
     res.status(500).json({ 
       error: 'Failed to fetch news',
       message: error.message,
@@ -1910,10 +1894,8 @@ ${upcomingDeadlines.length > 0 ?
 async function fetchNewsForTokens(tokens) {
   try {
     if (tokens.length === 0) {
-      tokens = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP']; // Default to popular tokens
+      tokens = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
     }
-    
-    console.log(`[News API] Fetching news for tokens: ${tokens.join(', ')}`);
     
     // Get CryptoNews API key
     const cryptoNewsApiKey = (
@@ -1926,33 +1908,30 @@ async function fetchNewsForTokens(tokens) {
     // Validate API key
     const invalidKeys = ['undefined', 'null', '', 'fs', 'your-key-here', 'xxx'];
     if (!cryptoNewsApiKey || invalidKeys.includes(cryptoNewsApiKey.toLowerCase().trim())) {
-      console.error(`[News API] CryptoNews API key missing or invalid. Checked: NEWSAPI_KEY, NEWS_API, CRYPTONEWS_API_KEY, CRYPTO_NEWS_API_KEY`);
       return [{
-        title: "CryptoNews API Key Not Configured",
-        description: "The CryptoNews API key is not configured. Please contact the administrator.",
-        text: "The CryptoNews API key is not configured. Please contact the administrator.",
+        title: "API Configuration Required",
+        description: "CryptoNews API key is not configured. Please contact support.",
+        text: "CryptoNews API key is not configured. Please contact support.",
         url: "#",
         news_url: "#",
         publishedAt: new Date().toISOString(),
         date: new Date().toISOString(),
-        source: { name: "Configuration Error" },
-        source_name: "Configuration Error",
+        source: { name: "System" },
+        source_name: "System",
         sentiment: "neutral",
         tickers: [],
         image_url: null
       }];
     }
     
-    console.log(`[News API] Using CryptoNews API with key: ${cryptoNewsApiKey.substring(0, 8)}...`);
-    
     // Fetch news for all tokens
     const allArticles = [];
-    const itemsPerToken = Math.max(5, Math.ceil(20 / tokens.length)); // Get more articles per token
+    let ipBlacklisted = false;
+    const itemsPerToken = Math.max(5, Math.ceil(20 / tokens.length));
     
-    for (const token of tokens.slice(0, 8)) { // Limit to 8 tokens to avoid rate limits
+    for (const token of tokens.slice(0, 8)) {
       try {
         const url = `https://cryptonews-api.com/api/v1?tickers=${token}&items=${itemsPerToken}&page=1&token=${cryptoNewsApiKey}`;
-        console.log(`[News API] Fetching for ${token}:`, url.replace(cryptoNewsApiKey, 'HIDDEN'));
         
         const response = await fetch(url, { 
           timeout: 10000,
@@ -1961,15 +1940,10 @@ async function fetchNewsForTokens(tokens) {
           }
         });
         
-        console.log(`[News API] ${token} response status:`, response.status);
-        
         if (response.ok) {
           const data = await response.json();
-          console.log(`[News API] ${token} data structure:`, data ? Object.keys(data) : 'null');
           
           if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-            console.log(`[News API] ${token} returned ${data.data.length} articles`);
-            
             const tokenArticles = data.data.map(article => ({
               title: article.title || 'No title available',
               description: article.text || article.description || 'No description available',
@@ -1987,21 +1961,45 @@ async function fetchNewsForTokens(tokens) {
             }));
             
             allArticles.push(...tokenArticles);
-          } else {
-            console.log(`[News API] ${token} returned no articles (data:`, data, ')');
           }
-        } else {
-          const errorText = await response.text().catch(() => 'Unable to read error');
-          console.error(`[News API] CryptoNews HTTP ${response.status} for ${token}:`, errorText);
+        } else if (response.status === 403) {
+          // IP blacklisted - check error message
+          try {
+            const errorData = await response.json();
+            if (errorData.message && errorData.message.includes('blacklisted')) {
+              ipBlacklisted = true;
+              break; // Stop trying other tokens
+            }
+          } catch (e) {
+            // Ignore parse error
+          }
         }
         
-        // Small delay between requests to be respectful to the API
+        // Small delay between requests
         await new Promise(resolve => setTimeout(resolve, 150));
         
       } catch (tokenError) {
-        console.error(`[News API] Error fetching news for ${token}:`, tokenError.message);
         // Continue with other tokens
       }
+    }
+    
+    // If IP is blacklisted, return specific error
+    if (ipBlacklisted) {
+      console.error('CryptoNews API: IP blacklisted - contact support@stocknewsapi.com');
+      return [{
+        title: "News Service Unavailable",
+        description: "Our server's IP has been blacklisted by the news provider. We're working to resolve this issue. Please check back later.",
+        text: "Our server's IP has been blacklisted by the news provider. We're working to resolve this issue. Please check back later.",
+        url: "#",
+        news_url: "#",
+        publishedAt: new Date().toISOString(),
+        date: new Date().toISOString(),
+        source: { name: "System" },
+        source_name: "System",
+        sentiment: "neutral",
+        tickers: tokens,
+        image_url: null
+      }];
     }
     
     if (allArticles.length > 0) {
@@ -2010,16 +2008,12 @@ async function fetchNewsForTokens(tokens) {
         arr.findIndex(a => a.title === article.title) === index
       );
       
-      const sorted = uniqueArticles
+      return uniqueArticles
         .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-        .slice(0, 30); // Return up to 30 articles
-      
-      console.log(`[News API] Returning ${sorted.length} unique articles (from ${allArticles.length} total)`);
-      return sorted;
+        .slice(0, 30);
     }
 
     // If no articles found, return informative message
-    console.log(`[News API] No articles found for any token`);
     return [{
       title: "No News Available",
       description: "No recent cryptocurrency news found for your selected tokens. Try adding more tokens to your watchlist.",
@@ -2028,27 +2022,26 @@ async function fetchNewsForTokens(tokens) {
       news_url: "#",
       publishedAt: new Date().toISOString(),
       date: new Date().toISOString(),
-      source: { name: "CryptoNews API" },
-      source_name: "CryptoNews API",
+      source: { name: "System" },
+      source_name: "System",
       sentiment: "neutral",
       tickers: tokens,
       image_url: null
     }];
     
   } catch (error) {
-    console.error('[News API] Fatal error in fetchNewsForTokens:', error);
-    console.error('[News API] Error stack:', error.stack);
+    console.error('News API error:', error.message);
     
     return [{
-      title: "News Service Error",
-      description: `Unable to fetch crypto news: ${error.message}`,
-      text: `Unable to fetch crypto news: ${error.message}`,
+      title: "News Service Temporarily Unavailable",
+      description: "Unable to load news at this time. Please try again later.",
+      text: "Unable to load news at this time. Please try again later.",
       url: "#",
       news_url: "#",
       publishedAt: new Date().toISOString(),
       date: new Date().toISOString(),
-      source: { name: "Error Handler" },
-      source_name: "Error Handler",
+      source: { name: "System" },
+      source_name: "System",
       sentiment: "neutral",
       tickers: [],
       image_url: null
@@ -2694,18 +2687,8 @@ app.get('*', (_req,res) => {
 // Start server and keep a reference so we can gracefully shut down
 // Listen on 0.0.0.0 so Railway can proxy traffic to the container
 server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Server running on port ${PORT} - DB: PostgreSQL (${DATABASE_URL ? 'configured' : 'not set'})`);
-  console.log(`✅ Server listening on 0.0.0.0:${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
   console.log(`✅ Process ID: ${process.pid}`);
-  console.log(`✅ Node version: ${process.version}`);
-  
-  // Log API key configuration
-  const newsKey = process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY;
-  if (newsKey) {
-    console.log(`✅ CryptoNews API Key: ${newsKey.substring(0, 8)}... (${newsKey.length} chars)`);
-  } else {
-    console.warn(`⚠️ CryptoNews API Key: NOT CONFIGURED`);
-  }
 });
 
 server.on('error', (error) => {
