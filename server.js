@@ -55,6 +55,8 @@ const allowedOrigins = [
   'http://localhost:4173',
   process.env.ADMIN_DASHBOARD_URL,
   process.env.STAGING_ADMIN_URL,
+  'https://app.crypto-lifeguard.com',  // Production main app
+  'https://clg-staging.up.railway.app', // Staging main app
 ].filter(Boolean); // Remove undefined values
 
 // Log CORS configuration on startup
@@ -62,7 +64,7 @@ console.log('[CORS] Allowed origins:', allowedOrigins.length, 'configured');
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, Postman)
+    // Allow requests with no origin (like mobile apps, curl, Postman, same-origin)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
