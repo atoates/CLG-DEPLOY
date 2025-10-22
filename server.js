@@ -1464,6 +1464,9 @@ app.get('/api/environment', (_req, res) => {
 
 // --- News API with Database Caching ------------------------------------------
 app.post('/api/news', async (req, res) => {
+  console.log('[News API] POST /api/news - Request received');
+  console.log('[News API] Request body:', JSON.stringify(req.body));
+  
   try {
     const { tokens } = req.body;
     
@@ -1471,6 +1474,8 @@ app.post('/api/news', async (req, res) => {
     const tokensToFetch = Array.isArray(tokens) && tokens.length > 0 
       ? tokens 
       : ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
+    
+    console.log('[News API] Tokens to fetch:', tokensToFetch);
     
     let cachedNews = null;
     let usedCache = false;
@@ -1556,6 +1561,7 @@ app.post('/api/news', async (req, res) => {
       console.log(`[News API] Serving ${freshNews.length} fresh articles (caching unavailable)`);
     }
     
+    console.log('[News API] Returning', freshNews.length, 'articles to client');
     res.json({ 
       news: freshNews, 
       cached: false,
@@ -1563,7 +1569,8 @@ app.post('/api/news', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('[News API] Error:', error);
+    console.error('[News API] Endpoint error:', error);
+    console.error('[News API] Error stack:', error.stack);
     res.status(500).json({ 
       error: 'Failed to fetch news',
       message: error.message,
@@ -2029,15 +2036,22 @@ async function fetchNewsForTokens(tokens) {
     }];
     
   } catch (error) {
-    console.error('CryptoNews API Error:', error.message);
+    console.error('[News API] Fatal error in fetchNewsForTokens:', error);
+    console.error('[News API] Error stack:', error.stack);
     
     return [{
-      title: "News Service Temporarily Unavailable",
+      title: "News Service Error",
       description: `Unable to fetch crypto news: ${error.message}`,
+      text: `Unable to fetch crypto news: ${error.message}`,
       url: "#",
+      news_url: "#",
       publishedAt: new Date().toISOString(),
+      date: new Date().toISOString(),
       source: { name: "Error Handler" },
-      sentiment: "neutral"
+      source_name: "Error Handler",
+      sentiment: "neutral",
+      tickers: [],
+      image_url: null
     }];
   }
 }
@@ -2671,6 +2685,14 @@ server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server listening on 0.0.0.0:${PORT}`);
   console.log(`✅ Process ID: ${process.pid}`);
   console.log(`✅ Node version: ${process.version}`);
+  
+  // Log API key configuration
+  const newsKey = process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY;
+  if (newsKey) {
+    console.log(`✅ CryptoNews API Key: ${newsKey.substring(0, 8)}... (${newsKey.length} chars)`);
+  } else {
+    console.warn(`⚠️ CryptoNews API Key: NOT CONFIGURED`);
+  }
 });
 
 server.on('error', (error) => {
