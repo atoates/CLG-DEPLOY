@@ -282,6 +282,20 @@ async function initDB() {
 // Call init on startup
 initDB().catch(console.error);
 
+// Clean up old news articles every 6 hours
+setInterval(async () => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM news_cache WHERE expires_at < NOW()'
+    );
+    if (result.rowCount > 0) {
+      console.log(`[News Cache] Cleaned up ${result.rowCount} expired articles`);
+    }
+  } catch (err) {
+    console.error('[News Cache] Cleanup error:', err);
+  }
+}, 6 * 60 * 60 * 1000); // Every 6 hours
+
 /* ---------------- Database Helper Functions ---------------- */
 // Upsert user (INSERT ON CONFLICT DO NOTHING)
 async function upsertUser(userId) {
@@ -1446,6 +1460,97 @@ app.get('/api/environment', (_req, res) => {
     environment: env.toLowerCase(),
     isProduction: env.toLowerCase() === 'production'
   });
+});
+
+// --- News API with Database Caching ------------------------------------------
+app.post('/api/news', async (req, res) => {
+  try {
+    const { tokens } = req.body;
+    
+    // Default to popular tokens if none specified
+    const tokensToFetch = Array.isArray(tokens) && tokens.length > 0 
+      ? tokens 
+      : ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
+    
+    // First, try to get from database cache (pull everything, no token filtering)
+    const cacheResult = await pool.query(`
+      SELECT * FROM news_cache 
+      WHERE expires_at > NOW()
+      ORDER BY date DESC 
+      LIMIT 50
+    `);
+    
+    // If we have recent cached news (at least 20 articles), return it
+    if (cacheResult.rows.length >= 20) {
+      const cachedNews = cacheResult.rows.map(row => ({
+        title: row.title,
+        text: row.text,
+        source_name: row.source_name,
+        date: row.date,
+        sentiment: row.sentiment,
+        tickers: row.tickers ? JSON.parse(row.tickers) : [],
+        topics: row.topics ? JSON.parse(row.topics) : [],
+        news_url: row.article_url,
+        image_url: row.image_url
+      }));
+      
+      console.log(`[News API] Serving ${cachedNews.length} cached articles`);
+      return res.json({ 
+        news: cachedNews, 
+        cached: true,
+        timestamp: new Date().toISOString() 
+      });
+    }
+    
+    // Otherwise, fetch fresh news from API
+    console.log('[News API] Cache miss - fetching fresh news for tokens:', tokensToFetch.join(','));
+    const freshNews = await fetchNewsForTokens(tokensToFetch);
+    
+    // Cache the news articles in database
+    let cachedCount = 0;
+    for (const article of freshNews) {
+      try {
+        await pool.query(`
+          INSERT INTO news_cache 
+          (article_url, title, text, source_name, date, sentiment, tickers, topics, image_url)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ON CONFLICT (article_url) DO UPDATE SET
+            title = EXCLUDED.title,
+            text = EXCLUDED.text,
+            sentiment = EXCLUDED.sentiment,
+            expires_at = NOW() + INTERVAL '120 days'
+        `, [
+          article.url || article.news_url,
+          article.title,
+          article.description || article.text,
+          article.source?.name || article.source_name,
+          article.publishedAt || article.date,
+          article.sentiment || 'neutral',
+          JSON.stringify(article.tickers || []),
+          JSON.stringify(article.topics || []),
+          article.image_url || null
+        ]);
+        cachedCount++;
+      } catch (dbError) {
+        console.warn('[News API] Failed to cache article:', dbError.message);
+        // Continue even if one article fails to cache
+      }
+    }
+    
+    console.log(`[News API] Cached ${cachedCount}/${freshNews.length} fresh articles`);
+    res.json({ 
+      news: freshNews, 
+      cached: false,
+      timestamp: new Date().toISOString() 
+    });
+    
+  } catch (error) {
+    console.error('[News API] Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch news',
+      news: []
+    });
+  }
 });
 
 // --- AI Summary API ----------------------------------------------------------
