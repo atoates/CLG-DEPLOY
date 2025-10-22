@@ -1,0 +1,89 @@
+name: Production Deploy with Safety Checks
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  pre-deploy-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Syntax check
+        run: node -c server.js
+        
+      - name: Build frontend
+        run: npm run build
+        
+      - name: Verify build artifacts
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "❌ Build failed - dist directory not created"
+            exit 1
+          fi
+          
+          if [ ! -f "dist/index.html" ]; then
+            echo "❌ Build failed - index.html missing"
+            exit 1
+          fi
+          
+          # Check for critical assets
+          asset_count=$(find dist/assets -name "*.js" | wc -l)
+          if [ "$asset_count" -lt 1 ]; then
+            echo "❌ No JavaScript bundles found in dist/assets"
+            exit 1
+          fi
+          
+          echo "✅ Build verification passed"
+          echo "   - dist/ directory exists"
+          echo "   - index.html present"
+          echo "   - $asset_count JS bundles found"
+          
+      - name: Check for CORS issues
+        run: |
+          # Verify CORS is not applied globally
+          if grep -q "app\.use(cors(" server.js; then
+            echo "⚠️  WARNING: Global CORS detected - verify it doesn't break static assets"
+            grep -A 5 "app\.use(cors(" server.js
+          fi
+          
+          # Verify static file serving exists
+          if ! grep -q "express\.static" server.js; then
+            echo "❌ No static file serving found"
+            exit 1
+          fi
+          
+          echo "✅ CORS configuration check passed"
+          
+  deploy:
+    needs: pre-deploy-checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Railway
+        run: echo "Railway auto-deploys from main branch"
+        
+      - name: Wait for deployment
+        run: sleep 30
+        
+      - name: Health check
+        run: |
+          echo "Checking production health..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://app.crypto-lifeguard.com/healthz)
+          
+          if [ "$response" != "200" ]; then
+            echo "❌ Health check failed: HTTP $response"
+            echo "🚨 PRODUCTION MAY BE DOWN - CHECK RAILWAY LOGS"
+            exit 1
+          fi
+          
+          echo "✅ Production health check passed"

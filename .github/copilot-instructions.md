@@ -65,11 +65,69 @@ npm run update-tags
 
 ### Deployment
 - Production deployment via Railway.app
+- **CRITICAL**: All changes MUST go through staging first
+  - `develop` branch → staging environment
+  - `main` branch → production environment
 - Procfile defines startup sequence:
   1. Run migrations
   2. Restore alerts from backup
   3. Update tags
   4. Start server
+- See `DEPLOYMENT.md` for full deployment checklist
+
+## Deployment Safety Rules
+
+### ⚠️ NEVER Deploy Directly to Production
+1. All changes go to `develop` branch first
+2. Test on staging: https://clg-staging.up.railway.app
+3. Only merge to `main` after staging verification
+4. Run smoke tests after production deployment
+
+### CORS Configuration Rules
+**CRITICAL**: CORS must NEVER be applied globally with `app.use(cors())`
+
+✅ **Correct** - Scoped CORS:
+```javascript
+app.use('/api', cors(corsOptions));
+app.use('/auth', cors(corsOptions));
+app.use('/admin', cors(corsOptions));
+```
+
+❌ **Wrong** - Global CORS breaks static assets:
+```javascript
+app.use(cors(corsOptions)); // DON'T DO THIS
+```
+
+**Why**: Global CORS interferes with static file serving (JS/CSS/images) and causes 500 errors
+
+### Pre-Deployment Checklist
+- [ ] Changes tested locally with `npm run dev`
+- [ ] Build succeeds: `npm run build`
+- [ ] Syntax check passes: `node -c server.js`
+- [ ] Deployed to staging and tested
+- [ ] No CORS errors in browser console
+- [ ] Static assets load correctly (check Network tab)
+- [ ] All core features work (alerts, news, summary, market data)
+
+### Post-Deployment Verification
+After pushing to `main`:
+```bash
+# Wait 2-3 minutes for deployment
+# Run smoke tests
+./scripts/smoke-test.sh
+
+# Or manual checks
+curl https://app.crypto-lifeguard.com/healthz
+# Visit site and check browser console for errors
+```
+
+### Rollback Procedure
+If production breaks:
+```bash
+git checkout main
+git revert HEAD
+git push origin main
+```
 
 ## Project Conventions
 
