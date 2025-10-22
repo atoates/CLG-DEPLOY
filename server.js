@@ -83,6 +83,7 @@ const corsOptions = {
 // Apply CORS middleware ONLY to API/auth routes - NOT to static files
 app.use('/api', cors(corsOptions));
 app.use('/auth', cors(corsOptions));
+app.use('/admin', cors(corsOptions));
 app.use('/debug', cors(corsOptions));
 app.options('*', cors(corsOptions)); // Handle preflight requests
 
