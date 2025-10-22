@@ -1504,6 +1504,33 @@ async function generateNewSummary(){
 
 async function renderSummary(){
   const sc = document.getElementById('summary-content');
+  
+  // If not logged in, show login prompt instead of auto-generating
+  if (!isLoggedIn) {
+    sc.innerHTML = `
+      <div style="text-align: center; padding: 40px 20px;">
+        <h2 style="margin-bottom: 16px;">🤖 AI-Powered Alert Summaries</h2>
+        <p style="color: #64748b; margin-bottom: 24px;">
+          Get intelligent analysis of your crypto alerts with AI-generated summaries.
+        </p>
+        <div style="background: #f1f5f9; border-radius: 8px; padding: 20px; margin-bottom: 24px; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;">
+          <p style="margin: 0 0 12px 0;"><strong>✨ Features include:</strong></p>
+          <ul style="margin: 0; padding-left: 20px; color: #475569;">
+            <li>Multi-model AI analysis (OpenAI, Anthropic, xAI)</li>
+            <li>Severity-based prioritization</li>
+            <li>Historical summary tracking</li>
+            <li>Customizable filters and preferences</li>
+          </ul>
+        </div>
+        <a href="/auth/google" class="btn-primary" style="display: inline-block; padding: 12px 32px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 500;">
+          Sign in with Google to Continue
+        </a>
+      </div>
+    `;
+    updateSummaryHistoryNav([], -1);
+    return;
+  }
+  
   // Try to load the most recent saved summary first (for logged-in users)
   try {
     const recent = await fetchRecentSummaries(10);
@@ -1521,48 +1548,6 @@ async function renderSummary(){
     updateSummaryHistoryNav([], -1);
     return;
   }
-  
-  // Show loading state with countdown
-  sc.innerHTML = `
-    <div class="loading-state">
-      <div class="countdown-container">
-        <div class="countdown-circle">
-          <svg class="countdown-svg" viewBox="0 0 100 100">
-            <circle class="countdown-track" cx="50" cy="50" r="45" fill="none" stroke="#e2e8f0" stroke-width="8"/>
-            <circle class="countdown-progress" cx="50" cy="50" r="45" fill="none" stroke="#3b82f6" stroke-width="8" 
-                    stroke-linecap="round" transform="rotate(-90 50 50)"/>
-          </svg>
-          <div class="countdown-number">30</div>
-        </div>
-        <p class="countdown-text">🤖 Generating AI summary...</p>
-      </div>
-    </div>
-  `;
-  
-  // Start countdown animation
-  let countdownSeconds = 30;
-  const countdownNumber = sc.querySelector('.countdown-number');
-  const countdownProgress = sc.querySelector('.countdown-progress');
-  const circumference = 2 * Math.PI * 45; // radius = 45
-  
-  countdownProgress.style.strokeDasharray = circumference;
-  countdownProgress.style.strokeDashoffset = 0;
-  
-  window.currentCountdownInterval = setInterval(() => {
-    countdownSeconds--;
-    countdownNumber.textContent = countdownSeconds;
-    
-    // Update progress circle
-    const progress = (30 - countdownSeconds) / 30;
-    const offset = circumference * (1 - progress);
-    countdownProgress.style.strokeDashoffset = offset;
-    
-    if (countdownSeconds <= 0) {
-      clearInterval(window.currentCountdownInterval);
-      countdownNumber.textContent = '⏳';
-      sc.querySelector('.countdown-text').textContent = '🤖 Finalizing summary...';
-    }
-  }, 1000);
   
   if (!selectedTokens.length && !showAllTokens) {
     sc.innerHTML = '<p class="muted">Select some tokens to see an AI-generated summary of your alerts.</p>';

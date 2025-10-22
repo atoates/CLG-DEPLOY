@@ -5,7 +5,6 @@ const nameEl = document.getElementById('prof-name');
 const emailEl = document.getElementById('prof-email');
 const avatarEl = document.getElementById('prof-avatar');
 const usernameEl = document.getElementById('prof-username');
-const adminBadgeEl = document.getElementById('prof-admin-badge');
 const usernameInput = document.getElementById('prof-username-input');
 const usernameSave = document.getElementById('prof-username-save');
 const pillsEl = document.getElementById('prof-watch-pills');
@@ -34,7 +33,12 @@ function setAvatar(profile){
   const url = (profile && profile.avatar) || '';
   if (url){
     const img = document.createElement('img');
-    img.src = url; img.alt = 'Avatar'; img.width = 64; img.height = 64; img.style.borderRadius = '999px';
+    img.src = url; 
+    img.alt = 'Avatar'; 
+    img.width = 80; 
+    img.height = 80; 
+    img.style.borderRadius = '50%';
+    img.style.objectFit = 'cover';
     avatarEl.appendChild(img);
   } else {
     const initials = (profile && profile.name || '').trim().split(/\s+/).map(s=>s[0]).slice(0,2).join('').toUpperCase() || 'U';
@@ -91,8 +95,19 @@ async function loadMe(){
   const r = await fetch('/api/me');
   me = await r.json();
   if (!me.loggedIn){ window.location.href = '/'; return; }
-  nameEl.textContent = me.profile?.name || 'Your profile';
-  if (adminBadgeEl) adminBadgeEl.style.display = me.isAdmin ? 'inline-flex' : 'none';
+  
+  // Update profile name with admin badge if applicable
+  nameEl.innerHTML = '';
+  const nameText = document.createTextNode(me.profile?.name || 'Your profile');
+  nameEl.appendChild(nameText);
+  
+  if (me.isAdmin) {
+    const badge = document.createElement('span');
+    badge.className = 'admin-badge';
+    badge.innerHTML = '⚡ Admin';
+    nameEl.appendChild(badge);
+  }
+  
   usernameEl.textContent = me.profile?.username ? `@${me.profile.username}` : '';
   emailEl.textContent = me.profile?.email || '';
   setAvatar(me.profile || {});
