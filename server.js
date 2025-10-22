@@ -57,30 +57,18 @@ const allowedOrigins = [
   process.env.STAGING_ADMIN_URL,
 ].filter(Boolean); // Remove undefined values
 
-// Debug: Log allowed origins on startup
-console.log('='.repeat(60));
-console.log('[CORS] Configuration loaded on startup');
-console.log('[CORS] ADMIN_DASHBOARD_URL:', process.env.ADMIN_DASHBOARD_URL || '(not set)');
-console.log('[CORS] STAGING_ADMIN_URL:', process.env.STAGING_ADMIN_URL || '(not set)');
-console.log('[CORS] Allowed origins:', allowedOrigins);
-console.log('='.repeat(60));
+// Log CORS configuration on startup
+console.log('[CORS] Allowed origins:', allowedOrigins.length, 'configured');
 
 const corsOptions = {
   origin: function (origin, callback) {
-    console.log('[CORS] Incoming request from origin:', origin || '(no origin)');
-    
     // Allow requests with no origin (like mobile apps, curl, Postman)
-    if (!origin) {
-      console.log('[CORS] ✅ No origin - ALLOWED');
-      return callback(null, true);
-    }
+    if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
-      console.log('[CORS] ✅ Origin found in allowlist - ALLOWED');
       callback(null, true);
     } else {
-      console.log('[CORS] ❌ Origin NOT in allowlist - BLOCKED');
-      console.log('[CORS] Allowed origins are:', allowedOrigins);
+      console.log('[CORS] Blocked request from origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
