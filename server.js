@@ -1899,10 +1899,64 @@ ${upcomingDeadlines.length > 0 ?
 *Note: This is an automated summary. AI-powered analysis requires API configuration.*`;
 }
 
-// News fetching function using CryptoNews API
+// News fetching function - tries CryptoPanic first (free), then CryptoNews as fallback
 async function fetchNewsForTokens(tokens) {
   try {
-    // Support multiple env var aliases to avoid staging/prod drift
+    if (tokens.length === 0) {
+      tokens = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP']; // Default to popular tokens
+    }
+    
+    console.log(`[News API] Fetching news for tokens: ${tokens.join(', ')}`);
+    
+    // Try CryptoPanic first (free public API, no key needed)
+    try {
+      const tokensStr = tokens.slice(0, 10).join(',').toLowerCase();
+      const cpUrl = `https://cryptopanic.com/api/v1/posts/?currencies=${encodeURIComponent(tokensStr)}&public=true`;
+      console.log(`[News API] Trying CryptoPanic: ${cpUrl}`);
+      
+      const r = await fetch(cpUrl, { 
+        timeout: 15000,
+        headers: {
+          'User-Agent': 'CryptoLifeguard/1.0'
+        }
+      });
+      
+      if (r.ok) {
+        const cp = await r.json();
+        console.log(`[News API] CryptoPanic response:`, cp ? 'data received' : 'no data');
+        
+        if (cp && Array.isArray(cp.results) && cp.results.length > 0) {
+          const mapped = cp.results.map(p => ({
+            title: p.title || 'News',
+            description: p.title || '',
+            text: p.title || '',
+            url: p.url || '#',
+            news_url: p.url || '#',
+            publishedAt: p.published_at || p.created_at || new Date().toISOString(),
+            date: p.published_at || p.created_at || new Date().toISOString(),
+            source: { name: (p.source && (p.source.title || p.source.domain)) || 'CryptoPanic' },
+            source_name: (p.source && (p.source.title || p.source.domain)) || 'CryptoPanic',
+            sentiment: p.votes?.positive > p.votes?.negative ? 'positive' : 
+                      p.votes?.negative > p.votes?.positive ? 'negative' : 'neutral',
+            tickers: Array.isArray(p.currencies) ? p.currencies.map(c => (c.code || '').toUpperCase()).filter(Boolean) : [],
+            token: Array.isArray(p.currencies) && p.currencies[0] ? (p.currencies[0].code || '').toUpperCase() : undefined,
+            image_url: null
+          }));
+          
+          console.log(`[News API] CryptoPanic returned ${mapped.length} articles`);
+          return mapped.slice(0, 30);
+        } else {
+          console.log(`[News API] CryptoPanic returned no results`);
+        }
+      } else {
+        const errorText = await r.text().catch(() => 'Unable to read response');
+        console.error(`[News API] CryptoPanic HTTP ${r.status}:`, errorText);
+      }
+    } catch (cpError) {
+      console.error('[News API] CryptoPanic error:', cpError.message);
+    }
+    
+    // Fallback to CryptoNews API if CryptoPanic fails
     const cryptoNewsApiKey = (
       process.env.NEWSAPI_KEY
       || process.env.NEWS_API
@@ -1910,122 +1964,83 @@ async function fetchNewsForTokens(tokens) {
       || process.env.CRYPTO_NEWS_API_KEY
     );
     
-    // Validate API key is present and not a placeholder/invalid value
+    // Validate API key
     const invalidKeys = ['undefined', 'null', '', 'fs', 'your-key-here', 'xxx'];
-    if (!cryptoNewsApiKey || invalidKeys.includes(cryptoNewsApiKey.toLowerCase().trim())) {
-      console.warn(`[News API] Invalid or missing NEWS API key. Checked env vars: NEWSAPI_KEY | NEWS_API | CRYPTONEWS_API_KEY | CRYPTO_NEWS_API_KEY. Got: "${cryptoNewsApiKey}"`);
-      return [{
-        title: "CryptoNews API Key Missing",
-        description: "NEWS API key environment variable is not configured or invalid (expected one of: NEWSAPI_KEY, NEWS_API, CRYPTONEWS_API_KEY)",
-        url: "#",
-        publishedAt: new Date().toISOString(),
-        source: { name: "Configuration Error" },
-        sentiment: "neutral"
-      }];
-    }
-    
-    if (tokens.length === 0) {
-      return [{
-        title: "No Tokens Selected",
-        description: "Select tokens in your watchlist to see relevant crypto news",
-        url: "#",
-        publishedAt: new Date().toISOString(),
-        source: { name: "System" },
-        sentiment: "neutral"
-      }];
-    }
-
-    // Fetch news for each token individually to ensure coverage
-    const allArticles = [];
-    const itemsPerToken = Math.max(3, Math.ceil(15 / tokens.length)); // At least 3 per token, up to 15 total
-    
-    for (const token of tokens.slice(0, 8)) { // Limit to 8 tokens to avoid rate limits
-      try {
-        const url = `https://cryptonews-api.com/api/v1?tickers=${token}&items=${itemsPerToken}&page=1&token=${cryptoNewsApiKey}`;
-        
-        const response = await fetch(url, {
-          timeout: 10000 // 10 second timeout
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          
-          if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-            const tokenArticles = data.data.map(article => ({
-              title: article.title || 'No title available',
-              description: article.text || article.description || 'No description available',
-              url: article.news_url || article.url || '#',
-              publishedAt: article.date || new Date().toISOString(),
-              source: { name: article.source_name || article.source || 'Unknown' },
-              sentiment: article.sentiment || 'neutral',
-              tickers: article.tickers || [token],
-              token: token, // Ensure we know which token this is for
-              image_url: article.image_url
-            }));
-            
-            allArticles.push(...tokenArticles);
-          }
-        } else {
-          console.error(`[News API] HTTP ${response.status} for ${token}:`, await response.text().catch(() => 'Unable to read response'));
-        }
-        
-        // Small delay between requests to be respectful to the API
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-      } catch (tokenError) {
-        console.error(`Error fetching news for ${token}:`, tokenError.message);
-        // Continue with other tokens
-      }
-    }
-    
-    if (allArticles.length > 0) {
-      // Remove duplicates based on title and sort by publish date
-      const uniqueArticles = allArticles.filter((article, index, arr) => 
-        arr.findIndex(a => a.title === article.title) === index
-      );
+    if (cryptoNewsApiKey && !invalidKeys.includes(cryptoNewsApiKey.toLowerCase().trim())) {
+      console.log(`[News API] Trying CryptoNews API fallback`);
       
-      return uniqueArticles
-        .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-        .slice(0, 20); // Return up to 20 articles total
-    } else {
-      // Fallback: try CryptoPanic public feed (rate-limited but better than empty)
-      try {
-        const top = tokens.slice(0, 5).join(',');
-        const cpUrl = `https://cryptopanic.com/api/v1/posts/?currencies=${encodeURIComponent(top)}&public=true&page_size=20`;
-        console.log(`[News Fallback] CryptoPanic ${cpUrl}`);
-        const r = await fetch(cpUrl, { timeout: 10000 });
-        if (r.ok) {
-          const cp = await r.json();
-          if (cp && Array.isArray(cp.results) && cp.results.length) {
-            const mapped = cp.results.map(p => ({
-              title: p.title || 'News',
-              description: p.description || p.title || '',
-              url: p.url || '#',
-              publishedAt: p.published_at || p.created_at || new Date().toISOString(),
-              source: { name: (p.source && (p.source.title || p.source.domain)) || 'CryptoPanic' },
-              sentiment: 'neutral',
-              tickers: Array.isArray(p.currencies) ? p.currencies.map(c => (c.code || '').toUpperCase()).filter(Boolean) : undefined,
-              token: Array.isArray(p.currencies) && p.currencies[0] ? (p.currencies[0].code || '').toUpperCase() : undefined
-            }));
-            console.log(`[News Fallback] CryptoPanic returned ${mapped.length} posts`);
-            return mapped.slice(0, 20);
+      const allArticles = [];
+      const itemsPerToken = Math.max(3, Math.ceil(15 / tokens.length));
+      
+      for (const token of tokens.slice(0, 5)) {
+        try {
+          const url = `https://cryptonews-api.com/api/v1?tickers=${token}&items=${itemsPerToken}&page=1&token=${cryptoNewsApiKey}`;
+          
+          const response = await fetch(url, { timeout: 10000 });
+          
+          if (response.ok) {
+            const data = await response.json();
+            
+            if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+              const tokenArticles = data.data.map(article => ({
+                title: article.title || 'No title available',
+                description: article.text || article.description || 'No description available',
+                text: article.text || article.description || '',
+                url: article.news_url || article.url || '#',
+                news_url: article.news_url || article.url || '#',
+                publishedAt: article.date || new Date().toISOString(),
+                date: article.date || new Date().toISOString(),
+                source: { name: article.source_name || article.source || 'Unknown' },
+                source_name: article.source_name || article.source || 'Unknown',
+                sentiment: article.sentiment || 'neutral',
+                tickers: article.tickers || [token],
+                token: token,
+                image_url: article.image_url
+              }));
+              
+              allArticles.push(...tokenArticles);
+            }
+          } else {
+            console.error(`[News API] CryptoNews HTTP ${response.status} for ${token}`);
           }
-        } else {
-          console.error(`[News Fallback] CryptoPanic HTTP ${r.status}:`, await r.text().catch(()=>''));
+          
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+        } catch (tokenError) {
+          console.error(`[News API] CryptoNews error for ${token}:`, tokenError.message);
         }
-      } catch (e) {
-        console.error('[News Fallback] CryptoPanic error:', e && e.message ? e.message : e);
       }
-
-      return [{
-        title: "No News Available",
-        description: "No recent cryptocurrency news found for your selected tokens",
-        url: "#",
-        publishedAt: new Date().toISOString(),
-        source: { name: "CryptoNews API" },
-        sentiment: "neutral"
-      }];
+      
+      if (allArticles.length > 0) {
+        const uniqueArticles = allArticles.filter((article, index, arr) => 
+          arr.findIndex(a => a.title === article.title) === index
+        );
+        
+        console.log(`[News API] CryptoNews returned ${uniqueArticles.length} articles`);
+        return uniqueArticles
+          .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+          .slice(0, 20);
+      }
+    } else {
+      console.warn(`[News API] CryptoNews API key not configured or invalid`);
     }
+
+    // If all else fails, return empty state message
+    console.log(`[News API] All sources exhausted, returning empty state`);
+    return [{
+      title: "No News Available",
+      description: "Unable to fetch cryptocurrency news at this time. Please try again later.",
+      text: "Unable to fetch cryptocurrency news at this time. Please try again later.",
+      url: "#",
+      news_url: "#",
+      publishedAt: new Date().toISOString(),
+      date: new Date().toISOString(),
+      source: { name: "System" },
+      source_name: "System",
+      sentiment: "neutral",
+      tickers: [],
+      image_url: null
+    }];
     
   } catch (error) {
     console.error('CryptoNews API Error:', error.message);
