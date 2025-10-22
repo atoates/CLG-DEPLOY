@@ -1472,29 +1472,42 @@ app.post('/api/news', async (req, res) => {
       ? tokens 
       : ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
     
-    // First, try to get from database cache (pull everything, no token filtering)
-    const cacheResult = await pool.query(`
-      SELECT * FROM news_cache 
-      WHERE expires_at > NOW()
-      ORDER BY date DESC 
-      LIMIT 50
-    `);
+    let cachedNews = null;
+    let usedCache = false;
     
-    // If we have recent cached news (at least 20 articles), return it
-    if (cacheResult.rows.length >= 20) {
-      const cachedNews = cacheResult.rows.map(row => ({
-        title: row.title,
-        text: row.text,
-        source_name: row.source_name,
-        date: row.date,
-        sentiment: row.sentiment,
-        tickers: row.tickers ? JSON.parse(row.tickers) : [],
-        topics: row.topics ? JSON.parse(row.topics) : [],
-        news_url: row.article_url,
-        image_url: row.image_url
-      }));
+    // Try to get from database cache (with graceful fallback)
+    try {
+      const cacheResult = await pool.query(`
+        SELECT * FROM news_cache 
+        WHERE expires_at > NOW()
+        ORDER BY date DESC 
+        LIMIT 50
+      `);
       
-      console.log(`[News API] Serving ${cachedNews.length} cached articles`);
+      // If we have recent cached news (at least 20 articles), use it
+      if (cacheResult.rows.length >= 20) {
+        cachedNews = cacheResult.rows.map(row => ({
+          title: row.title,
+          text: row.text,
+          source_name: row.source_name,
+          date: row.date,
+          sentiment: row.sentiment,
+          tickers: row.tickers ? JSON.parse(row.tickers) : [],
+          topics: row.topics ? JSON.parse(row.topics) : [],
+          news_url: row.article_url,
+          image_url: row.image_url
+        }));
+        
+        console.log(`[News API] Serving ${cachedNews.length} cached articles`);
+        usedCache = true;
+      }
+    } catch (cacheError) {
+      console.warn('[News API] Cache lookup failed (DB may not be available):', cacheError.message);
+      // Continue without cache - will fetch fresh news
+    }
+    
+    // If we have cached news, return it
+    if (usedCache && cachedNews) {
       return res.json({ 
         news: cachedNews, 
         cached: true,
@@ -1503,10 +1516,10 @@ app.post('/api/news', async (req, res) => {
     }
     
     // Otherwise, fetch fresh news from API
-    console.log('[News API] Cache miss - fetching fresh news for tokens:', tokensToFetch.join(','));
+    console.log('[News API] Fetching fresh news for tokens:', tokensToFetch.join(','));
     const freshNews = await fetchNewsForTokens(tokensToFetch);
     
-    // Cache the news articles in database
+    // Try to cache the news articles in database (gracefully fail if DB unavailable)
     let cachedCount = 0;
     for (const article of freshNews) {
       try {
@@ -1533,11 +1546,16 @@ app.post('/api/news', async (req, res) => {
         cachedCount++;
       } catch (dbError) {
         console.warn('[News API] Failed to cache article:', dbError.message);
-        // Continue even if one article fails to cache
+        // Continue even if caching fails
       }
     }
     
-    console.log(`[News API] Cached ${cachedCount}/${freshNews.length} fresh articles`);
+    if (cachedCount > 0) {
+      console.log(`[News API] Cached ${cachedCount}/${freshNews.length} fresh articles`);
+    } else {
+      console.log(`[News API] Serving ${freshNews.length} fresh articles (caching unavailable)`);
+    }
+    
     res.json({ 
       news: freshNews, 
       cached: false,
@@ -1548,6 +1566,7 @@ app.post('/api/news', async (req, res) => {
     console.error('[News API] Error:', error);
     res.status(500).json({ 
       error: 'Failed to fetch news',
+      message: error.message,
       news: []
     });
   }
