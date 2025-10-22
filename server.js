@@ -1806,13 +1806,6 @@ async function fetchNewsForTokens(tokens) {
         sentiment: "neutral"
       }];
     }
-    
-    // Log basic context for debugging in staging/test
-    try {
-      const envName = (process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV || 'production').toLowerCase();
-      const keyUsed = cryptoNewsApiKey ? `${String(cryptoNewsApiKey).slice(0,6)}…(${String(cryptoNewsApiKey).length})` : 'none';
-      console.log(`[News API] env=${envName} key=${keyUsed} tokens=${Array.isArray(tokens)?tokens.join(','):''}`);
-    } catch {}
 
     // Fetch news for each token individually to ensure coverage
     const allArticles = [];
@@ -1828,11 +1821,6 @@ async function fetchNewsForTokens(tokens) {
         
         if (response.ok) {
           const data = await response.json();
-          
-          // Log API response for debugging
-          if (!data.data || data.data.length === 0) {
-            console.log(`[News API] No articles returned for ${token}. Response:`, JSON.stringify(data).substring(0, 200));
-          }
           
           if (data.data && Array.isArray(data.data) && data.data.length > 0) {
             const tokenArticles = data.data.map(article => ({
@@ -1974,7 +1962,7 @@ function mapPostToAlert(p){
 }
 
 /* ---------------- Environment Debug Endpoint ---------------- */
-app.get('/debug/env', (req, res) => {
+app.get('/debug/env', requireAdmin, (req, res) => {
   res.json({
     NODE_ENV: process.env.NODE_ENV || 'not_set',
     CMC_API_KEY_SET: !!CMC_API_KEY,
