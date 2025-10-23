@@ -1941,8 +1941,12 @@ async function fetchNewsForTokens(tokens) {
           }
         });
         
+        // Log response details for debugging
+        console.log(`[News] Token: ${token}, Status: ${response.status}`);
+        
         if (response.ok) {
           const data = await response.json();
+          console.log(`[News] Response for ${token}:`, data.data ? `${data.data.length} articles` : 'No data field');
           
           if (data.data && Array.isArray(data.data) && data.data.length > 0) {
             const tokenArticles = data.data.map(article => ({
@@ -1963,16 +1967,22 @@ async function fetchNewsForTokens(tokens) {
             
             allArticles.push(...tokenArticles);
           }
-        } else if (response.status === 403) {
-          // IP blacklisted - check error message
-          try {
-            const errorData = await response.json();
-            if (errorData.message && errorData.message.includes('blacklisted')) {
-              ipBlacklisted = true;
-              break; // Stop trying other tokens
+        } else {
+          // Log non-OK responses
+          const errorText = await response.text();
+          console.error(`[News] Error for ${token} (${response.status}):`, errorText.substring(0, 200));
+          
+          if (response.status === 403) {
+            // IP blacklisted - check error message
+            try {
+              const errorData = JSON.parse(errorText);
+              if (errorData.message && errorData.message.includes('blacklisted')) {
+                ipBlacklisted = true;
+                break; // Stop trying other tokens
+              }
+            } catch (e) {
+              // Ignore parse error
             }
-          } catch (e) {
-            // Ignore parse error
           }
         }
         
@@ -1980,6 +1990,7 @@ async function fetchNewsForTokens(tokens) {
         await new Promise(resolve => setTimeout(resolve, 150));
         
       } catch (tokenError) {
+        console.error(`[News] Exception for ${token}:`, tokenError.message);
         // Continue with other tokens
       }
     }
