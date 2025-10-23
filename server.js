@@ -2132,6 +2132,18 @@ app.get('/debug/oauth', requireAdmin, (req, res) => {
 /* ---------------- Health + static SPA ---------------- */
 app.get('/healthz', (_req,res)=>res.json({ ok:true }));
 
+// Debug endpoint to check environment configuration (no auth required)
+app.get('/api/debug/env-check', (_req, res) => {
+  res.json({
+    adminTokenSet: !!process.env.ADMIN_TOKEN,
+    adminEmailsSet: !!process.env.ADMIN_EMAILS,
+    adminEmailsCount: ADMIN_EMAILS.length,
+    googleOAuthConfigured: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Debug endpoint to check API configuration
 app.get('/api/debug/config', (_req, res) => {
   const newsKey = process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY;
