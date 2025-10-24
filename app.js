@@ -1870,10 +1870,18 @@ function clearNewsTab() {
 
 // --- News loading -----------------------------------------------------------
 async function loadNews() {
+  console.log('[News Debug] loadNews() called');
   const newsContent = document.getElementById('news-content');
-  if (!newsContent) return;
+  if (!newsContent) {
+    console.error('[News Debug] newsContent element not found!');
+    return;
+  }
+
+  console.log('[News Debug] selectedTokens:', selectedTokens);
+  console.log('[News Debug] showAllTokens:', showAllTokens);
 
   if (!selectedTokens.length && !showAllTokens) {
+    console.log('[News Debug] No tokens selected, clearing news tab');
     clearNewsTab();
     return;
   }
@@ -1883,6 +1891,7 @@ async function loadNews() {
 
   try {
     const tokens = showAllTokens ? getUniqueTokensFromAlerts([...serverAlerts, ...autoAlerts]) : selectedTokens;
+    console.log('[News Debug] Fetching news for tokens:', tokens);
     
     const response = await fetch('/api/news', {
       method: 'POST',
@@ -1892,19 +1901,25 @@ async function loadNews() {
       body: JSON.stringify({ tokens })
     });
 
+    console.log('[News Debug] Response status:', response.status);
+    
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
 
     const data = await response.json();
+    console.log('[News Debug] Received data:', data);
+    console.log('[News Debug] News count:', data.news ? data.news.length : 0);
     
     if (data.news && data.news.length > 0) {
+      console.log('[News Debug] Calling updateNewsTab with', data.news.length, 'articles');
       updateNewsTab(data.news);
     } else {
+      console.log('[News Debug] No news data, showing placeholder');
       newsContent.innerHTML = '<div class="news-placeholder">No recent news available for your selected tokens.</div>';
     }
   } catch (error) {
-    console.error('Failed to load news:', error);
+    console.error('[News Debug] Error loading news:', error);
     newsContent.innerHTML = '<div class="news-placeholder">Failed to load news. Please try again later.</div>';
   }
 }
