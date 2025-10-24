@@ -284,6 +284,91 @@ button#user-menu-btn.menu-btn{
   cursor:pointer; padding:10px 10px; border-radius:10px; font-weight:600; }
 .menu-item:hover{ background:#f1f5f9; }
 
+/* ---------------- Price Ticker ---------------- */
+.price-ticker {
+  background: linear-gradient(90deg, var(--deep-navy) 0%, #1a2744 100%);
+  overflow: hidden;
+  position: relative;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.ticker-track {
+  display: flex;
+  width: 100%;
+  position: relative;
+}
+
+.ticker-content {
+  display: flex;
+  gap: 48px;
+  padding: 12px 0;
+  animation: scroll 60s linear infinite;
+  white-space: nowrap;
+}
+
+.ticker-duplicate {
+  animation: scroll 60s linear infinite;
+}
+
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ticker-symbol {
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #ffd700;
+}
+
+.ticker-price {
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+}
+
+.ticker-change {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ticker-change.positive {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.ticker-change.negative {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.ticker-change.neutral {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.15);
+}
+
+/* Pause animation on hover */
+.price-ticker:hover .ticker-content {
+  animation-play-state: paused;
+}
+
 /* ---------------- Layout ---------------- */
 .container{
   max-width: 880px;

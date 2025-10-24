@@ -183,6 +183,7 @@ function renderPills(){
       renderAlerts();
       loadMarket();
       loadNews();
+      updateTicker(); // Update ticker when tokens are removed
     });
     pill.appendChild(x);
     selectedTokensEl.appendChild(pill);
@@ -322,6 +323,116 @@ function showEnvironmentBanner(env) {
         envText.textContent = `⚠️ ${env.toUpperCase()}`;
       }
     }
+  }
+}
+
+// --- Price Ticker ------------------------------------------------------------
+let tickerUpdateInterval = null;
+
+async function fetchTickerPrices() {
+  try {
+    // Get user's watchlist tokens
+    const tokens = selectedTokens.length > 0 ? selectedTokens : BASE_TOKENS.slice(0, 10);
+    
+    if (tokens.length === 0) {
+      console.log('No tokens selected for ticker');
+      return [];
+    }
+
+    const symbolsParam = tokens.join(',');
+    const response = await fetch(`/api/market/prices?symbols=${symbolsParam}`);
+    
+    if (!response.ok) {
+      console.error('Failed to fetch ticker prices:', response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    console.log('Fetched ticker data:', data);
+    
+    return data.prices || [];
+  } catch (error) {
+    console.error('Error fetching ticker prices:', error);
+    return [];
+  }
+}
+
+function formatTickerPrice(price) {
+  if (price >= 1000) return `${CURRENCY_SYMBOL}${price.toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+  if (price >= 1) return `${CURRENCY_SYMBOL}${price.toLocaleString(undefined, {maximumFractionDigits: 2})}`;
+  if (price >= 0.01) return `${CURRENCY_SYMBOL}${price.toLocaleString(undefined, {maximumFractionDigits: 4})}`;
+  return `${CURRENCY_SYMBOL}${price.toLocaleString(undefined, {maximumFractionDigits: 6})}`;
+}
+
+function renderTicker(pricesData) {
+  const tickerEl = document.getElementById('price-ticker');
+  const tickerContent = tickerEl?.querySelector('.ticker-content');
+  const tickerDuplicate = tickerEl?.querySelector('.ticker-duplicate');
+  
+  if (!tickerEl || !tickerContent || !tickerDuplicate) {
+    console.log('Ticker elements not found');
+    return;
+  }
+
+  if (!pricesData || pricesData.length === 0) {
+    console.log('No price data to display in ticker');
+    tickerEl.hidden = true;
+    return;
+  }
+
+  // Build ticker items HTML
+  const tickerHTML = pricesData.map(token => {
+    const changeClass = token.change24h > 0 ? 'positive' : token.change24h < 0 ? 'negative' : 'neutral';
+    const changeSymbol = token.change24h > 0 ? '▲' : token.change24h < 0 ? '▼' : '•';
+    const changeText = `${changeSymbol} ${Math.abs(token.change24h).toFixed(2)}%`;
+    
+    return `
+      <div class="ticker-item">
+        <span class="ticker-symbol">${token.symbol}</span>
+        <span class="ticker-price">${formatTickerPrice(token.price)}</span>
+        <span class="ticker-change ${changeClass}">${changeText}</span>
+      </div>
+    `;
+  }).join('');
+
+  // Set content for both the main and duplicate (for seamless loop)
+  tickerContent.innerHTML = tickerHTML;
+  tickerDuplicate.innerHTML = tickerHTML;
+  
+  // Show ticker
+  tickerEl.hidden = false;
+  
+  console.log(`Ticker rendered with ${pricesData.length} tokens`);
+}
+
+async function updateTicker() {
+  console.log('Updating price ticker...');
+  const pricesData = await fetchTickerPrices();
+  renderTicker(pricesData);
+}
+
+function startTicker() {
+  console.log('Starting price ticker...');
+  
+  // Initial update
+  updateTicker();
+  
+  // Update every 5 minutes (300000ms)
+  if (tickerUpdateInterval) {
+    clearInterval(tickerUpdateInterval);
+  }
+  tickerUpdateInterval = setInterval(updateTicker, 300000);
+}
+
+function stopTicker() {
+  if (tickerUpdateInterval) {
+    clearInterval(tickerUpdateInterval);
+    tickerUpdateInterval = null;
+  }
+  
+  const tickerEl = document.getElementById('price-ticker');
+  if (tickerEl) {
+    tickerEl.hidden = true;
   }
 }
 
@@ -527,6 +638,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initTabs();
   loadMarket();
   updateFilterVisibility('alerts'); // default tab
+  
+  // Start price ticker
+  startTicker();
   // Wire the top-row 'Show all' toggle to control watchlist ignoring (local only)
   if (showAllTokensToggle){
     showAllTokensToggle.addEventListener('change', () => {
@@ -681,6 +795,7 @@ function selectToken(symbol) {
   renderAll();
   loadMarket();
   loadAutoAlerts().then(renderAlerts);
+  updateTicker(); // Update ticker when tokens change
   
   tokenInput.value = '';
   hideAutocomplete();

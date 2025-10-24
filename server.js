@@ -1421,6 +1421,33 @@ app.get('/api/market/snapshot', async (req, res) => {
   res.json({ items, note: 'No market API configured.', provider: 'none' });
 });
 
+// Lightweight prices endpoint for ticker
+app.get('/api/market/prices', async (req, res) => {
+  const symbols = String(req.query.symbols||'').split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
+  if (!symbols.length) return res.json({ prices: [] });
+
+  try {
+    // Reuse the snapshot logic but return simplified format
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const snapRes = await fetch(`${baseUrl}/api/market/snapshot?symbols=${encodeURIComponent(symbols.join(','))}`);
+    const { items=[] } = (await snapRes.json()) || {};
+    
+    // Transform to ticker format
+    const prices = items
+      .filter(it => it.lastPrice !== null && it.lastPrice !== undefined)
+      .map(it => ({
+        symbol: it.token,
+        price: it.lastPrice,
+        change24h: it.dayChangePct || 0
+      }));
+    
+    res.json({ prices });
+  } catch (error) {
+    console.error('Error fetching ticker prices:', error);
+    res.json({ prices: [] });
+  }
+});
+
 app.get('/api/market/auto-alerts', async (req, res) => {
   const symbols = String(req.query.symbols||'').split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
   const baseUrl = `${req.protocol}://${req.get('host')}`;
