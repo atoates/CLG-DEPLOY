@@ -1821,7 +1821,7 @@ function updateNewsTab(newsData) {
       const newsItem = document.createElement('div');
       newsItem.className = 'news-item';
       
-      const publishedDate = new Date(article.publishedAt).toLocaleDateString();
+      const publishedDate = new Date(article.date || article.publishedAt).toLocaleDateString();
       const tickersDisplay = article.tickers && article.tickers.length > 0 
         ? article.tickers.slice(0, 3).map(ticker => `<span class="news-ticker">${ticker}</span>`).join('')
         : (article.token ? `<span class="news-ticker">${article.token}</span>` : '');
@@ -1835,11 +1835,11 @@ function updateNewsTab(newsData) {
       newsItem.innerHTML = `
         <div class="news-content">
           <h4 class="news-title">
-            ${article.url !== '#' ? `<a href="${article.url}" target="_blank" rel="noopener">${article.title}</a>` : article.title}
+            ${article.news_url && article.news_url !== '#' ? `<a href="${article.news_url}" target="_blank" rel="noopener">${article.title}</a>` : article.title}
           </h4>
-          <p class="news-description">${article.description || 'No description available'}</p>
+          <p class="news-description">${article.text || article.description || 'No description available'}</p>
           <div class="news-meta">
-            <span class="news-source">${article.source.name}</span>
+            <span class="news-source">${article.source_name || (article.source && article.source.name) || 'Unknown'}</span>
             <span class="news-date">${publishedDate}</span>
             ${article.sentiment && article.sentiment !== 'neutral' ? `<span class="news-sentiment ${sentimentClass}">${sentimentIcon} ${article.sentiment}</span>` : ''}
             ${tickersDisplay}
