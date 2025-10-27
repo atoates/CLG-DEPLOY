@@ -338,17 +338,18 @@ async function getPrefs(userId) {
 }
 
 // Upsert preferences
-async function upsertPrefs(userId, watchlist, severity, showAll, dismissed) {
+async function upsertPrefs(userId, watchlist, severity, showAll, dismissed, currency = 'USD') {
   await pool.query(`
-    INSERT INTO user_prefs (user_id, watchlist_json, severity_json, show_all, dismissed_json, updated_at)
-    VALUES ($1, $2, $3, $4, $5, EXTRACT(EPOCH FROM NOW()))
+    INSERT INTO user_prefs (user_id, watchlist_json, severity_json, show_all, dismissed_json, currency, updated_at)
+    VALUES ($1, $2, $3, $4, $5, $6, EXTRACT(EPOCH FROM NOW()))
     ON CONFLICT(user_id) DO UPDATE SET
       watchlist_json = excluded.watchlist_json,
       severity_json = excluded.severity_json,
       show_all = excluded.show_all,
       dismissed_json = excluded.dismissed_json,
+      currency = excluded.currency,
       updated_at = excluded.updated_at
-  `, [userId, watchlist, severity, showAll, dismissed]);
+  `, [userId, watchlist, severity, showAll, dismissed, currency]);
 }
 
 // Insert a saved AI summary for a logged-in user
@@ -671,6 +672,7 @@ app.get('/api/me', async (req, res) => {
       severity: ['critical','warning','info'],
       showAll: false,
       dismissed: [],
+      currency: 'USD',
       loggedIn: !!sess,
       isAdmin,
       profile: urow ? { name: urow.name || '', email: urow.email || '', avatar: urow.avatar || '', username: urow.username || '' } : { name:'', email:'', avatar:'', username:'' }
@@ -680,7 +682,8 @@ app.get('/api/me', async (req, res) => {
       JSON.stringify(payload.watchlist),
       JSON.stringify(payload.severity),
       payload.showAll ? 1 : 0,
-      JSON.stringify(payload.dismissed)
+      JSON.stringify(payload.dismissed),
+      payload.currency
     );
     try { 
       await insertAudit(effectiveUid, (urow&&urow.email)||'', 'profile_init', JSON.stringify({ watchlist: payload.watchlist })); 
@@ -693,6 +696,7 @@ app.get('/api/me', async (req, res) => {
     severity: JSON.parse(row.severity_json),
     showAll: !!row.show_all,
     dismissed: JSON.parse(row.dismissed_json),
+    currency: row.currency || 'USD',
     loggedIn: !!sess,
     isAdmin,
     profile: urow ? { name: urow.name || '', email: urow.email || '', avatar: urow.avatar || '', username: urow.username || '' } : { name:'', email:'', avatar:'', username:'' }
@@ -744,15 +748,21 @@ app.post('/api/me/avatar', async (req, res) => {
 });
 
 app.post('/api/me/prefs', async (req, res) => {
-  const { watchlist = [], severity = ['critical','warning','info'], showAll = false, dismissed = [] } = req.body || {};
+  const { watchlist = [], severity = ['critical','warning','info'], showAll = false, dismissed = [], currency = 'USD' } = req.body || {};
   const sess = getSession(req);
   const effectiveUid = sess?.uid || req.uid;
+  
+  // Validate currency code
+  const validCurrencies = ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'INR', 'BRL'];
+  const currencyCode = validCurrencies.includes(currency) ? currency : 'USD';
+  
   await upsertPrefs(
     effectiveUid,
     JSON.stringify([...new Set(watchlist.map(s => String(s).toUpperCase()))]),
     JSON.stringify(severity),
     showAll ? 1 : 0,
-    JSON.stringify(dismissed)
+    JSON.stringify(dismissed),
+    currencyCode
   );
   try { 
     const urow = await getUser(effectiveUid); 
@@ -1349,6 +1359,8 @@ app.get('/api/tokens', async (req, res) => {
 
 app.get('/api/market/snapshot', async (req, res) => {
   const symbols = String(req.query.symbols||'').split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
+  const requestedCurrency = String(req.query.currency || MARKET_CURRENCY).toUpperCase();
+  
   if (!symbols.length) return res.json({ items:[], note:'No symbols selected.', provider: CMC_API_KEY ? 'cmc' : 'none' });
 
   // Prefer CMC if configured
@@ -1357,18 +1369,18 @@ app.get('/api/market/snapshot', async (req, res) => {
       // Resolve CMC IDs for symbols
       const idsMap = await getCmcIdsForSymbols(symbols);
       const ids = symbols.map(s => idsMap[s]).filter(Boolean);
-      if (!ids.length) return res.json({ items: symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-id' })), note: 'CoinMarketCap quotes (~60s). No IDs found for requested symbols.', provider: 'cmc' });
+      if (!ids.length) return res.json({ items: symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-id' })), note: `CoinMarketCap quotes (~60s). No IDs found for requested symbols.`, provider: 'cmc' });
 
-      const cacheKey = `stats:${ids.join(',')}:${MARKET_CURRENCY}`;
+      const cacheKey = `stats:${ids.join(',')}:${requestedCurrency}`;
       const hit = cmcStatsCache.get(cacheKey);
       if (hit && Date.now() - hit.t < CMC_STATS_TTL_MS) {
-        return res.json({ items: hit.data, note: `CoinMarketCap quotes (~60s) — ${MARKET_CURRENCY}` , provider: 'cmc' });
+        return res.json({ items: hit.data, note: `CoinMarketCap quotes (~60s) — ${requestedCurrency}` , provider: 'cmc' });
       }
 
       // Fetch quotes data (current price, volume, % changes)
       const params = new URLSearchParams({
         id: ids.join(','),
-        convert: MARKET_CURRENCY
+        convert: requestedCurrency
       });
       const url = `https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?${params.toString()}`;
       const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
@@ -1380,7 +1392,7 @@ app.get('/api/market/snapshot', async (req, res) => {
       const ohlcvData = {};
       
       // Build items array keyed by symbol using quotes endpoint
-      const cur = MARKET_CURRENCY;
+      const cur = requestedCurrency;
       const items = symbols.map(sym => {
         const id = idsMap[sym];
         const row = quotesData[id] || null;
@@ -1408,11 +1420,11 @@ app.get('/api/market/snapshot', async (req, res) => {
         };
       });
       cmcStatsCache.set(cacheKey, { t: Date.now(), data: items });
-      return res.json({ items, note: `CoinMarketCap quotes (~60s) — ${MARKET_CURRENCY}`, provider: 'cmc' });
+      return res.json({ items, note: `CoinMarketCap quotes (~60s) — ${requestedCurrency}`, provider: 'cmc', currency: requestedCurrency });
     }catch(e){
       console.warn('CMC API error:', e.message);
       const items = symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'cmc-failed' }));
-      return res.json({ items, note: `CoinMarketCap API error: ${e.message}`, provider: 'cmc' });
+      return res.json({ items, note: `CoinMarketCap API error: ${e.message}`, provider: 'cmc', currency: requestedCurrency });
     }
   }
 
@@ -1424,12 +1436,14 @@ app.get('/api/market/snapshot', async (req, res) => {
 // Lightweight prices endpoint for ticker
 app.get('/api/market/prices', async (req, res) => {
   const symbols = String(req.query.symbols||'').split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
+  const currency = String(req.query.currency || 'USD').toUpperCase();
+  
   if (!symbols.length) return res.json({ prices: [] });
 
   try {
     // Reuse the snapshot logic but return simplified format
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const snapRes = await fetch(`${baseUrl}/api/market/snapshot?symbols=${encodeURIComponent(symbols.join(','))}`);
+    const snapRes = await fetch(`${baseUrl}/api/market/snapshot?symbols=${encodeURIComponent(symbols.join(','))}&currency=${currency}`);
     const { items=[] } = (await snapRes.json()) || {};
     
     // Transform to ticker format
@@ -1441,10 +1455,10 @@ app.get('/api/market/prices', async (req, res) => {
         change24h: it.dayChangePct || 0
       }));
     
-    res.json({ prices });
+    res.json({ prices, currency });
   } catch (error) {
     console.error('Error fetching ticker prices:', error);
-    res.json({ prices: [] });
+    res.json({ prices: [], currency });
   }
 });
 
@@ -1474,10 +1488,24 @@ function currencySymbol(code){
   return m[String(code||'').toUpperCase()] || code || '$';
 }
 app.get('/api/market/config', (_req, res) => {
+  const currencySymbols = {
+    'USD': '$',
+    'EUR': '€',
+    'GBP': '£',
+    'JPY': '¥',
+    'AUD': 'A$',
+    'CAD': 'C$',
+    'CHF': 'CHF',
+    'CNY': '¥',
+    'INR': '₹',
+    'BRL': 'R$'
+  };
+  
   res.json({ 
     currency: MARKET_CURRENCY, 
     symbol: currencySymbol(MARKET_CURRENCY),
-    logokitApiKey: LOGOKIT_API_KEY
+    logokitApiKey: LOGOKIT_API_KEY,
+    currencySymbols // Send all available currency symbols to frontend
   });
 });
 

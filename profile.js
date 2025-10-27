@@ -11,6 +11,7 @@ const pillsEl = document.getElementById('prof-watch-pills');
 const addBtn = document.getElementById('prof-add-token');
 const tokenInput = document.getElementById('prof-token-input');
 const showAllToggle = document.getElementById('prof-show-all');
+const currencySelect = document.getElementById('prof-currency-select');
 const msgEl = document.getElementById('prof-msg');
 const avatarPresetsEl = document.getElementById('avatar-presets');
 
@@ -96,6 +97,12 @@ async function loadMe(){
   emailEl.textContent = me.profile?.email || '';
   setAvatar(me.profile || {});
   showAllToggle.checked = !!me.showAll;
+  
+  // Set currency preference
+  if (currencySelect && me.currency) {
+    currencySelect.value = me.currency;
+  }
+  
   renderPills();
   // Update token suggestions after loading user state
   await refreshTokenSuggestions();
@@ -111,7 +118,8 @@ function savePrefs(){
       watchlist: me.watchlist || [],
       severity: me.severity || ['critical','warning','info'],
       showAll: !!me.showAll,
-      dismissed: me.dismissed || []
+      dismissed: me.dismissed || [],
+      currency: me.currency || 'USD'
     })
   }).then(()=>{ msgEl.textContent = 'Preferences saved.'; setTimeout(()=>msgEl.textContent='',1500); });
 }
@@ -133,6 +141,16 @@ showAllToggle.addEventListener('change', () => {
   me.showAll = showAllToggle.checked;
   savePrefs();
 });
+
+// Currency selector handling
+if (currencySelect) {
+  currencySelect.addEventListener('change', () => {
+    me.currency = currencySelect.value;
+    savePrefs();
+    msgEl.textContent = 'Currency preference saved. Reload the page to see changes.';
+    setTimeout(() => msgEl.textContent = '', 3000);
+  });
+}
 
 document.getElementById('btn-logout').addEventListener('click', () => {
   fetch('/auth/logout', { method:'POST' }).finally(() => window.location.href = '/');

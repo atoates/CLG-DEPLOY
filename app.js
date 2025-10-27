@@ -340,7 +340,7 @@ async function fetchTickerPrices() {
     }
 
     const symbolsParam = tokens.join(',');
-    const response = await fetch(`/api/market/prices?symbols=${symbolsParam}`);
+    const response = await fetch(`/api/market/prices?symbols=${symbolsParam}&currency=${CURRENCY_CODE}`);
     
     if (!response.ok) {
       console.error('Failed to fetch ticker prices:', response.status);
@@ -542,6 +542,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Init (boot) -------------------------------------------------------------
 (async function boot(){
+  let currencySymbols = {}; // Store all available currency symbols
+  
   // Fetch market config (currency symbol/code and LogoKit API key) before first render
   try{
     const r = await fetch('/api/market/config');
@@ -552,6 +554,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (j && j.logokitApiKey) {
         LOGOKIT_API_KEY = String(j.logokitApiKey);
         window.logokitApiKey = LOGOKIT_API_KEY; // Expose to window for easy access
+      }
+      if (j && j.currencySymbols) {
+        currencySymbols = j.currencySymbols;
       }
     }
   }catch(_e){}
@@ -566,6 +571,12 @@ document.addEventListener('DOMContentLoaded', () => {
       showAll        = !!me.showAll;
       hiddenKeys     = new Set(Array.isArray(me.dismissed) ? me.dismissed : []);
       isLoggedIn     = !!me.loggedIn;
+      
+      // Override currency with user preference if set
+      if (me.currency && currencySymbols[me.currency]) {
+        CURRENCY_CODE = me.currency;
+        CURRENCY_SYMBOL = currencySymbols[me.currency];
+      }
 
       // Control visibility of logout in menu
       try{
@@ -2049,7 +2060,7 @@ async function loadMarket(){
   }
   const symbols = selectedTokens.join(',');
   try{
-    const res = await fetch(`/api/market/snapshot?symbols=${encodeURIComponent(symbols)}`);
+    const res = await fetch(`/api/market/snapshot?symbols=${encodeURIComponent(symbols)}&currency=${CURRENCY_CODE}`);
     const json = await res.json();
     marketItems = json.items || [];
     marketProvider = json.provider || 'none';
