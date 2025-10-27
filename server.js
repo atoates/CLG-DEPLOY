@@ -1533,8 +1533,13 @@ app.post('/api/news', async (req, res) => {
     
     // Try to get from database cache (with graceful fallback)
     try {
-      // Clean up any system messages that might have been cached
-      await pool.query(`DELETE FROM news_cache WHERE source_name = 'System'`).catch(() => {});
+      // Clean up any system messages that might have been cached (including old "CryptoNews API" source)
+      await pool.query(`
+        DELETE FROM news_cache 
+        WHERE source_name IN ('System', 'CryptoNews API') 
+        OR title LIKE '%Service Unavailable%'
+        OR title LIKE '%No News Available%'
+      `).catch(() => {});
       
       const cacheResult = await pool.query(`
         SELECT * FROM news_cache 
@@ -1557,7 +1562,12 @@ app.post('/api/news', async (req, res) => {
             news_url: row.article_url,
             image_url: row.image_url
           }))
-          .filter(article => article.source_name !== 'System'); // Filter out system messages
+          .filter(article => 
+            article.source_name !== 'System' && 
+            article.source_name !== 'CryptoNews API' &&
+            !article.title.includes('Service Unavailable') &&
+            !article.title.includes('No News Available')
+          ); // Filter out system messages
         
         console.log(`[News API] Serving ${cachedNews.length} cached articles`);
         usedCache = true;
@@ -1582,7 +1592,14 @@ app.post('/api/news', async (req, res) => {
     let cachedCount = 0;
     for (const article of freshNews) {
       // Don't cache system messages (errors, unavailable service, etc.)
-      if (article.source?.name === 'System' || article.source_name === 'System') {
+      const isSystemMessage = 
+        article.source?.name === 'System' || 
+        article.source_name === 'System' ||
+        article.source_name === 'CryptoNews API' ||
+        article.title?.includes('Service Unavailable') ||
+        article.title?.includes('No News Available');
+        
+      if (isSystemMessage) {
         continue;
       }
       
