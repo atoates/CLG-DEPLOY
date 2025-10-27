@@ -1533,6 +1533,9 @@ app.post('/api/news', async (req, res) => {
     
     // Try to get from database cache (with graceful fallback)
     try {
+      // Clean up any system messages that might have been cached
+      await pool.query(`DELETE FROM news_cache WHERE source_name = 'System'`).catch(() => {});
+      
       const cacheResult = await pool.query(`
         SELECT * FROM news_cache 
         WHERE expires_at > NOW()
@@ -1542,17 +1545,19 @@ app.post('/api/news', async (req, res) => {
       
       // If we have recent cached news (at least 20 articles), use it
       if (cacheResult.rows.length >= 20) {
-        cachedNews = cacheResult.rows.map(row => ({
-          title: row.title,
-          text: row.text,
-          source_name: row.source_name,
-          date: row.date,
-          sentiment: row.sentiment,
-          tickers: row.tickers ? JSON.parse(row.tickers) : [],
-          topics: row.topics ? JSON.parse(row.topics) : [],
-          news_url: row.article_url,
-          image_url: row.image_url
-        }));
+        cachedNews = cacheResult.rows
+          .map(row => ({
+            title: row.title,
+            text: row.text,
+            source_name: row.source_name,
+            date: row.date,
+            sentiment: row.sentiment,
+            tickers: row.tickers ? JSON.parse(row.tickers) : [],
+            topics: row.topics ? JSON.parse(row.topics) : [],
+            news_url: row.article_url,
+            image_url: row.image_url
+          }))
+          .filter(article => article.source_name !== 'System'); // Filter out system messages
         
         console.log(`[News API] Serving ${cachedNews.length} cached articles`);
         usedCache = true;
@@ -1576,6 +1581,11 @@ app.post('/api/news', async (req, res) => {
     // Try to cache the news articles in database (gracefully fail if DB unavailable)
     let cachedCount = 0;
     for (const article of freshNews) {
+      // Don't cache system messages (errors, unavailable service, etc.)
+      if (article.source?.name === 'System' || article.source_name === 'System') {
+        continue;
+      }
+      
       try {
         await pool.query(`
           INSERT INTO news_cache 
