@@ -1619,7 +1619,7 @@ app.get('/api/market/snapshot', async (req, res) => {
         cmcStatsCache.set(cacheKey, { t: Date.now(), data: items });
         return res.json({ items, note: `CoinMarketCap quotes (~60s) — ${requestedCurrency}`, provider: 'cmc+coingecko', currency: requestedCurrency });
       } else {
-        console.warn('CMC returned no valid price data, falling back to CoinGecko');
+        // CMC returned no valid data, falling through to CoinGecko (this is expected for some tokens)
         // Fall through to CoinGecko fallback
       }
     }catch(e){
