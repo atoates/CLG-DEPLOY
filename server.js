@@ -1734,6 +1734,32 @@ app.post('/api/news', async (req, res) => {
   }
 });
 
+// Debug endpoint to test CoinDesk RSS directly (bypasses cache)
+app.get('/debug/coindesk-test', async (req, res) => {
+  try {
+    const tokens = ['BTC', 'ETH', 'SOL'];
+    console.log('[Debug] Testing CoinDesk RSS feed directly...');
+    
+    const articles = await fetchNewsFromCoinDesk(tokens);
+    
+    res.json({
+      success: true,
+      provider: 'CoinDesk RSS',
+      articleCount: articles.length,
+      tokens: tokens,
+      articles: articles.slice(0, 5), // Return first 5 for preview
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[Debug] CoinDesk test error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 // AI Summary generation function
 async function generateAISummary(alerts, tokens, sevFilter, tagFilter, selectedModel) {
   // Prepare alerts data for AI analysis
