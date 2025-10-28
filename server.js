@@ -1528,12 +1528,52 @@ app.post('/api/news', async (req, res) => {
       ? tokens 
       : ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
     
-    let cachedNews = null;
-    let usedCache = false;
-    
-    // Try to get from database cache (with graceful fallback)
+    // ALWAYS fetch fresh articles from CoinDesk RSS to add to database
+    console.log('[News API] Fetching fresh articles from CoinDesk RSS...');
+    let freshArticles = [];
     try {
-      // Clean up any system messages that might have been cached (including old "CryptoNews API" source)
+      freshArticles = await fetchNewsFromCoinDesk(tokensToFetch);
+      console.log(`[News API] Fetched ${freshArticles.length} fresh articles from CoinDesk`);
+    } catch (error) {
+      console.warn('[News API] Failed to fetch from CoinDesk RSS:', error.message);
+    }
+    
+    // Add fresh CoinDesk articles to database cache
+    let addedCount = 0;
+    for (const article of freshArticles) {
+      try {
+        await pool.query(`
+          INSERT INTO news_cache 
+          (article_url, title, text, source_name, date, sentiment, tickers, topics, image_url)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ON CONFLICT (article_url) DO UPDATE SET
+            title = EXCLUDED.title,
+            text = EXCLUDED.text,
+            sentiment = EXCLUDED.sentiment,
+            expires_at = NOW() + INTERVAL '120 days'
+        `, [
+          article.news_url || article.url,
+          article.title,
+          article.text || article.description || '',
+          article.source_name,
+          article.date || article.publishedAt,
+          article.sentiment || 'neutral',
+          JSON.stringify(article.tickers || []),
+          JSON.stringify(article.topics || []),
+          article.image_url || null
+        ]);
+        addedCount++;
+      } catch (dbError) {
+        // Continue even if one article fails
+        console.warn('[News API] Failed to cache article:', article.title?.substring(0, 50));
+      }
+    }
+    console.log(`[News API] Added/updated ${addedCount} articles in cache`);
+    
+    // Now get all cached articles (including the fresh ones we just added)
+    let allNews = [];
+    try {
+      // Clean up any system messages that might have been cached
       await pool.query(`
         DELETE FROM news_cache 
         WHERE source_name IN ('System', 'CryptoNews API') 
@@ -1548,91 +1588,35 @@ app.post('/api/news', async (req, res) => {
         LIMIT 50
       `);
       
-      // If we have recent cached news (at least 20 articles), use it
-      if (cacheResult.rows.length >= 20) {
-        cachedNews = cacheResult.rows
-          .map(row => ({
-            title: row.title,
-            text: row.text,
-            source_name: row.source_name,
-            date: row.date,
-            sentiment: row.sentiment,
-            tickers: row.tickers ? JSON.parse(row.tickers) : [],
-            topics: row.topics ? JSON.parse(row.topics) : [],
-            news_url: row.article_url,
-            image_url: row.image_url
-          }))
-          .filter(article => 
-            article.source_name !== 'System' && 
-            article.source_name !== 'CryptoNews API' &&
-            !article.title.includes('Service Unavailable') &&
-            !article.title.includes('No News Available')
-          ); // Filter out system messages
-        
-        console.log(`[News API] Serving ${cachedNews.length} cached articles`);
-        usedCache = true;
-      }
-    } catch (cacheError) {
-      // Continue without cache - will fetch fresh news
-    }
-    
-    // If we have cached news, return it
-    if (usedCache && cachedNews) {
-      return res.json({ 
-        news: cachedNews, 
-        cached: true,
-        timestamp: new Date().toISOString() 
-      });
-    }
-    
-    // Otherwise, fetch fresh news from API
-    const freshNews = await fetchNewsForTokens(tokensToFetch);
-    
-    // Try to cache the news articles in database (gracefully fail if DB unavailable)
-    let cachedCount = 0;
-    for (const article of freshNews) {
-      // Don't cache system messages (errors, unavailable service, etc.)
-      const isSystemMessage = 
-        article.source?.name === 'System' || 
-        article.source_name === 'System' ||
-        article.source_name === 'CryptoNews API' ||
-        article.title?.includes('Service Unavailable') ||
-        article.title?.includes('No News Available');
-        
-      if (isSystemMessage) {
-        continue;
-      }
+      allNews = cacheResult.rows
+        .map(row => ({
+          title: row.title,
+          text: row.text,
+          source_name: row.source_name,
+          date: row.date,
+          sentiment: row.sentiment,
+          tickers: row.tickers ? JSON.parse(row.tickers) : [],
+          topics: row.topics ? JSON.parse(row.topics) : [],
+          news_url: row.article_url,
+          image_url: row.image_url
+        }))
+        .filter(article => 
+          article.source_name !== 'System' && 
+          article.source_name !== 'CryptoNews API' &&
+          !article.title.includes('Service Unavailable') &&
+          !article.title.includes('No News Available')
+        );
       
-      try {
-        await pool.query(`
-          INSERT INTO news_cache 
-          (article_url, title, text, source_name, date, sentiment, tickers, topics, image_url)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-          ON CONFLICT (article_url) DO UPDATE SET
-            title = EXCLUDED.title,
-            text = EXCLUDED.text,
-            sentiment = EXCLUDED.sentiment,
-            expires_at = NOW() + INTERVAL '120 days'
-        `, [
-          article.url || article.news_url,
-          article.title,
-          article.description || article.text,
-          article.source?.name || article.source_name,
-          article.publishedAt || article.date,
-          article.sentiment || 'neutral',
-          JSON.stringify(article.tickers || []),
-          JSON.stringify(article.topics || []),
-          article.image_url || null
-        ]);
-        cachedCount++;
-      } catch (dbError) {
-        // Continue even if caching fails
-      }
+      console.log(`[News API] Returning ${allNews.length} total articles from cache`);
+    } catch (cacheError) {
+      console.warn('[News API] Cache read error, returning fresh articles only:', cacheError.message);
+      allNews = freshArticles;
     }
     
-    res.json({ 
-      news: freshNews, 
+    return res.json({ 
+      news: allNews, 
       cached: false,
+      freshArticlesAdded: addedCount,
       timestamp: new Date().toISOString() 
     });
     
