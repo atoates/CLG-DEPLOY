@@ -1916,12 +1916,13 @@ app.post('/api/summary/generate', async (req, res) => {
   const summary = await generateAISummary(alerts, tokens || [], sevFilter || [], tagFilter || [], model);
     const news = await fetchNewsForTokens(tokens || []);
     
-    // Persist for logged-in users only (not anonymous/cached users)
+    // Persist for all users (anonymous and Google-authenticated)
     try {
       const sess = getSession(req);
-      if (sess && sess.uid) {
+      const effectiveUid = sess?.uid || req.uid; // Use Google uid if available, otherwise anonymous uid
+      if (effectiveUid) {
         const alertIds = (alerts || []).map(a => a.id).filter(Boolean);
-        await insertUserSummary(sess.uid, {
+        await insertUserSummary(effectiveUid, {
           model: summary.model,
           tokens: tokens || [],
           sevFilter: sevFilter || [],
@@ -1953,13 +1954,14 @@ app.post('/api/summary/generate', async (req, res) => {
   }
 });
 
-// Recent summaries for the logged-in user
+// Recent summaries for all users (anonymous and Google-authenticated)
 app.get('/api/summary/recent', async (req, res) => {
   try {
     const sess = getSession(req);
-    if (!sess || !sess.uid) return res.json({ summaries: [] }); // not logged in → nothing
+    const effectiveUid = sess?.uid || req.uid; // Use Google uid if available, otherwise anonymous uid
+    if (!effectiveUid) return res.json({ summaries: [] }); // No uid → nothing
     const lim = req.query.limit ? parseInt(String(req.query.limit)) : 10;
-    const items = await getRecentUserSummaries(sess.uid, lim);
+    const items = await getRecentUserSummaries(effectiveUid, lim);
     res.json({ summaries: items });
   } catch (e) {
     console.error('Failed to fetch recent summaries:', e && e.message);
