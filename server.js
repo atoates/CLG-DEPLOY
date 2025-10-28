@@ -203,7 +203,8 @@ async function getCoinGeckoId(symbol) {
         'PEPE': 'pepe',
         'WIF': 'dogwifcoin',
         'BONK': 'bonk',
-        'FLOKI': 'floki'
+        'FLOKI': 'floki',
+        'TAO': 'bittensor'
       };
       
       if (wellKnownCoins[sym]) {
@@ -1568,14 +1569,86 @@ app.get('/api/market/snapshot', async (req, res) => {
       return res.json({ items, note: `CoinMarketCap quotes (~60s) — ${requestedCurrency}`, provider: 'cmc', currency: requestedCurrency });
     }catch(e){
       console.warn('CMC API error:', e.message);
-      const items = symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'cmc-failed' }));
-      return res.json({ items, note: `CoinMarketCap API error: ${e.message}`, provider: 'cmc', currency: requestedCurrency });
+      // Fall through to CoinGecko fallback
     }
   }
 
-  // No CMC API key configured
-  const items = symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-api' }));
-  res.json({ items, note: 'No market API configured.', provider: 'none' });
+  // Fallback to CoinGecko if CMC fails or not configured
+  try {
+    // Map symbols to CoinGecko IDs
+    const coinIds = [];
+    const symbolToIdMap = {};
+    
+    for (const sym of symbols) {
+      const coinId = await getCoinGeckoId(sym);
+      if (coinId) {
+        coinIds.push(coinId);
+        symbolToIdMap[coinId] = sym;
+      }
+    }
+    
+    if (!coinIds.length) {
+      const items = symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'no-coingecko-id' }));
+      return res.json({ items, note: 'No CoinGecko IDs found for requested symbols.', provider: 'coingecko', currency: requestedCurrency });
+    }
+
+    // Fetch price data from CoinGecko
+    const currencyLower = requestedCurrency.toLowerCase();
+    const priceUrl = COINGECKO_API_KEY
+      ? `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds.join(',')}&vs_currencies=${currencyLower}&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true&x_cg_demo_api_key=${COINGECKO_API_KEY}`
+      : `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds.join(',')}&vs_currencies=${currencyLower}&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`;
+    
+    const priceResp = await fetch(priceUrl);
+    
+    if (!priceResp.ok) {
+      throw new Error(`CoinGecko HTTP ${priceResp.status}`);
+    }
+    
+    const priceData = await priceResp.json();
+    
+    // Build items array
+    const items = symbols.map(sym => {
+      // Find the coin ID for this symbol
+      const coinId = Object.keys(symbolToIdMap).find(id => symbolToIdMap[id] === sym);
+      if (!coinId || !priceData[coinId]) {
+        return { token: sym, lastPrice: null, dayChangePct: null, change30mPct: null, error: 'no-data' };
+      }
+      
+      const data = priceData[coinId];
+      const priceKey = currencyLower;
+      const changeKey = `${currencyLower}_24h_change`;
+      const volKey = `${currencyLower}_24h_vol`;
+      const mcapKey = `${currencyLower}_market_cap`;
+      
+      return {
+        token: sym,
+        lastPrice: data[priceKey] ?? null,
+        dayChangePct: data[changeKey] ?? null,
+        change1hPct: null, // Not available in simple endpoint
+        change7dPct: null,  // Not available in simple endpoint
+        change30dPct: null, // Not available in simple endpoint
+        change30mPct: null, // Not available
+        volume24h: data[volKey] ?? null,
+        volumeChange24h: null, // Not available
+        marketCap: data[mcapKey] ?? null,
+        high24h: null,
+        low24h: null,
+        ath: null,
+        atl: null
+      };
+    });
+    
+    return res.json({ 
+      items, 
+      note: `CoinGecko prices (~60s) — ${requestedCurrency}`, 
+      provider: 'coingecko', 
+      currency: requestedCurrency 
+    });
+  } catch (e) {
+    console.warn('CoinGecko API error:', e.message);
+    const items = symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'coingecko-failed' }));
+    return res.json({ items, note: `CoinGecko API error: ${e.message}`, provider: 'coingecko', currency: requestedCurrency });
+  }
 });
 
 // Lightweight prices endpoint for ticker
