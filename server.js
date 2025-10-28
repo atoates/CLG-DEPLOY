@@ -40,10 +40,10 @@ const CMC_API_KEY = process.env.CMC_API_KEY || '';
 const COINGECKO_API_KEY = process.env.GEKO || process.env.COINGECKO_API_KEY || '';
 // LogoKit API for crypto token icons (fallback)
 const LOGOKIT_API_KEY = process.env.LOGOKIT_API_KEY || 'pk_fr3b615a522b603695a025';
-// AI API keys for summary generation
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
-const XAI_API_KEY = process.env.XAI_API_KEY || process.env.XAI_APIKEY || process.env.XAI_TOKEN || '';
+// AI API keys for summary generation - trim to remove whitespace/newlines
+const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || '').trim();
+const ANTHROPIC_API_KEY = (process.env.ANTHROPIC_API_KEY || '').trim();
+const XAI_API_KEY = (process.env.XAI_API_KEY || process.env.XAI_APIKEY || process.env.XAI_TOKEN || '').trim();
 const MARKET_CURRENCY = (process.env.MARKET_CURRENCY || 'GBP').toUpperCase();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
