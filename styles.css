@@ -437,6 +437,16 @@ button#user-menu-btn.menu-btn{
   animation: slideDown 0.2s ease;
 }
 
+/* Selected tokens pills - visible outside dropdown */
+#selected-tokens {
+  margin-top: 12px;
+  margin-bottom: 16px;
+}
+
+#selected-tokens:empty {
+  display: none;
+}
+
 @keyframes slideDown {
   from {
     opacity: 0;
