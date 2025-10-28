@@ -1570,8 +1570,54 @@ app.get('/api/market/snapshot', async (req, res) => {
       const hasValidData = items.some(item => item.lastPrice !== null && item.lastPrice !== undefined);
       
       if (hasValidData) {
+        // Check if any tokens have null prices that we should backfill with CoinGecko
+        const nullPriceSymbols = items.filter(item => item.lastPrice === null).map(item => item.token);
+        
+        if (nullPriceSymbols.length > 0 && COINGECKO_API_KEY) {
+          // Try to backfill missing prices from CoinGecko
+          try {
+            const coinIds = [];
+            const symbolToIdMap = {};
+            
+            for (const sym of nullPriceSymbols) {
+              const coinId = await getCoinGeckoId(sym);
+              if (coinId) {
+                coinIds.push(coinId);
+                symbolToIdMap[coinId] = sym;
+              }
+            }
+            
+            if (coinIds.length > 0) {
+              const currencyLower = requestedCurrency.toLowerCase();
+              const priceUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds.join(',')}&vs_currencies=${currencyLower}&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true&x_cg_demo_api_key=${COINGECKO_API_KEY}`;
+              
+              const priceResp = await fetch(priceUrl);
+              if (priceResp.ok) {
+                const priceData = await priceResp.json();
+                
+                // Update items with CoinGecko data for null prices
+                items.forEach(item => {
+                  if (item.lastPrice === null) {
+                    const coinId = Object.keys(symbolToIdMap).find(id => symbolToIdMap[id] === item.token);
+                    if (coinId && priceData[coinId]) {
+                      const data = priceData[coinId];
+                      item.lastPrice = data[currencyLower] ?? null;
+                      item.dayChangePct = data[`${currencyLower}_24h_change`] ?? item.dayChangePct;
+                      item.volume24h = data[`${currencyLower}_24h_vol`] ?? item.volume24h;
+                      item.marketCap = data[`${currencyLower}_market_cap`] ?? item.marketCap;
+                    }
+                  }
+                });
+              }
+            }
+          } catch (e) {
+            console.warn('CoinGecko backfill error:', e.message);
+            // Continue with CMC data only
+          }
+        }
+        
         cmcStatsCache.set(cacheKey, { t: Date.now(), data: items });
-        return res.json({ items, note: `CoinMarketCap quotes (~60s) — ${requestedCurrency}`, provider: 'cmc', currency: requestedCurrency });
+        return res.json({ items, note: `CoinMarketCap quotes (~60s) — ${requestedCurrency}`, provider: 'cmc+coingecko', currency: requestedCurrency });
       } else {
         console.warn('CMC returned no valid price data, falling back to CoinGecko');
         // Fall through to CoinGecko fallback
