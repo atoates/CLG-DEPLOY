@@ -1759,7 +1759,7 @@ async function generateAISummary(alerts, tokens, sevFilter, tagFilter, selectedM
   // Fetch recent news for context
   const newsData = await fetchNewsForTokens(tokens);
   const newsContext = newsData.length > 0 ? 
-    `\n\nRecent news (${newsData.length} articles):\n${newsData.map(n => `- ${n.title} (${n.sentiment || 'neutral'}) [${n.source.name}]`).join('\n')}` : 
+    `\n\nRecent news (${newsData.length} articles):\n${newsData.map(n => `- ${n.title} (${n.sentiment || 'neutral'}) [${n.source_name || n.source?.name || 'Unknown'}]`).join('\n')}` : 
     '\n\nNo recent news available for these tokens.';
 
   const prompt = `You are a crypto portfolio assistant. Analyze these alerts and recent news to provide a comprehensive summary for a user monitoring these tokens: ${tokens.join(', ')}.
