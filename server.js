@@ -1565,8 +1565,17 @@ app.get('/api/market/snapshot', async (req, res) => {
           atl: null      // Would need price-performance-stats endpoint (premium)
         };
       });
-      cmcStatsCache.set(cacheKey, { t: Date.now(), data: items });
-      return res.json({ items, note: `CoinMarketCap quotes (~60s) — ${requestedCurrency}`, provider: 'cmc', currency: requestedCurrency });
+      
+      // Check if CMC returned any valid price data
+      const hasValidData = items.some(item => item.lastPrice !== null && item.lastPrice !== undefined);
+      
+      if (hasValidData) {
+        cmcStatsCache.set(cacheKey, { t: Date.now(), data: items });
+        return res.json({ items, note: `CoinMarketCap quotes (~60s) — ${requestedCurrency}`, provider: 'cmc', currency: requestedCurrency });
+      } else {
+        console.warn('CMC returned no valid price data, falling back to CoinGecko');
+        // Fall through to CoinGecko fallback
+      }
     }catch(e){
       console.warn('CMC API error:', e.message);
       // Fall through to CoinGecko fallback
