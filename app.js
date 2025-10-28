@@ -1635,6 +1635,34 @@ async function generateNewSummary(){
     });
 
     if (!response.ok) {
+      // If 401, user needs to log in
+      if (response.status === 401) {
+        if (window.currentCountdownInterval) {
+          clearInterval(window.currentCountdownInterval);
+        }
+        // Show the login prompt
+        sc.innerHTML = `
+          <div style="text-align: center; padding: 40px 20px;">
+            <h2 style="margin-bottom: 16px;">🤖 AI-Powered Alert Summaries</h2>
+            <p style="color: #64748b; margin-bottom: 24px;">
+              Get intelligent analysis of your crypto alerts with AI-generated summaries.
+            </p>
+            <div style="background: #f1f5f9; border-radius: 8px; padding: 20px; margin-bottom: 24px; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;">
+              <p style="margin: 0 0 12px 0;"><strong>✨ Features include:</strong></p>
+              <ul style="margin: 0; padding-left: 20px; color: #475569;">
+                <li>Multi-model AI analysis (OpenAI, Anthropic, xAI)</li>
+                <li>Severity-based prioritization</li>
+                <li>Historical summary tracking</li>
+                <li>Customizable filters and preferences</li>
+              </ul>
+            </div>
+            <a href="/auth/google" class="btn-primary" style="display: inline-block; padding: 12px 32px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 500;">
+              Sign in with Google to Continue
+            </a>
+          </div>
+        `;
+        return;
+      }
       throw new Error(`HTTP ${response.status}`);
     }
 
