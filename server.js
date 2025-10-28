@@ -2346,6 +2346,7 @@ async function fetchNewsForTokens(tokens) {
 // Fetch news from CoinDesk RSS feed (free, public)
 async function fetchNewsFromCoinDesk(tokens) {
   try {
+    console.log('[News] Fetching CoinDesk RSS feed...');
     // CoinDesk provides a free public RSS feed - no API key required
     const response = await fetch('https://www.coindesk.com/arc/outboundfeeds/rss/', {
       headers: {
@@ -2354,12 +2355,15 @@ async function fetchNewsFromCoinDesk(tokens) {
       redirect: 'follow' // Explicitly follow redirects (CoinDesk RSS redirects)
     });
 
+    console.log(`[News] CoinDesk RSS response status: ${response.status}`);
+    
     if (!response.ok) {
       console.warn(`[News] CoinDesk RSS feed failed with status ${response.status}`);
       return [];
     }
 
     const xmlText = await response.text();
+    console.log(`[News] CoinDesk RSS response length: ${xmlText.length} bytes`);
     
     // Parse RSS XML to extract articles
     const articles = parseRSSFeed(xmlText, tokens);
