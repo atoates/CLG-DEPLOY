@@ -19,6 +19,146 @@ let me = null;
 // Start with a tiny seed, then enrich from /api/alerts and user watchlist
 const tokenSuggestions = new Set(['BTC','ETH','USDC','MATIC','SOL']);
 
+// Autocomplete state
+let autocompleteContainer = null;
+let selectedAutocompleteIndex = -1;
+let tokenDatabase = [];
+
+// Create autocomplete container
+function initAutocomplete() {
+  if (!tokenInput) return;
+  
+  autocompleteContainer = document.createElement('div');
+  autocompleteContainer.className = 'autocomplete-list';
+  autocompleteContainer.style.display = 'none';
+  tokenInput.parentElement.style.position = 'relative';
+  tokenInput.parentElement.appendChild(autocompleteContainer);
+}
+
+// Fetch token database
+async function fetchTokenDatabase() {
+  try {
+    const response = await fetch('/api/tokens/search');
+    if (response.ok) {
+      tokenDatabase = await response.json();
+    }
+  } catch (e) {
+    console.warn('Failed to fetch token database:', e);
+  }
+}
+
+function searchTokens(query) {
+  if (!query || query.length < 1) return [];
+  
+  const q = query.toLowerCase();
+  const matches = tokenDatabase.filter(token => {
+    const symbolMatch = token.symbol.toLowerCase().includes(q);
+    const nameMatch = token.name.toLowerCase().includes(q);
+    return symbolMatch || nameMatch;
+  });
+  
+  // Sort: exact symbol match first, then starts with, then contains
+  matches.sort((a, b) => {
+    const aSymbol = a.symbol.toLowerCase();
+    const bSymbol = b.symbol.toLowerCase();
+    const aName = a.name.toLowerCase();
+    const bName = b.name.toLowerCase();
+    
+    if (aSymbol === q) return -1;
+    if (bSymbol === q) return 1;
+    if (aSymbol.startsWith(q) && !bSymbol.startsWith(q)) return -1;
+    if (!aSymbol.startsWith(q) && bSymbol.startsWith(q)) return 1;
+    if (aName.startsWith(q) && !bName.startsWith(q)) return -1;
+    if (!aName.startsWith(q) && bName.startsWith(q)) return 1;
+    
+    return a.symbol.localeCompare(b.symbol);
+  });
+  
+  return matches.slice(0, 10);
+}
+
+function highlightMatch(text, query) {
+  if (!query) return text;
+  const regex = new RegExp(`(${query})`, 'gi');
+  return text.replace(regex, '<strong>$1</strong>');
+}
+
+function showAutocomplete(matches, query) {
+  if (!autocompleteContainer) return;
+  
+  if (!matches.length && !query.trim()) {
+    autocompleteContainer.style.display = 'none';
+    return;
+  }
+  
+  autocompleteContainer.innerHTML = '';
+  selectedAutocompleteIndex = -1;
+  
+  matches.forEach((token, idx) => {
+    const item = document.createElement('div');
+    item.className = 'autocomplete-item';
+    item.dataset.index = idx;
+    item.dataset.symbol = token.symbol;
+    
+    const displayText = `${token.name} | ${token.symbol}`;
+    item.innerHTML = highlightMatch(displayText, query);
+    
+    item.addEventListener('click', () => {
+      selectToken(token.symbol);
+    });
+    
+    item.addEventListener('mouseenter', () => {
+      selectedAutocompleteIndex = idx;
+      updateAutocompleteSelection();
+    });
+    
+    autocompleteContainer.appendChild(item);
+  });
+  
+  autocompleteContainer.style.display = 'block';
+}
+
+function hideAutocomplete() {
+  if (autocompleteContainer) {
+    autocompleteContainer.style.display = 'none';
+    selectedAutocompleteIndex = -1;
+  }
+}
+
+function updateAutocompleteSelection() {
+  if (!autocompleteContainer) return;
+  
+  const items = autocompleteContainer.querySelectorAll('.autocomplete-item');
+  items.forEach((item, idx) => {
+    if (idx === selectedAutocompleteIndex) {
+      item.classList.add('selected');
+    } else {
+      item.classList.remove('selected');
+    }
+  });
+}
+
+function selectToken(symbol) {
+  const upper = symbol.toUpperCase().trim();
+  if (!upper) {
+    hideAutocomplete();
+    tokenInput.value = '';
+    return;
+  }
+  
+  me.watchlist = me.watchlist || [];
+  if (!me.watchlist.includes(upper)) {
+    me.watchlist.push(upper);
+    tokenSuggestions.add(upper);
+    savePrefs();
+    renderPills();
+  }
+  
+  tokenInput.value = '';
+  hideAutocomplete();
+  tokenInput.focus();
+}
+
 function setAvatar(profile){
   avatarEl.innerHTML = '';
   const url = (profile && profile.avatar) || '';
@@ -127,15 +267,65 @@ function savePrefs(){
 addBtn.addEventListener('click', () => {
   const val = (tokenInput.value||'').toUpperCase().trim();
   if (!val) return;
-  me.watchlist = me.watchlist || [];
-  if (!me.watchlist.includes(val)) me.watchlist.push(val);
-  // Keep suggestions up to date as users add tokens
-  tokenSuggestions.add(val);
-  tokenInput.value = '';
-  savePrefs();
-  renderPills();
-  renderTokenDatalist();
+  
+  selectToken(val);
 });
+
+// Autocomplete input handler
+if (tokenInput) {
+  tokenInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    if (query.length >= 1) {
+      const matches = searchTokens(query);
+      showAutocomplete(matches, query);
+    } else {
+      hideAutocomplete();
+    }
+  });
+  
+  tokenInput.addEventListener('keydown', (e) => {
+    if (!autocompleteContainer || autocompleteContainer.style.display === 'none') {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addBtn.click();
+      }
+      return;
+    }
+    
+    const items = autocompleteContainer.querySelectorAll('.autocomplete-item');
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectedAutocompleteIndex = Math.min(selectedAutocompleteIndex + 1, items.length - 1);
+      updateAutocompleteSelection();
+      const selectedItem = items[selectedAutocompleteIndex];
+      if (selectedItem) selectedItem.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectedAutocompleteIndex = Math.max(selectedAutocompleteIndex - 1, 0);
+      updateAutocompleteSelection();
+      const selectedItem = items[selectedAutocompleteIndex];
+      if (selectedItem) selectedItem.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedAutocompleteIndex >= 0 && selectedAutocompleteIndex < items.length) {
+        const selectedItem = items[selectedAutocompleteIndex];
+        const symbol = selectedItem.dataset.symbol;
+        if (symbol) {
+          selectToken(symbol);
+        }
+      } else if (tokenInput.value.trim()) {
+        addBtn.click();
+      }
+    } else if (e.key === 'Escape') {
+      hideAutocomplete();
+    }
+  });
+  
+  tokenInput.addEventListener('blur', () => {
+    setTimeout(() => hideAutocomplete(), 200);
+  });
+}
 
 showAllToggle.addEventListener('change', () => {
   me.showAll = showAllToggle.checked;
@@ -220,6 +410,8 @@ function renderAvatarPresets(){
 }
 
 renderAvatarPresets();
+initAutocomplete();
+fetchTokenDatabase();
 loadMe();
 
 // ---- Severity buttons handling ----
