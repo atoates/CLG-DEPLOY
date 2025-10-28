@@ -169,6 +169,50 @@
 
   <footer class="footer muted"><span>© 2025 Crypto Lifeguard — demo build</span></footer>
 
+  <!-- Token Request Modal -->
+  <div id="token-request-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Request New Token</h2>
+        <button class="modal-close" onclick="closeTokenRequestModal()" aria-label="Close">&times;</button>
+      </div>
+      <form id="token-request-form" onsubmit="submitTokenRequest(event)">
+        <div class="form-group">
+          <label for="request-symbol">Token Symbol *</label>
+          <input type="text" id="request-symbol" maxlength="10" required readonly 
+                 placeholder="e.g., BTC" />
+          <small class="form-hint">The ticker symbol you searched for</small>
+        </div>
+        
+        <div class="form-group">
+          <label for="request-name">Token Name *</label>
+          <input type="text" id="request-name" maxlength="50" required 
+                 placeholder="e.g., Bitcoin" />
+          <small class="form-hint">Full name of the cryptocurrency</small>
+        </div>
+        
+        <div class="form-group">
+          <label for="request-reason">Why should we add this token? *</label>
+          <textarea id="request-reason" maxlength="500" rows="4" required 
+                    placeholder="Tell us why this token is important to monitor..."></textarea>
+          <small class="form-hint">Help us understand the value of adding this token</small>
+        </div>
+        
+        <div class="form-group">
+          <label for="request-website">Website (optional)</label>
+          <input type="url" id="request-website" maxlength="200" 
+                 placeholder="https://..." />
+          <small class="form-hint">Official project website</small>
+        </div>
+        
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeTokenRequestModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Submit Request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- IMPORTANT for Vite build -->
   <script type="module" src="/app.js?v=20251021a"></script>
 </body>

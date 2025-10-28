@@ -741,7 +741,7 @@ function highlightMatch(text, query) {
 function showAutocomplete(matches, query) {
   if (!autocompleteContainer) return;
   
-  if (!matches.length) {
+  if (!matches.length && !query.trim()) {
     autocompleteContainer.style.display = 'none';
     return;
   }
@@ -769,6 +769,30 @@ function showAutocomplete(matches, query) {
     
     autocompleteContainer.appendChild(item);
   });
+  
+  // Add "Request new token" option if there's a query
+  if (query.trim().length >= 2) {
+    const requestItem = document.createElement('div');
+    requestItem.className = 'autocomplete-item autocomplete-request';
+    requestItem.dataset.index = matches.length;
+    requestItem.dataset.action = 'request';
+    
+    requestItem.innerHTML = `
+      <span class="request-icon">➕</span>
+      <span class="request-text">Request "${query.toUpperCase()}" to be added</span>
+    `;
+    
+    requestItem.addEventListener('click', () => {
+      openTokenRequestModal(query);
+    });
+    
+    requestItem.addEventListener('mouseenter', () => {
+      selectedAutocompleteIndex = matches.length;
+      updateAutocompleteSelection();
+    });
+    
+    autocompleteContainer.appendChild(requestItem);
+  }
   
   autocompleteContainer.style.display = 'block';
 }
@@ -811,6 +835,80 @@ function selectToken(symbol) {
   tokenInput.value = '';
   hideAutocomplete();
   tokenInput.focus();
+}
+
+function openTokenRequestModal(query) {
+  const modal = document.getElementById('token-request-modal');
+  if (!modal) return;
+  
+  hideAutocomplete();
+  tokenInput.value = '';
+  
+  // Pre-fill the symbol from the search query
+  const symbolInput = document.getElementById('request-symbol');
+  const nameInput = document.getElementById('request-name');
+  const reasonInput = document.getElementById('request-reason');
+  const websiteInput = document.getElementById('request-website');
+  
+  if (symbolInput) symbolInput.value = query.toUpperCase().trim();
+  if (nameInput) nameInput.value = '';
+  if (reasonInput) reasonInput.value = '';
+  if (websiteInput) websiteInput.value = '';
+  
+  modal.style.display = 'flex';
+  if (nameInput) nameInput.focus();
+}
+
+function closeTokenRequestModal() {
+  const modal = document.getElementById('token-request-modal');
+  if (!modal) return;
+  modal.style.display = 'none';
+}
+
+async function submitTokenRequest(e) {
+  e.preventDefault();
+  
+  const symbol = document.getElementById('request-symbol').value.toUpperCase().trim();
+  const name = document.getElementById('request-name').value.trim();
+  const reason = document.getElementById('request-reason').value.trim();
+  const website = document.getElementById('request-website').value.trim();
+  
+  if (!symbol || !name || !reason) {
+    alert('Please fill out all required fields (Symbol, Name, and Reason).');
+    return;
+  }
+  
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const originalText = submitBtn.textContent;
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Submitting...';
+  
+  try {
+    const resp = await fetch('/api/token-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol, name, reason, website })
+    });
+    
+    const data = await resp.json();
+    
+    if (resp.ok) {
+      alert(`✅ Token request submitted successfully!\n\nThank you for requesting ${symbol}. We'll review it soon.`);
+      closeTokenRequestModal();
+    } else if (resp.status === 429) {
+      alert(`⚠️ ${data.error || 'This token has already been requested.'}`);
+    } else if (resp.status === 400) {
+      alert(`❌ ${data.error || 'Invalid request. Please check your inputs.'}`);
+    } else {
+      throw new Error(data.error || 'Failed to submit request');
+    }
+  } catch (err) {
+    console.error('Token request error:', err);
+    alert(`❌ Failed to submit token request: ${err.message}`);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalText;
+  }
 }
 
 function initTokenAutocomplete() {
@@ -2196,3 +2294,7 @@ function renderAll(){
   renderAlerts();
   renderSummary();
 }
+
+// --- Expose functions to window for HTML event handlers ---
+window.closeTokenRequestModal = closeTokenRequestModal;
+window.submitTokenRequest = submitTokenRequest;
