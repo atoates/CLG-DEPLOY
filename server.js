@@ -2350,7 +2350,8 @@ async function fetchNewsFromCoinDesk(tokens) {
     const response = await fetch('https://www.coindesk.com/arc/outboundfeeds/rss/', {
       headers: {
         'User-Agent': 'CryptoLifeguard/1.0'
-      }
+      },
+      redirect: 'follow' // Explicitly follow redirects (CoinDesk RSS redirects)
     });
 
     if (!response.ok) {
