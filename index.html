@@ -65,19 +65,20 @@
   </div>
 
   <main class="container">
-    <section class="card">
-      <h2 class="section-title">Select tokens to monitor</h2>
-      <div class="token-select-row">
-  <input id="token-input" class="input" type="text" placeholder="Type token name or symbol (e.g., Bitcoin, BTC) and press Enter…" aria-label="Add token" autocomplete="off" autocorrect="off" aria-autocomplete="list" autocapitalize="off" spellcheck="false" />
-        <button id="add-token-btn" class="btn">Add</button>
-        <label class="switch small" id="showall-tokens-wrap" title="Show alerts for all tokens">
-          <span class="switch-caption">Show all</span>
-          <input type="checkbox" id="toggle-show-all-tokens" />
-          <span class="slider" aria-hidden="true"></span>
-        </label>
+    <!-- Collapsible Token Selector -->
+    <details class="token-selector-dropdown">
+      <summary class="token-selector-summary">
+        <span class="token-selector-title">Select tokens to monitor</span>
+        <span class="token-selector-chevron">▼</span>
+      </summary>
+      <div class="token-selector-content card">
+        <div class="token-select-row">
+          <input id="token-input" class="input" type="text" placeholder="Type token name or symbol (e.g., Bitcoin, BTC) and press Enter…" aria-label="Add token" autocomplete="off" autocorrect="off" aria-autocomplete="list" autocapitalize="off" spellcheck="false" />
+          <button id="add-token-btn" class="btn">Add</button>
+        </div>
+        <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
       </div>
-      <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
-    </section>
+    </details>
 
 
 
@@ -111,11 +112,18 @@
         </div>
       </div>
 
-      <label class="switch small" id="showall-wrap" title="Include closed/dismissed alerts">
-        <span class="switch-caption">Show closed</span>
-        <input type="checkbox" id="toggle-show-all" />
-        <span class="slider" aria-hidden="true"></span>
-      </label>
+      <div class="toggle-group">
+        <label class="switch small" id="showall-tokens-wrap" title="Show alerts for all tokens">
+          <span class="switch-caption">All</span>
+          <input type="checkbox" id="toggle-show-all-tokens" />
+          <span class="slider" aria-hidden="true"></span>
+        </label>
+        <label class="switch small" id="showall-wrap" title="Include closed/dismissed alerts">
+          <span class="switch-caption">Closed</span>
+          <input type="checkbox" id="toggle-show-all" />
+          <span class="slider" aria-hidden="true"></span>
+        </label>
+      </div>
     </div>
 
     <section id="panel-alerts" class="card" role="tabpanel">
