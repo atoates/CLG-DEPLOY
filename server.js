@@ -1838,7 +1838,7 @@ app.post('/api/news', async (req, res) => {
         addedCount++;
       } catch (dbError) {
         // Continue even if one article fails
-        console.warn('[News API] Failed to cache article:', article.title?.substring(0, 50));
+        console.error('[News API] Failed to cache article:', article.title?.substring(0, 50), 'Error:', dbError.message);
       }
     }
     console.log(`[News API] Added/updated ${addedCount} articles in cache`);
