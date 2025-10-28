@@ -193,6 +193,7 @@ async function getCoinGeckoId(symbol) {
         'SHIB': 'shiba-inu',
         'DOT': 'polkadot',
         'MATIC': 'matic-network',
+        'POL': 'polygon-ecosystem-token',
         'LTC': 'litecoin',
         'UNI': 'uniswap',
         'LINK': 'chainlink',
