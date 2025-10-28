@@ -36,7 +36,9 @@ try {
 let server;
 // CoinMarketCap configuration
 const CMC_API_KEY = process.env.CMC_API_KEY || '';
-// LogoKit API for crypto token icons
+// CoinGecko API key for better token logo coverage
+const COINGECKO_API_KEY = process.env.GEKO || process.env.COINGECKO_API_KEY || '';
+// LogoKit API for crypto token icons (fallback)
 const LOGOKIT_API_KEY = process.env.LOGOKIT_API_KEY || 'pk_fr3b615a522b603695a025';
 // AI API keys for summary generation
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
@@ -118,9 +120,108 @@ function ensureValidTags(tags) {
 
 /* ---------------- Token Logo Proxy (with caching) ---------------- */
 const logoCache = new Map(); // key -> { t, contentType, body }
+const coinGeckoIdCache = new Map(); // symbol -> coin_id mapping cache
 const LOGO_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 const LOGO_CACHE_DIR = path.join(DATA_DIR, 'logo-cache');
 try { fs.mkdirSync(LOGO_CACHE_DIR, { recursive: true }); } catch {}
+
+// CoinGecko symbol to ID mapping (cached for 7 days)
+const COINGECKO_ID_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+let coinGeckoList = null;
+let coinGeckoListFetchedAt = 0;
+
+async function getCoinGeckoId(symbol) {
+  const sym = symbol.toUpperCase();
+  
+  // Check memory cache first
+  const cached = coinGeckoIdCache.get(sym);
+  if (cached && (Date.now() - cached.t < COINGECKO_ID_TTL_MS)) {
+    return cached.id;
+  }
+
+  // Fetch full coin list if needed (cache for 7 days)
+  if (!coinGeckoList || (Date.now() - coinGeckoListFetchedAt > COINGECKO_ID_TTL_MS)) {
+    try {
+      // Try Demo API first (most likely tier), then Pro, then free
+      let url = '';
+      if (COINGECKO_API_KEY) {
+        url = `https://api.coingecko.com/api/v3/coins/list?x_cg_demo_api_key=${COINGECKO_API_KEY}`;
+      } else {
+        url = 'https://api.coingecko.com/api/v3/coins/list';
+      }
+
+      const resp = await fetch(url);
+      if (resp.ok) {
+        coinGeckoList = await resp.json();
+        coinGeckoListFetchedAt = Date.now();
+        console.log(`✅ CoinGecko coin list fetched: ${coinGeckoList.length} coins`);
+      } else {
+        console.warn(`⚠️ CoinGecko list fetch failed (${resp.status}), trying without API key...`);
+        // Fallback to free API without key
+        const freeResp = await fetch('https://api.coingecko.com/api/v3/coins/list');
+        if (freeResp.ok) {
+          coinGeckoList = await freeResp.json();
+          coinGeckoListFetchedAt = Date.now();
+          console.log(`✅ CoinGecko coin list fetched (free API): ${coinGeckoList.length} coins`);
+        }
+      }
+    } catch (err) {
+      console.error('❌ Failed to fetch CoinGecko coin list:', err.message);
+    }
+  }
+
+  // Find matching coin by symbol
+  if (coinGeckoList) {
+    // First try: exact symbol match with highest market cap rank (lowest number = higher rank)
+    // Filter all matches, then sort by market_cap_rank if available, or prioritize well-known IDs
+    const exactMatches = coinGeckoList.filter(c => c.symbol.toUpperCase() === sym);
+    
+    if (exactMatches.length > 0) {
+      // Prioritize well-known coin IDs for common symbols
+      const wellKnownCoins = {
+        'BTC': 'bitcoin',
+        'ETH': 'ethereum',
+        'USDT': 'tether',
+        'BNB': 'binancecoin',
+        'SOL': 'solana',
+        'XRP': 'ripple',
+        'USDC': 'usd-coin',
+        'ADA': 'cardano',
+        'DOGE': 'dogecoin',
+        'TRX': 'tron',
+        'AVAX': 'avalanche-2',
+        'SHIB': 'shiba-inu',
+        'DOT': 'polkadot',
+        'MATIC': 'matic-network',
+        'LTC': 'litecoin',
+        'UNI': 'uniswap',
+        'LINK': 'chainlink',
+        'ATOM': 'cosmos',
+        'XLM': 'stellar',
+        'BCH': 'bitcoin-cash',
+        'PEPE': 'pepe',
+        'WIF': 'dogwifcoin',
+        'BONK': 'bonk',
+        'FLOKI': 'floki'
+      };
+      
+      if (wellKnownCoins[sym]) {
+        const wellKnown = exactMatches.find(c => c.id === wellKnownCoins[sym]);
+        if (wellKnown) {
+          coinGeckoIdCache.set(sym, { id: wellKnown.id, t: Date.now() });
+          return wellKnown.id;
+        }
+      }
+      
+      // Otherwise return first match (CoinGecko list is roughly sorted by importance)
+      const match = exactMatches[0];
+      coinGeckoIdCache.set(sym, { id: match.id, t: Date.now() });
+      return match.id;
+    }
+  }
+
+  return null;
+}
 
 function diskPathFor(sym, ext){
   return path.join(LOGO_CACHE_DIR, `${sym}.${ext}`);
@@ -182,13 +283,56 @@ app.get('/api/logo/:symbol', async (req, res) => {
       return { buf, ct };
     }
 
-    // 1) LogoKit API (token param)
-    const urls = [
-      `https://api.logokit.dev/crypto/${sym}.svg?token=${LOGOKIT_API_KEY}`,
-      `https://img.logokit.com/crypto/${sym}?token=${LOGOKIT_API_KEY}&size=128`,
-    ];
+    const urls = [];
 
-    // 2) Open-source cryptoicons fallback (SVG, color) — symbol is lowercase
+    // 1) CoinGecko API (primary source - best coverage)
+    try {
+      const coinId = await getCoinGeckoId(sym);
+      if (coinId) {
+        let coinUrl = '';
+        if (COINGECKO_API_KEY) {
+          coinUrl = `https://api.coingecko.com/api/v3/coins/${coinId}?x_cg_demo_api_key=${COINGECKO_API_KEY}&localization=false&tickers=false&market_data=false&community_data=false&developer_data=false&sparkline=false`;
+        } else {
+          coinUrl = `https://api.coingecko.com/api/v3/coins/${coinId}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false&sparkline=false`;
+        }
+
+        const coinResp = await fetch(coinUrl);
+        
+        if (coinResp.ok) {
+          const coinData = await coinResp.json();
+          if (coinData.image) {
+            // Prefer large, then small, then thumb
+            if (coinData.image.large) urls.push(coinData.image.large);
+            if (coinData.image.small) urls.push(coinData.image.small);
+            if (coinData.image.thumb) urls.push(coinData.image.thumb);
+          }
+        } else if (!COINGECKO_API_KEY) {
+          // Already using free API, don't retry
+        } else {
+          // Retry without API key
+          const freeUrl = `https://api.coingecko.com/api/v3/coins/${coinId}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false&sparkline=false`;
+          const freeResp = await fetch(freeUrl);
+          if (freeResp.ok) {
+            const coinData = await freeResp.json();
+            if (coinData.image) {
+              if (coinData.image.large) urls.push(coinData.image.large);
+              if (coinData.image.small) urls.push(coinData.image.small);
+              if (coinData.image.thumb) urls.push(coinData.image.thumb);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`⚠️ CoinGecko lookup failed for ${sym}:`, err.message);
+    }
+
+    // 2) LogoKit API (fallback)
+    urls.push(
+      `https://api.logokit.dev/crypto/${sym}.svg?token=${LOGOKIT_API_KEY}`,
+      `https://img.logokit.com/crypto/${sym}?token=${LOGOKIT_API_KEY}&size=128`
+    );
+
+    // 3) Open-source cryptoicons fallback (SVG, color) — symbol is lowercase
     const lower = sym.toLowerCase();
     urls.push(`https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/svg/color/${lower}.svg`);
 
