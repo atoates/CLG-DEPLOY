@@ -195,11 +195,20 @@ p, li, label, input, button { font-family: 'Poppins', 'Montserrat', system-ui, s
 
 /* ---------------- Top Banner / Navbar ---------------- */
 .topbar{
-  /* Navbar gradient from blue to teal, with subtle shine */
-  background: linear-gradient(135deg, var(--ocean-blue), var(--teal));
+  /* Ocean gradient with floating clouds */
+  background: 
+    /* Cloud layer - subtle white clouds */
+    radial-gradient(ellipse 120px 60px at 15% 40%, rgba(255,255,255,0.15) 0%, transparent 50%),
+    radial-gradient(ellipse 100px 50px at 85% 60%, rgba(255,255,255,0.12) 0%, transparent 50%),
+    radial-gradient(ellipse 140px 70px at 45% 30%, rgba(255,255,255,0.1) 0%, transparent 50%),
+    radial-gradient(ellipse 90px 45px at 70% 45%, rgba(255,255,255,0.13) 0%, transparent 50%),
+    /* Gradient background with transparency */
+    linear-gradient(135deg, rgba(20, 150, 180, 0.85), rgba(70, 190, 180, 0.85));
   color:#fff;
   box-shadow: 0 6px 18px rgba(0,0,0,.18);
   position: sticky; top:0; z-index: 50;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 .topbar-inner{
   max-width: 880px;
@@ -214,7 +223,16 @@ p, li, label, input, button { font-family: 'Poppins', 'Montserrat', system-ui, s
 .brand-logo{ height:56px; width:auto; display:block; object-fit:contain;
   filter: drop-shadow(0 6px 14px rgba(0,0,0,.25)); }
 .brand-text{ display:flex; flex-direction:column; }
-.brand-title{ margin:0; font-size:20px; line-height:1.1; font-weight:900; letter-spacing:.3px; font-family: 'Anton', sans-serif; color: #fff; }
+.brand-title{ 
+  margin:0; 
+  font-size:20px; 
+  line-height:1.1; 
+  font-weight:900; 
+  letter-spacing: 2px; /* Increased letter spacing for better readability */
+  font-family: 'Anton', sans-serif; 
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.3); /* Add subtle text shadow for depth */
+}
 .brand-tagline{ margin:2px 0 0; font-size:12px; opacity:.9; }
 
 /* Actions / Dropdown */
@@ -1420,7 +1438,10 @@ button#user-menu-btn.menu-btn{
 
 /* ---------------- Responsive ---------------- */
 @media (max-width: 980px){
-  .brand-title{ font-size:18px; }
+  .brand-title{ 
+    font-size:18px; 
+    letter-spacing: 1.5px; /* Maintain good spacing on mobile */
+  }
   .brand-logo{ height:48px; }
   .market-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
