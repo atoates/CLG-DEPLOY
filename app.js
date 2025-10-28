@@ -331,8 +331,22 @@ let tickerUpdateInterval = null;
 
 async function fetchTickerPrices() {
   try {
-    // Get user's watchlist tokens
-    const tokens = selectedTokens.length > 0 ? selectedTokens : BASE_TOKENS.slice(0, 10);
+    // Ensure minimum of 5 tokens - use top 5 if user has selected fewer
+    const TOP_5_TOKENS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
+    let tokens;
+    
+    if (selectedTokens.length >= 5) {
+      // User has 5+ tokens selected, use their selection
+      tokens = selectedTokens;
+    } else if (selectedTokens.length > 0) {
+      // User has 1-4 tokens, fill with top tokens to reach 5
+      const needed = 5 - selectedTokens.length;
+      const fillTokens = TOP_5_TOKENS.filter(t => !selectedTokens.includes(t)).slice(0, needed);
+      tokens = [...selectedTokens, ...fillTokens];
+    } else {
+      // No tokens selected, show top 5
+      tokens = TOP_5_TOKENS;
+    }
     
     if (tokens.length === 0) {
       console.log('No tokens selected for ticker');
