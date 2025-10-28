@@ -1775,7 +1775,7 @@ Keep it concise, actionable, and focused on portfolio management decisions.`;
     return await callOpenAI(prompt);
   }
   async function tryAnthropic(){
-    if (!ANTHROPIC_API_KEY) throw new Error('no-anthropic');
+       if (!ANTHROPIC_API_KEY) throw new Error('no-anthropic');
     return await callAnthropic(prompt);
   }
   async function tryXAI(){
@@ -1980,134 +1980,42 @@ async function fetchNewsForTokens(tokens) {
       tokens = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
     }
     
-    // Get CryptoNews API key
-    const cryptoNewsApiKey = (
-      process.env.NEWSAPI_KEY
-      || process.env.NEWS_API
-      || process.env.CRYPTONEWS_API_KEY
-      || process.env.CRYPTO_NEWS_API_KEY
-    );
+    // Try CoinDesk RSS (free, always available) first, then CryptoNews API as fallback
+    const tryProvidersInOrder = ['coindesk', 'cryptonews'];
     
-    // Validate API key
-    const invalidKeys = ['undefined', 'null', '', 'fs', 'your-key-here', 'xxx'];
-    if (!cryptoNewsApiKey || invalidKeys.includes(cryptoNewsApiKey.toLowerCase().trim())) {
-      return [{
-        title: "API Configuration Required",
-        description: "CryptoNews API key is not configured. Please contact support.",
-        text: "CryptoNews API key is not configured. Please contact support.",
-        url: "#",
-        news_url: "#",
-        publishedAt: new Date().toISOString(),
-        date: new Date().toISOString(),
-        source: { name: "System" },
-        source_name: "System",
-        sentiment: "neutral",
-        tickers: [],
-        image_url: null
-      }];
-    }
-    
-    // Fetch news for all tokens
-    const allArticles = [];
-    let ipBlacklisted = false;
-    const itemsPerToken = Math.max(5, Math.ceil(20 / tokens.length));
-    
-    for (const token of tokens.slice(0, 8)) {
+    let aggregated = [];
+    for (const provider of tryProvidersInOrder) {
       try {
-        const url = `https://cryptonews-api.com/api/v1?tickers=${token}&items=${itemsPerToken}&page=1&token=${cryptoNewsApiKey}`;
-        
-        const response = await fetch(url, { 
-          timeout: 10000,
-          headers: {
-            'User-Agent': 'CryptoLifeguard/1.0'
-          }
-        });
-        
-        // Log response details for debugging
-        console.log(`[News] Token: ${token}, Status: ${response.status}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`[News] Response for ${token}:`, data.data ? `${data.data.length} articles` : 'No data field');
-          
-          if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-            const tokenArticles = data.data.map(article => ({
-              title: article.title || 'No title available',
-              description: article.text || article.description || 'No description available',
-              text: article.text || article.description || '',
-              url: article.news_url || article.url || '#',
-              news_url: article.news_url || article.url || '#',
-              publishedAt: article.date || new Date().toISOString(),
-              date: article.date || new Date().toISOString(),
-              source: { name: article.source_name || article.source || 'Unknown' },
-              source_name: article.source_name || article.source || 'Unknown',
-              sentiment: article.sentiment || 'neutral',
-              tickers: article.tickers || [token],
-              token: token,
-              image_url: article.image_url || null
-            }));
-            
-            allArticles.push(...tokenArticles);
-          }
-        } else {
-          // Log non-OK responses
-          const errorText = await response.text();
-          console.error(`[News] Error for ${token} (${response.status}):`, errorText.substring(0, 200));
-          
-          if (response.status === 403) {
-            // IP blacklisted - check error message
-            try {
-              const errorData = JSON.parse(errorText);
-              if (errorData.message && errorData.message.includes('blacklisted')) {
-                ipBlacklisted = true;
-                break; // Stop trying other tokens
-              }
-            } catch (e) {
-              // Ignore parse error
-            }
-          }
+        if (provider === 'coindesk') {
+          const cd = await fetchNewsFromCoinDesk(tokens);
+          aggregated.push(...cd);
+        } else if (provider === 'cryptonews') {
+          const cn = await fetchNewsFromCryptoNews(tokens);
+          aggregated.push(...cn);
         }
-        
-        // Small delay between requests
-        await new Promise(resolve => setTimeout(resolve, 150));
-        
-      } catch (tokenError) {
-        console.error(`[News] Exception for ${token}:`, tokenError.message);
-        // Continue with other tokens
+      } catch (e) {
+        console.warn(`[News] Provider ${provider} failed:`, e && e.message);
       }
+      // If we already have a decent set (>=20), stop early
+      if (aggregated.length >= 20) break;
     }
     
-    // If IP is blacklisted, return specific error
-    if (ipBlacklisted) {
-      console.error('CryptoNews API: IP blacklisted - contact support@stocknewsapi.com');
-      return [{
-        title: "News Service Unavailable",
-        description: "Our server's IP has been blacklisted by the news provider. We're working to resolve this issue. Please check back later.",
-        text: "Our server's IP has been blacklisted by the news provider. We're working to resolve this issue. Please check back later.",
-        url: "#",
-        news_url: "#",
-        publishedAt: new Date().toISOString(),
-        date: new Date().toISOString(),
-        source: { name: "System" },
-        source_name: "System",
-        sentiment: "neutral",
-        tickers: tokens,
-        image_url: null
-      }];
-    }
-    
-    if (allArticles.length > 0) {
-      // Remove duplicates based on title and sort by publish date
-      const uniqueArticles = allArticles.filter((article, index, arr) => 
-        arr.findIndex(a => a.title === article.title) === index
-      );
-      
-      return uniqueArticles
-        .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+    if (aggregated.length > 0) {
+      // Deduplicate by title + url and sort by date desc
+      const seen = new Set();
+      const uniq = [];
+      for (const a of aggregated) {
+        const key = `${a.title}::${a.news_url || a.url || ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        uniq.push(a);
+      }
+      return uniq
+        .sort((a, b) => new Date(b.publishedAt || b.date) - new Date(a.publishedAt || a.date))
         .slice(0, 30);
     }
-
-    // If no articles found, return informative message
+    
+    // If no articles found from any provider, return informative message
     return [{
       title: "No News Available",
       description: "No recent cryptocurrency news found for your selected tokens. Try adding more tokens to your watchlist.",
@@ -2141,6 +2049,156 @@ async function fetchNewsForTokens(tokens) {
       image_url: null
     }];
   }
+}
+
+// Fetch news from CoinDesk RSS feed (free, public)
+async function fetchNewsFromCoinDesk(tokens) {
+  try {
+    // CoinDesk provides a free public RSS feed - no API key required
+    const response = await fetch('https://www.coindesk.com/arc/outboundfeeds/rss/', {
+      headers: {
+        'User-Agent': 'CryptoLifeguard/1.0'
+      }
+    });
+
+    if (!response.ok) {
+      console.warn(`[News] CoinDesk RSS feed failed with status ${response.status}`);
+      return [];
+    }
+
+    const xmlText = await response.text();
+    
+    // Parse RSS XML to extract articles
+    const articles = parseRSSFeed(xmlText, tokens);
+    
+    console.log(`[News] CoinDesk RSS: fetched ${articles.length} articles`);
+    return articles;
+    
+  } catch (error) {
+    console.error('[News] Error fetching from CoinDesk RSS:', error.message);
+    return [];
+  }
+}
+
+// Simple RSS parser for CoinDesk feed
+function parseRSSFeed(xmlText, tokens) {
+  const articles = [];
+  
+  try {
+    // Extract items from RSS feed
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+    const items = xmlText.match(itemRegex) || [];
+    
+    for (const item of items.slice(0, 30)) {
+      // Extract fields
+      const title = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1] || 
+                   item.match(/<title>(.*?)<\/title>/)?.[1] || '';
+      const link = item.match(/<link>(.*?)<\/link>/)?.[1] || '';
+      const description = item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1] || 
+                         item.match(/<description>(.*?)<\/description>/)?.[1] || '';
+      const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || '';
+      
+      // Check if article mentions any of the tracked tokens
+      const articleText = `${title} ${description}`.toUpperCase();
+      const relevantTokens = tokens.filter(token => 
+        articleText.includes(token.toUpperCase()) ||
+        articleText.includes(`BITCOIN`) && token === 'BTC' ||
+        articleText.includes(`ETHEREUM`) && token === 'ETH'
+      );
+      
+      // Only include if relevant to at least one token (or include all if no tokens specified)
+      if (tokens.length === 0 || relevantTokens.length > 0) {
+        articles.push({
+          title: title.trim(),
+          text: description.replace(/<[^>]*>/g, '').trim(), // Strip HTML tags
+          source_name: 'CoinDesk',
+          date: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
+          sentiment: 'neutral',
+          tickers: relevantTokens.length > 0 ? relevantTokens : tokens,
+          news_url: link,
+          image_url: null
+        });
+      }
+    }
+    
+  } catch (parseError) {
+    console.error('[News] RSS parsing error:', parseError.message);
+  }
+  
+  return articles;
+}
+
+// Fetch news from CryptoNews API
+async function fetchNewsFromCryptoNews(tokens) {
+  // Get CryptoNews API key
+  const cryptoNewsApiKey = (
+    process.env.NEWSAPI_KEY
+    || process.env.NEWS_API
+    || process.env.CRYPTONEWS_API_KEY
+    || process.env.CRYPTO_NEWS_API_KEY
+  );
+  // Validate API key
+  const invalidKeys = ['undefined', 'null', '', 'fs', 'your-key-here', 'xxx'];
+  if (!cryptoNewsApiKey || invalidKeys.includes(String(cryptoNewsApiKey).toLowerCase().trim())) {
+    return [];
+  }
+
+  const allArticles = [];
+  let ipBlacklisted = false;
+  const itemsPerToken = Math.max(5, Math.ceil(20 / Math.max(1, tokens.length)));
+
+  for (const token of (tokens.length ? tokens.slice(0, 8) : ['BTC','ETH'])) {
+    try {
+      const url = `https://cryptonews-api.com/api/v1?tickers=${token}&items=${itemsPerToken}&page=1&token=${cryptoNewsApiKey}`;
+      const response = await fetch(url, { 
+        timeout: 10000,
+        headers: { 'User-Agent': 'CryptoLifeguard/1.0' }
+      });
+      console.log(`[News] CryptoNews ${token} -> ${response.status}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+          const tokenArticles = data.data.map(article => ({
+            title: article.title || 'No title available',
+            description: article.text || article.description || 'No description available',
+            text: article.text || article.description || '',
+            url: article.news_url || article.url || '#',
+            news_url: article.news_url || article.url || '#',
+            publishedAt: article.date || new Date().toISOString(),
+            date: article.date || new Date().toISOString(),
+            source: { name: article.source_name || article.source || 'Unknown' },
+            source_name: article.source_name || article.source || 'Unknown',
+            sentiment: article.sentiment || 'neutral',
+            tickers: article.tickers || [token],
+            token,
+            image_url: article.image_url || null
+          }));
+          allArticles.push(...tokenArticles);
+        }
+      } else {
+        const errorText = await response.text();
+        console.error(`[News] CryptoNews error for ${token} (${response.status}):`, errorText.substring(0, 200));
+        if (response.status === 403) {
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.message && errorData.message.includes('blacklisted')) {
+              ipBlacklisted = true;
+              break;
+            }
+          } catch {}
+        }
+      }
+      await new Promise(resolve => setTimeout(resolve, 150));
+    } catch (tokenError) {
+      console.error(`[News] CryptoNews exception for ${token}:`, tokenError.message);
+    }
+  }
+
+  if (ipBlacklisted) {
+    console.error('CryptoNews API: IP blacklisted');
+    return [];
+  }
+  return allArticles;
 }
 
 // --- CryptoPanic config ------------------------------------------------------
@@ -2202,6 +2260,10 @@ app.get('/debug/env', requireAdmin, (req, res) => {
     NEWS_API_KEY_PREFIX: (process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY)
       ? (process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY).slice(0, 8)
       : 'not_set',
+    COINDESK_KEY_SET: !!(process.env.COINDESK || process.env.COINDESK_API_KEY),
+    COINDESK_KEY_PREFIX: (process.env.COINDESK || process.env.COINDESK_API_KEY)
+      ? (process.env.COINDESK || process.env.COINDESK_API_KEY).slice(0, 8)
+      : 'not_set',
     MARKET_CURRENCY_RESOLVED: MARKET_CURRENCY,
     MARKET_CURRENCY_RAW: process.env.MARKET_CURRENCY || 'not_set_defaulting_to_GBP',
     RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT || 'not_set',
@@ -2240,11 +2302,15 @@ app.get('/api/debug/env-check', (_req, res) => {
 // Debug endpoint to check API configuration
 app.get('/api/debug/config', (_req, res) => {
   const newsKey = process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY;
+  const cdKey = process.env.COINDESK || process.env.COINDESK_API_KEY || null;
   res.json({
     newsApiConfigured: !!newsKey,
     newsApiKeyLength: newsKey ? newsKey.length : 0,
     newsApiKeyPreview: newsKey ? `${newsKey.substring(0, 8)}...` : 'NOT SET',
-    envVarsChecked: ['NEWSAPI_KEY', 'NEWS_API', 'CRYPTONEWS_API_KEY', 'CRYPTO_NEWS_API_KEY'],
+    coindeskConfigured: !!cdKey,
+    coindeskKeyLength: cdKey ? cdKey.length : 0,
+    coindeskKeyPreview: cdKey ? `${cdKey.substring(0, 8)}...` : 'NOT SET',
+    envVarsChecked: ['NEWSAPI_KEY', 'NEWS_API', 'CRYPTONEWS_API_KEY', 'CRYPTO_NEWS_API_KEY', 'COINDESK', 'COINDESK_API_KEY', 'COINDESK_API_URL'],
     nodeVersion: process.version,
     timestamp: new Date().toISOString()
   });

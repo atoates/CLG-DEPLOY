@@ -23,6 +23,8 @@ Crypto Lifeguard is a web application for tracking crypto token alerts with seve
   - `DATABASE_PATH`: SQLite database location
   - `BACKUP_DIR`: Backup storage location
   - `CMC_API_KEY`: For CoinMarketCap market data integration
+  - `NEWSAPI_KEY`: For CryptoNews API integration (fallback news source)
+  - **CoinDesk RSS**: Free public RSS feed for crypto news (no API key required - primary news source)
 
 ### API Endpoints
 - `/api/me`: User preferences and watchlist management
@@ -150,6 +152,8 @@ git push origin main
 
 ## Integration Points
 - CoinMarketCap API integration for cryptocurrency market data and logos
+- **CoinDesk RSS feed** for cryptocurrency news (free, public - primary news source)
+- CryptoNews API integration for news (fallback source, requires API key)
 - Local storage for persisting user token selections in browser
 - SQLite WAL mode enables concurrent read/write operations
 - Railway.app deployment integration
