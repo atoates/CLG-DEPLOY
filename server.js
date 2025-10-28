@@ -118,6 +118,28 @@ function ensureValidTags(tags) {
   }
 }
 
+function safeParseJson(value, fallback) {
+  if (value === null || value === undefined) return Array.isArray(fallback) ? [...fallback] : fallback;
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return Array.isArray(fallback) ? [...fallback] : fallback;
+  }
+}
+
+function normalizeTickers(input) {
+  if (!Array.isArray(input)) return [];
+  const deduped = new Set();
+  input.forEach(t => {
+    if (typeof t !== 'string') return;
+    const cleaned = t.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (cleaned) deduped.add(cleaned);
+  });
+  return Array.from(deduped);
+}
+
 /* ---------------- Token Logo Proxy (with caching) ---------------- */
 const logoCache = new Map(); // key -> { t, contentType, body }
 const coinGeckoIdCache = new Map(); // symbol -> coin_id mapping cache
@@ -1907,6 +1929,324 @@ app.post('/api/news', async (req, res) => {
   }
 });
 
+// --- Admin News Management Endpoints -----------------------------------------
+
+// GET /admin/news/cache - Get cached news with filters
+app.get('/admin/news/cache', requireAdmin, async (req, res) => {
+  try {
+    const { token, days, page = 1, limit = 50 } = req.query;
+
+    const params = [];
+    let query = `
+      SELECT * FROM news_cache
+      WHERE expires_at > NOW()
+    `;
+
+    // Filter by token if specified (expects uppercase tickers stored in DB)
+    const tokenFilter = typeof token === 'string' ? token.trim().toUpperCase() : '';
+    if (tokenFilter) {
+      params.push(JSON.stringify([tokenFilter]));
+      query += ` AND tickers @> $${params.length}::jsonb`;
+    }
+
+    // Filter by age (days back from now)
+    const parsedDays = days !== undefined ? Number.parseInt(String(days), 10) : NaN;
+    if (!Number.isNaN(parsedDays) && parsedDays > 0) {
+      const daysAgo = Date.now() - (parsedDays * 24 * 60 * 60 * 1000);
+      params.push(daysAgo);
+      query += ` AND date >= $${params.length}`;
+    }
+
+    query += ' ORDER BY date DESC';
+
+    // Pagination
+    const pageNum = Math.max(Number.parseInt(String(page), 10) || 1, 1);
+    const limitNum = Math.min(Math.max(Number.parseInt(String(limit), 10) || 50, 1), 200);
+    const offset = (pageNum - 1) * limitNum;
+
+    params.push(limitNum);
+    query += ` LIMIT $${params.length}`;
+    params.push(offset);
+    query += ` OFFSET $${params.length}`;
+
+    const result = await pool.query(query, params);
+
+    const articles = result.rows.map(row => ({
+      article_url: row.article_url,
+      title: row.title,
+      text: row.text,
+      source_name: row.source_name,
+      date: row.date ? new Date(Number(row.date)).toISOString() : new Date().toISOString(),
+      sentiment: row.sentiment,
+      tickers: safeParseJson(row.tickers, []),
+      topics: safeParseJson(row.topics, []),
+      image_url: row.image_url,
+      expires_at: row.expires_at ? new Date(row.expires_at).toISOString() : null,
+      created_at: row.created_at ? new Date(row.created_at).toISOString() : null
+    }));
+
+    res.json(articles);
+  } catch (error) {
+    console.error('[Admin News] Failed to fetch cache:', error);
+    res.status(500).json({ error: 'Failed to fetch news cache' });
+  }
+});
+
+// GET /admin/news/stats - Get cache statistics
+app.get('/admin/news/stats', requireAdmin, async (req, res) => {
+  try {
+    // Total cached articles
+    const totalResult = await pool.query(`
+      SELECT COUNT(*) as total FROM news_cache 
+      WHERE expires_at > NOW()
+    `);
+    const totalCached = parseInt(totalResult.rows[0].total);
+    
+    // Articles by token
+    const tokenResult = await pool.query(`
+      SELECT jsonb_array_elements_text(tickers) as token, COUNT(*) as count
+      FROM news_cache
+      WHERE expires_at > NOW()
+      GROUP BY token
+      ORDER BY count DESC
+      LIMIT 20
+    `);
+    const byToken = tokenResult.rows.map(row => ({
+      token: row.token,
+      count: parseInt(row.count)
+    }));
+    
+    // Average age and date range
+    const ageResult = await pool.query(`
+      SELECT 
+        MIN(date) as oldest,
+        MAX(date) as newest,
+        AVG(EXTRACT(EPOCH FROM NOW()) * 1000 - date) as avg_age_ms
+      FROM news_cache
+      WHERE expires_at > NOW()
+    `);
+    const ageData = ageResult.rows[0];
+    
+    // Expiring soon (within 7 days)
+    const expiringResult = await pool.query(`
+      SELECT COUNT(*) as count FROM news_cache 
+      WHERE expires_at > NOW() 
+      AND expires_at < NOW() + INTERVAL '7 days'
+    `);
+    const expiringSoon = parseInt(expiringResult.rows[0].count);
+    
+    res.json({
+      totalCached,
+      byToken,
+      avgAgeSeconds: ageData.avg_age_ms ? Math.floor(ageData.avg_age_ms / 1000) : 0,
+      expiringSoon,
+      oldestArticle: ageData.oldest ? new Date(parseInt(ageData.oldest)).toISOString() : null,
+      newestArticle: ageData.newest ? new Date(parseInt(ageData.newest)).toISOString() : null
+    });
+  } catch (error) {
+    console.error('[Admin News] Failed to fetch stats:', error);
+    res.status(500).json({ error: 'Failed to fetch news stats' });
+  }
+});
+
+// PUT /admin/news/cache/:article_url - Update article
+app.put('/admin/news/cache/:article_url', requireAdmin, async (req, res) => {
+  try {
+    const articleUrl = decodeURIComponent(req.params.article_url);
+    const { title, text, sentiment, tickers } = req.body;
+    const normalizedSentiment = typeof sentiment === 'string' ? sentiment.toLowerCase() : undefined;
+    
+    // Validate sentiment
+    const validSentiments = ['positive', 'neutral', 'negative'];
+    if (normalizedSentiment && !validSentiments.includes(normalizedSentiment)) {
+      return res.status(400).json({ error: 'Invalid sentiment value' });
+    }
+    
+    // Build update query dynamically
+    const updates = [];
+    const params = [];
+    let paramCount = 1;
+    
+    if (title !== undefined) {
+      params.push(title);
+      updates.push(`title = $${paramCount++}`);
+    }
+    if (text !== undefined) {
+      params.push(text);
+      updates.push(`text = $${paramCount++}`);
+    }
+    if (normalizedSentiment !== undefined) {
+      params.push(normalizedSentiment);
+      updates.push(`sentiment = $${paramCount++}`);
+    }
+    if (tickers !== undefined) {
+      params.push(JSON.stringify(normalizeTickers(tickers)));
+      updates.push(`tickers = $${paramCount++}`);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    params.push(articleUrl);
+    const query = `
+      UPDATE news_cache 
+      SET ${updates.join(', ')}
+      WHERE article_url = $${paramCount}
+      RETURNING *
+    `;
+    
+    const result = await pool.query(query, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Article not found' });
+    }
+    
+    const row = result.rows[0];
+    res.json({
+      article_url: row.article_url,
+      title: row.title,
+      text: row.text,
+      source_name: row.source_name,
+      date: row.date ? new Date(Number(row.date)).toISOString() : new Date().toISOString(),
+      sentiment: row.sentiment,
+      tickers: safeParseJson(row.tickers, []),
+      topics: safeParseJson(row.topics, []),
+      image_url: row.image_url,
+      expires_at: row.expires_at ? new Date(row.expires_at).toISOString() : null,
+      created_at: row.created_at ? new Date(row.created_at).toISOString() : null
+    });
+  } catch (error) {
+    console.error('[Admin News] Failed to update article:', error);
+    res.status(500).json({ error: 'Failed to update article' });
+  }
+});
+
+// DELETE /admin/news/cache/:article_url - Delete article
+app.delete('/admin/news/cache/:article_url', requireAdmin, async (req, res) => {
+  try {
+    const articleUrl = decodeURIComponent(req.params.article_url);
+    
+    const result = await pool.query(
+      'DELETE FROM news_cache WHERE article_url = $1 RETURNING article_url',
+      [articleUrl]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Article not found' });
+    }
+    
+    res.json({ success: true, article_url: articleUrl });
+  } catch (error) {
+    console.error('[Admin News] Failed to delete article:', error);
+    res.status(500).json({ error: 'Failed to delete article' });
+  }
+});
+
+// POST /admin/news/refresh - Force fetch fresh articles
+app.post('/admin/news/refresh', requireAdmin, async (req, res) => {
+  try {
+    const { tokens } = req.body;
+    const tokensToFetch = Array.isArray(tokens) && tokens.length > 0 
+      ? tokens 
+      : ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
+    
+    console.log('[Admin News Refresh] Fetching articles for tokens:', tokensToFetch);
+    
+    const freshArticles = await fetchNewsFromCoinDesk(tokensToFetch);
+    console.log(`[Admin News Refresh] Fetched ${freshArticles.length} articles`);
+    
+    let addedCount = 0;
+    let updatedCount = 0;
+    
+    for (const article of freshArticles) {
+      try {
+        const dateValue = article.date || article.publishedAt;
+        const timestamp = dateValue ? new Date(dateValue).getTime() : Date.now();
+        
+        const result = await pool.query(`
+          INSERT INTO news_cache 
+          (article_url, title, text, source_name, date, sentiment, tickers, topics, image_url)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ON CONFLICT (article_url) DO UPDATE SET
+            title = EXCLUDED.title,
+            text = EXCLUDED.text,
+            sentiment = EXCLUDED.sentiment,
+            expires_at = NOW() + INTERVAL '120 days'
+          RETURNING (xmax = 0) AS inserted
+        `, [
+          article.news_url || article.url,
+          article.title,
+          article.text || article.description || '',
+          article.source_name,
+          timestamp,
+          article.sentiment || 'neutral',
+          JSON.stringify(article.tickers || []),
+          JSON.stringify(article.topics || []),
+          article.image_url || null
+        ]);
+        
+        if (result.rows[0].inserted) {
+          addedCount++;
+        } else {
+          updatedCount++;
+        }
+      } catch (dbError) {
+        console.error('[Admin News Refresh] Failed to cache article:', article.title?.substring(0, 50), dbError.message);
+      }
+    }
+    
+    console.log(`[Admin News Refresh] Added ${addedCount}, updated ${updatedCount}`);
+    
+    res.json({ 
+      added: addedCount, 
+      updated: updatedCount,
+      total: freshArticles.length
+    });
+  } catch (error) {
+    console.error('[Admin News Refresh] Error:', error);
+    res.status(500).json({ error: 'Failed to refresh news cache' });
+  }
+});
+
+// POST /admin/news/cache/bulk-delete - Bulk delete articles
+app.post('/admin/news/cache/bulk-delete', requireAdmin, async (req, res) => {
+  try {
+    const { urls } = req.body;
+    
+    if (!Array.isArray(urls) || urls.length === 0) {
+      return res.status(400).json({ error: 'urls must be a non-empty array' });
+    }
+    
+    const normalizedUrls = urls
+      .map(u => {
+        try {
+          return decodeURIComponent(u);
+        } catch {
+          return u;
+        }
+      })
+      .filter(Boolean);
+
+    if (!normalizedUrls.length) {
+      return res.status(400).json({ error: 'No valid article URLs provided' });
+    }
+
+    const result = await pool.query(
+      'DELETE FROM news_cache WHERE article_url = ANY($1) RETURNING article_url',
+      [normalizedUrls]
+    );
+    
+    res.json({ 
+      deleted: result.rows.length,
+      urls: result.rows.map(row => row.article_url)
+    });
+  } catch (error) {
+    console.error('[Admin News] Failed to bulk delete:', error);
+    res.status(500).json({ error: 'Failed to bulk delete articles' });
+  }
+});
+
 // --- AI Summary API ----------------------------------------------------------
 app.post('/api/summary/generate', async (req, res) => {
   try {
@@ -2783,6 +3123,71 @@ app.get('/admin/backups/:file', requireAdmin, (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
     fs.createReadStream(p).pipe(res);
   }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
+});
+
+// Get comprehensive admin statistics (for dashboard)
+app.get('/admin/stats', requireAdmin, async (req, res) => {
+  try {
+    // Get alerts stats
+    const alertsResult = await pool.query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE severity = 'critical') as critical_count,
+        COUNT(*) FILTER (WHERE severity = 'warning') as warning_count,
+        COUNT(*) FILTER (WHERE severity = 'info') as info_count
+      FROM alerts
+    `);
+    const alertStats = alertsResult.rows[0];
+    
+    // Get users stats
+    const usersResult = await pool.query('SELECT COUNT(*) as total FROM users');
+    const userStats = usersResult.rows[0];
+    
+    // Get news cache stats
+    const newsResult = await pool.query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE expires_at < NOW() + INTERVAL '7 days') as expiring_soon,
+        AVG(EXTRACT(EPOCH FROM NOW()) * 1000 - date) as avg_age_ms
+      FROM news_cache
+      WHERE expires_at > NOW()
+    `);
+    const newsData = newsResult.rows[0];
+    
+    // Get top tokens in news
+    const tokenResult = await pool.query(`
+      SELECT jsonb_array_elements_text(tickers) as token, COUNT(*) as count
+      FROM news_cache
+      WHERE expires_at > NOW()
+      GROUP BY token
+      ORDER BY count DESC
+      LIMIT 10
+    `);
+    
+    res.json({
+      alerts: {
+        total: parseInt(alertStats.total),
+        critical: parseInt(alertStats.critical_count),
+        warning: parseInt(alertStats.warning_count),
+        info: parseInt(alertStats.info_count)
+      },
+      users: {
+        total: parseInt(userStats.total)
+      },
+      news: {
+        totalCached: parseInt(newsData.total),
+        expiringSoon: parseInt(newsData.expiring_soon),
+        avgAgeDays: newsData.avg_age_ms ? Math.floor(newsData.avg_age_ms / (1000 * 60 * 60 * 24)) : 0,
+        topTokens: tokenResult.rows.map(row => ({
+          token: row.token,
+          count: parseInt(row.count)
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('[Admin Stats] Error:', error);
+    res.status(500).json({ error: 'Failed to fetch admin stats' });
+  }
 });
 
 // Get users list as JSON (admin only)
