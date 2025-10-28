@@ -1815,6 +1815,10 @@ app.post('/api/news', async (req, res) => {
     let addedCount = 0;
     for (const article of freshArticles) {
       try {
+        // Convert ISO date string to Unix timestamp (milliseconds)
+        const dateValue = article.date || article.publishedAt;
+        const timestamp = dateValue ? new Date(dateValue).getTime() : Date.now();
+        
         await pool.query(`
           INSERT INTO news_cache 
           (article_url, title, text, source_name, date, sentiment, tickers, topics, image_url)
@@ -1829,7 +1833,7 @@ app.post('/api/news', async (req, res) => {
           article.title,
           article.text || article.description || '',
           article.source_name,
-          article.date || article.publishedAt,
+          timestamp,
           article.sentiment || 'neutral',
           JSON.stringify(article.tickers || []),
           JSON.stringify(article.topics || []),
@@ -1866,7 +1870,7 @@ app.post('/api/news', async (req, res) => {
           title: row.title,
           text: row.text,
           source_name: row.source_name,
-          date: row.date,
+          date: row.date ? new Date(row.date).toISOString() : new Date().toISOString(), // Convert Unix timestamp to ISO string
           sentiment: row.sentiment,
           tickers: row.tickers ? JSON.parse(row.tickers) : [],
           topics: row.topics ? JSON.parse(row.topics) : [],
