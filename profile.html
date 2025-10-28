@@ -11,41 +11,42 @@
       display: flex; 
       align-items: center; 
       gap: 20px; 
-      padding: 8px 0;
+      padding: 0;
     }
     .profile-avatar { 
-      width: 80px; 
-      height: 80px; 
+      width: 64px; 
+      height: 64px; 
       border-radius: 50%; 
       object-fit: cover; 
       border: 3px solid #e2e8f0; 
-      box-shadow: 0 4px 6px rgba(0,0,0,.1); 
+      box-shadow: 0 2px 4px rgba(0,0,0,.08); 
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
       display: grid; 
       place-items: center; 
       font-weight: 700; 
-      font-size: 32px;
+      font-size: 24px;
       color: white;
+      flex-shrink: 0;
     }
-    .profile-info { flex: 1; }
+    .profile-info { flex: 1; min-width: 0; }
     .profile-name { 
-      margin: 0 0 4px; 
-      font-size: 28px; 
+      margin: 0 0 2px; 
+      font-size: 22px; 
       font-weight: 700; 
       color: #0f172a;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
     .profile-username { 
-      margin: 4px 0; 
-      font-size: 16px; 
+      margin: 2px 0; 
+      font-size: 14px; 
       color: #64748b; 
       font-weight: 500;
     }
     .profile-email { 
-      margin: 4px 0 0; 
-      font-size: 14px; 
+      margin: 2px 0 0; 
+      font-size: 13px; 
       color: #94a3b8; 
     }
     
@@ -54,28 +55,29 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 4px 12px;
+      padding: 3px 10px;
       background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
       color: white;
-      border-radius: 12px;
-      font-size: 12px;
+      border-radius: 10px;
+      font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+      box-shadow: 0 2px 4px rgba(245, 158, 11, 0.25);
     }
     
-    /* Grid Layout */
+    /* Two Column Layout for larger screens */
     .profile-grid { 
       display: grid; 
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
-      gap: 20px; 
+      grid-template-columns: 1fr 1fr; 
+      gap: 16px;
+      margin-top: 16px;
     }
     
-    /* Section Headings */
+    /* Section Headings - More Compact */
     .profile-section h3 { 
-      margin: 0 0 16px; 
-      font-size: 18px; 
+      margin: 0 0 12px; 
+      font-size: 16px; 
       font-weight: 700;
       color: #0f172a;
       display: flex;
@@ -84,8 +86,8 @@
     }
     .profile-section h3::before {
       content: '';
-      width: 4px;
-      height: 20px;
+      width: 3px;
+      height: 16px;
       background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
       border-radius: 2px;
     }
@@ -93,7 +95,7 @@
     /* Buttons */
     .profile-actions { 
       display: flex; 
-      gap: 12px; 
+      gap: 10px; 
       flex-wrap: wrap; 
     }
     .btn.gray { 
@@ -107,110 +109,55 @@
     
     /* Pills */
     .pill.small { 
-      padding: 6px 12px; 
-      font-size: 13px; 
+      padding: 5px 10px; 
+      font-size: 12px; 
       font-weight: 500;
     }
     .pill .remove { 
-      width: 18px; 
-      height: 18px; 
+      width: 16px; 
+      height: 16px; 
     }
     
-    /* Avatar Presets */
-    .avatar-initials { 
-      width: 100%; 
-      height: 100%; 
-      display: grid; 
-      place-items: center; 
-      border-radius: 50%; 
-      background: #e2e8f0; 
-      color: #0f172a; 
-    }
-    
-    /* Preferences Row */
-    .prefs-row { 
-      display: flex; 
-      align-items: center; 
-      gap: 12px; 
-      flex-wrap: wrap; 
-      margin-bottom: 12px;
-    }
-    .prefs-row .sev-btn { 
-      width: auto; 
-      min-width: 50px; 
-      padding: 8px 16px; 
-      font-size: 14px;
-      border-radius: 8px;
-      transition: all 0.2s;
-    }
-    
-    /* Token Submission Form */
-    .token-submission-form { 
-      margin-top: 16px; 
-      background: #f8fafc;
-      padding: 20px;
-      border-radius: 12px;
-      border: 1px solid #e2e8f0;
-    }
-    .form-row { 
-      display: grid; 
-      grid-template-columns: 1fr 1fr; 
-      gap: 16px; 
-      margin-bottom: 16px; 
-    }
-    .form-group { 
-      display: flex; 
-      flex-direction: column; 
-      gap: 6px; 
-    }
-    .form-group label { 
-      font-weight: 600; 
-      font-size: 14px; 
-      color: #0f172a;
-    }
-    .form-group .input,
-    .form-group textarea,
-    .form-group select { 
-      border-radius: 8px;
-      border: 1px solid #cbd5e1;
-      padding: 10px 12px;
-      font-size: 14px;
-      transition: all 0.2s;
-    }
-    .form-group .input:focus,
-    .form-group textarea:focus,
-    .form-group select:focus {
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-      outline: none;
-    }
-    .form-group textarea { 
-      resize: vertical; 
-      font-family: inherit;
-      min-height: 80px;
-    }
-    .form-actions { 
-      display: flex; 
-      gap: 12px; 
-      margin-top: 20px; 
-    }
-    
-    /* Cards */
+    /* Cards - More Compact */
     .card {
       background: white;
-      border-radius: 16px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      padding: 28px;
-      margin-bottom: 20px;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      padding: 20px;
       border: 1px solid #e2e8f0;
+    }
+    
+    .card.full-width {
+      grid-column: 1 / -1;
+    }
+    
+    /* Compact preference row */
+    .compact-prefs {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    
+    .compact-prefs .sev-btn {
+      padding: 6px 12px;
+      font-size: 13px;
+      border-radius: 8px;
+      transition: all 0.2s;
     }
     
     /* Input Styling */
+    .token-select-row {
+      display: flex;
+      gap: 8px;
+    }
+    
     .token-select-row .input {
       border-radius: 8px;
       border: 1px solid #cbd5e1;
-      padding: 10px 12px;
+      padding: 9px 12px;
       font-size: 14px;
+      flex: 1;
     }
     .token-select-row .input:focus {
       border-color: #3b82f6;
@@ -218,12 +165,25 @@
       outline: none;
     }
     
+    .input, select {
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      padding: 9px 12px;
+      font-size: 14px;
+    }
+    
+    .input:focus, select:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      outline: none;
+    }
+    
     /* Message Styling */
     #prof-msg, #submission-msg {
-      font-size: 14px;
+      font-size: 13px;
       padding: 8px 12px;
       border-radius: 6px;
-      margin-top: 12px;
+      margin-top: 10px;
     }
     #prof-msg.success, #submission-msg.success {
       background: #d1fae5;
@@ -236,19 +196,46 @@
       border: 1px solid #fca5a5;
     }
     
+    /* Label helpers */
+    .label-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    
+    .label-row .muted {
+      font-size: 13px;
+    }
+    
     /* Responsive */
-    @media (max-width: 720px) { 
-      .profile-grid { grid-template-columns: 1fr; } 
-      .form-row { grid-template-columns: 1fr; }
+    @media (max-width: 900px) { 
+      .profile-grid { 
+        grid-template-columns: 1fr; 
+      }
+    }
+    
+    @media (max-width: 640px) { 
       .profile-header {
-        flex-direction: column;
-        text-align: center;
+        gap: 12px;
+      }
+      .profile-avatar {
+        width: 56px;
+        height: 56px;
+        font-size: 20px;
       }
       .profile-name {
-        justify-content: center;
+        font-size: 20px;
+        flex-wrap: wrap;
       }
       .card {
-        padding: 20px;
+        padding: 16px;
+      }
+      .token-select-row {
+        flex-direction: column;
+      }
+      .token-select-row .input {
+        width: 100%;
       }
     }
   </style>
@@ -273,7 +260,8 @@
   </header>
 
   <main class="container">
-    <section class="card">
+    <!-- Profile Header Card -->
+    <section class="card full-width">
       <div class="profile-header">
         <div id="prof-avatar" class="profile-avatar"></div>
         <div class="profile-info">
@@ -284,85 +272,92 @@
       </div>
     </section>
 
-    <!-- Watchlist Section - Top Priority -->
-    <section class="card">
-      <div class="profile-section">
-        <h3>Watchlist</h3>
-        <div id="prof-watch-pills" class="pill-row" style="margin-bottom: 12px;"></div>
-        <div class="token-select-row">
-          <input id="prof-token-input" class="input" type="text" placeholder="Type token name or symbol (e.g., Bitcoin, BTC) and press Enter..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
-          <button id="prof-add-token" class="btn">Add</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Alert Preferences - Compact -->
-    <section class="card" style="padding: 20px 28px;">
-      <div class="profile-section">
-        <h3 style="margin-bottom: 12px;">Alert Preferences</h3>
-        <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="muted" style="font-size: 14px;">Severities:</span>
-            <button class="sev-btn" data-sev="critical" title="Critical" style="padding: 6px 12px; font-size: 13px;">🚨</button>
-            <button class="sev-btn" data-sev="warning" title="Warning" style="padding: 6px 12px; font-size: 13px;">⚠️</button>
-            <button class="sev-btn" data-sev="info" title="Info" style="padding: 6px 12px; font-size: 13px;">🛟</button>
+    <!-- Two-Column Grid Layout -->
+    <div class="profile-grid">
+      
+      <!-- LEFT COLUMN -->
+      
+      <!-- Watchlist Section -->
+      <section class="card">
+        <div class="profile-section">
+          <h3>Watchlist</h3>
+          <div id="prof-watch-pills" class="pill-row" style="margin-bottom: 10px; min-height: 32px;"></div>
+          <div class="token-select-row">
+            <input id="prof-token-input" class="input" type="text" placeholder="Add token..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+            <button id="prof-add-token" class="btn">Add</button>
           </div>
-          <label class="switch small" title="Include closed/dismissed alerts" style="margin: 0;">
-            <span class="switch-caption">Show closed</span>
+        </div>
+      </section>
+
+      <!-- Alert Preferences -->
+      <section class="card">
+        <div class="profile-section">
+          <h3>Alert Preferences</h3>
+          <div class="label-row">
+            <span class="muted">Severities:</span>
+            <button class="sev-btn" data-sev="critical" title="Critical">🚨</button>
+            <button class="sev-btn" data-sev="warning" title="Warning">⚠️</button>
+            <button class="sev-btn" data-sev="info" title="Info">🛟</button>
+          </div>
+          <label class="switch small" title="Include closed/dismissed alerts">
+            <span class="switch-caption">Show closed alerts</span>
             <input type="checkbox" id="prof-show-all" />
             <span class="slider" aria-hidden="true"></span>
           </label>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Currency Preference -->
-    <section class="card">
-      <div class="profile-section">
-        <h3>Currency Preference</h3>
-        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-          <span class="muted" style="font-size: 14px;">Display prices in:</span>
-          <select id="prof-currency-select" class="input" style="width: auto; min-width: 120px; padding: 8px 12px;">
-            <option value="USD">🇺🇸 USD ($)</option>
-            <option value="EUR">🇪🇺 EUR (€)</option>
-            <option value="GBP">🇬🇧 GBP (£)</option>
-            <option value="JPY">🇯🇵 JPY (¥)</option>
-            <option value="AUD">🇦🇺 AUD (A$)</option>
-            <option value="CAD">🇨🇦 CAD (C$)</option>
-            <option value="CHF">🇨🇭 CHF</option>
-            <option value="CNY">🇨🇳 CNY (¥)</option>
-            <option value="INR">🇮🇳 INR (₹)</option>
-            <option value="BRL">🇧🇷 BRL (R$)</option>
-          </select>
+      <!-- Currency Preference -->
+      <section class="card">
+        <div class="profile-section">
+          <h3>Currency</h3>
+          <div class="label-row">
+            <span class="muted">Display prices in:</span>
+            <select id="prof-currency-select" class="input" style="width: auto; min-width: 120px;">
+              <option value="USD">🇺🇸 USD ($)</option>
+              <option value="EUR">🇪🇺 EUR (€)</option>
+              <option value="GBP">🇬🇧 GBP (£)</option>
+              <option value="JPY">🇯🇵 JPY (¥)</option>
+              <option value="AUD">🇦🇺 AUD (A$)</option>
+              <option value="CAD">🇨🇦 CAD (C$)</option>
+              <option value="CHF">🇨🇭 CHF</option>
+              <option value="CNY">🇨🇳 CNY (¥)</option>
+              <option value="INR">🇮🇳 INR (₹)</option>
+              <option value="BRL">🇧🇷 BRL (R$)</option>
+            </select>
+          </div>
+          <p class="muted" style="margin-top: 8px; font-size: 12px;">Used for price ticker and market data</p>
         </div>
-        <p class="muted" style="margin-top: 8px; font-size: 13px;">Your chosen currency will be used for the price ticker and market data.</p>
-      </div>
-    </section>
+      </section>
+      
+      <!-- RIGHT COLUMN -->
+      
+      <!-- Username & Avatar -->
+      <section class="card">
+        <div class="profile-section">
+          <h3>Username & Avatar</h3>
+          <div class="token-select-row" style="margin-bottom: 12px;">
+            <input id="prof-username-input" class="input" placeholder="Choose username..." />
+            <button id="prof-username-save" class="btn">Save</button>
+          </div>
+          <div class="muted" style="margin-bottom: 8px; font-size: 13px;">Choose avatar:</div>
+          <div id="avatar-presets" class="pill-row"></div>
+        </div>
+      </section>
 
-    <!-- Username & Avatar Section -->
-    <section class="card">
-      <div class="profile-section">
-        <h3>Username & Avatar</h3>
-        <div class="token-select-row" style="margin-bottom: 16px;">
-          <input id="prof-username-input" class="input" placeholder="Choose a username (e.g., alice_01)" />
-          <button id="prof-username-save" class="btn">Save</button>
+      <!-- Account Actions -->
+      <section class="card">
+        <div class="profile-section">
+          <h3>Account</h3>
+          <div class="profile-actions">
+            <button id="btn-export" class="btn gray">Export data</button>
+            <button id="btn-logout" class="btn">Log out</button>
+          </div>
+          <p id="prof-msg" class="muted" style="margin-top:8px; font-size: 13px;"></p>
         </div>
-        <div class="muted" style="margin-bottom: 10px;">Choose a default avatar:</div>
-        <div id="avatar-presets" class="pill-row"></div>
-      </div>
-    </section>
-
-    <!-- Account Actions -->
-    <section class="card">
-      <div class="profile-section">
-        <h3>Account</h3>
-        <div class="profile-actions">
-          <button id="btn-export" class="btn gray">Export my data</button>
-          <button id="btn-logout" class="btn">Log out</button>
-        </div>
-        <p id="prof-msg" class="muted" style="margin-top:8px"></p>
-      </div>
-    </section>
+      </section>
+      
+    </div>
   </main>
 
   <footer class="footer muted"><span>© 2025 Crypto Lifeguard — demo build</span></footer>
