@@ -1918,6 +1918,8 @@ app.post('/api/summary/generate', async (req, res) => {
       return res.status(400).json({ error: 'Invalid alerts data' });
     }
 
+    console.log(`[Summary] Requested model: "${model}" (type: ${typeof model})`);
+
     // Generate AI summary using available API
     const summary = await generateAISummary(alerts, tokens || [], sevFilter || [], tagFilter || [], model);
     const news = await fetchNewsForTokens(tokens || []);
@@ -2056,6 +2058,8 @@ Keep it concise, actionable, and focused on portfolio management decisions.`;
   // 'auto' is treated as 'openai' for consistency
   const prefer = (selectedModel||'openai').toLowerCase();
   const normalizedPrefer = prefer === 'auto' ? 'openai' : prefer;
+  
+  console.log(`[generateAISummary] selectedModel="${selectedModel}", prefer="${prefer}", normalized="${normalizedPrefer}"`);
 
   // Helper to try providers in order
   async function tryOpenAI(){

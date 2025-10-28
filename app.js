@@ -633,7 +633,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if (summaryModelSel){
     try {
       const savedModel = localStorage.getItem('clg_summary_model');
-      if (savedModel) summaryModelSel.value = savedModel;
+      // Normalize 'auto' to 'openai' (auto is deprecated)
+      if (savedModel === 'auto') {
+        summaryModelSel.value = 'openai';
+        localStorage.setItem('clg_summary_model', 'openai');
+      } else if (savedModel) {
+        summaryModelSel.value = savedModel;
+      }
+      // If no saved model, dropdown will use its default (OpenAI selected in HTML)
     } catch {}
   }
 
