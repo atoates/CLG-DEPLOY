@@ -1972,30 +1972,6 @@ app.get('/api/summary/recent', async (req, res) => {
   }
 });
 
-// --- News API ----------------------------------------------------------
-app.post('/api/news', async (req, res) => {
-  try {
-    const { tokens } = req.body;
-    
-    if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
-      return res.status(400).json({ error: 'Invalid tokens data' });
-    }
-
-    const news = await fetchNewsForTokens(tokens);
-    
-    res.json({ 
-      news: news,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('News fetch error:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch news',
-      news: []
-    });
-  }
-});
-
 // Debug endpoint to test CoinDesk RSS directly (bypasses cache)
 app.get('/debug/coindesk-test', async (req, res) => {
   try {
