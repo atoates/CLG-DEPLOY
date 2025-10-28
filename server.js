@@ -2952,6 +2952,12 @@ function gracefulShutdown(code = 0) {
   shuttingDown = true;
   console.log('Graceful shutdown initiated');
 
+  // Clear scheduled news fetching interval
+  if (typeof newsFetchInterval !== 'undefined') {
+    clearInterval(newsFetchInterval);
+    console.log('Stopped scheduled news fetching');
+  }
+
   try {
     // persist in-memory alerts to disk before closing
     persistAlerts();
@@ -3554,6 +3560,91 @@ server.on('error', (error) => {
 process.stdin.resume();
 
 console.log('🔄 Server.js execution continuing after app.listen...');
+
+// ============================================================
+// SCHEDULED NEWS FETCHING (every 5 minutes)
+// ============================================================
+
+async function scheduledNewsFetch() {
+  try {
+    console.log('[Scheduled] Starting automatic news fetch...');
+    
+    // Fetch articles from CoinDesk RSS (no token filter, get all articles)
+    const articles = await fetchNewsFromCoinDesk([]);
+    
+    if (!articles || articles.length === 0) {
+      console.log('[Scheduled] No articles fetched from CoinDesk RSS');
+      return;
+    }
+    
+    console.log(`[Scheduled] Fetched ${articles.length} articles from CoinDesk`);
+    
+    let addedCount = 0;
+    let updatedCount = 0;
+    
+    // Insert/update articles in the database
+    for (const article of articles) {
+      try {
+        const articleUrl = article.news_url;
+        const title = article.title;
+        const text = article.text || '';
+        const sourceName = article.source_name || 'CoinDesk';
+        const sentiment = article.sentiment || 'neutral';
+        const tickers = ensureValidTickersArray(article.tickers || []);
+        const imageUrl = article.image_url || null;
+        
+        // Convert date to Unix timestamp (milliseconds)
+        const dateValue = article.date || new Date().toISOString();
+        const timestamp = new Date(dateValue).getTime();
+        
+        // Set expiration to 120 days from now
+        const expiresAt = Date.now() + (120 * 24 * 60 * 60 * 1000);
+        
+        // Check if article already exists
+        const existing = pool.prepare(`
+          SELECT article_url FROM news_cache WHERE article_url = ?
+        `).get(articleUrl);
+        
+        if (existing) {
+          // Update existing article
+          pool.prepare(`
+            UPDATE news_cache 
+            SET title = ?, text = ?, sentiment = ?, tickers = ?, 
+                source_name = ?, image_url = ?, expires_at = ?
+            WHERE article_url = ?
+          `).run(title, text, sentiment, JSON.stringify(tickers), sourceName, imageUrl, expiresAt, articleUrl);
+          updatedCount++;
+        } else {
+          // Insert new article
+          pool.prepare(`
+            INSERT INTO news_cache (article_url, title, text, date, sentiment, tickers, source_name, image_url, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(articleUrl, title, text, timestamp, sentiment, JSON.stringify(tickers), sourceName, imageUrl, expiresAt);
+          addedCount++;
+        }
+        
+      } catch (articleError) {
+        console.error(`[Scheduled] Error processing article "${article.title}":`, articleError.message);
+      }
+    }
+    
+    console.log(`[Scheduled] News fetch complete: ${addedCount} added, ${updatedCount} updated`);
+    
+  } catch (error) {
+    console.error('[Scheduled] Error in scheduled news fetch:', error.message);
+  }
+}
+
+// Run initial fetch after server starts (wait 10 seconds for server to stabilize)
+setTimeout(() => {
+  console.log('[Scheduled] Running initial news fetch...');
+  scheduledNewsFetch();
+}, 10000);
+
+// Schedule news fetching every 5 minutes (300,000 milliseconds)
+const newsFetchInterval = setInterval(scheduledNewsFetch, 5 * 60 * 1000);
+
+console.log('📰 Scheduled news fetching enabled: every 5 minutes');
 
 // Optional heartbeat only when DEBUG_HTTP=true
 if (String(process.env.DEBUG_HTTP).toLowerCase() === 'true') {
