@@ -1715,6 +1715,14 @@ async function generateNewSummary(){
       clearNewsTab();
     }
 
+    // Refresh summary history to enable prev/next navigation
+    try {
+      const recent = await fetchRecentSummaries(10);
+      updateSummaryHistoryNav(recent, 0); // Set to index 0 (newest)
+    } catch (histErr) {
+      console.warn('Failed to refresh summary history:', histErr);
+    }
+
   } catch (error) {
     console.error('Failed to generate AI summary:', error);
     
@@ -1867,8 +1875,8 @@ function getSelectedModel(){
   try {
     if (summaryModelSel && summaryModelSel.value) return summaryModelSel.value;
     const saved = localStorage.getItem('clg_summary_model');
-    return saved || 'auto';
-  } catch { return 'auto'; }
+    return saved || 'openai'; // Default to OpenAI
+  } catch { return 'openai'; }
 }
 if (summaryModelSel){
   summaryModelSel.addEventListener('change', () => {

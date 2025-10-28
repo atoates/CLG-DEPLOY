@@ -2053,7 +2053,9 @@ Please provide:
 Keep it concise, actionable, and focused on portfolio management decisions.`;
 
   // Respect user-selected model if provided, default to OpenAI
+  // 'auto' is treated as 'openai' for consistency
   const prefer = (selectedModel||'openai').toLowerCase();
+  const normalizedPrefer = prefer === 'auto' ? 'openai' : prefer;
 
   // Helper to try providers in order
   async function tryOpenAI(){
@@ -2070,13 +2072,13 @@ Keep it concise, actionable, and focused on portfolio management decisions.`;
   }
 
   try {
-    if (prefer === 'xai' || prefer === 'grok') return {
+    if (normalizedPrefer === 'xai' || normalizedPrefer === 'grok') return {
       ...(await tryXAI()), alertCount: alerts.length, tokenCount: tokens.length
     };
-    if (prefer === 'openai') return {
+    if (normalizedPrefer === 'openai') return {
       ...(await tryOpenAI()), alertCount: alerts.length, tokenCount: tokens.length
     };
-    if (prefer === 'anthropic') return {
+    if (normalizedPrefer === 'anthropic') return {
       ...(await tryAnthropic()), alertCount: alerts.length, tokenCount: tokens.length
     };
   } catch (e) {
