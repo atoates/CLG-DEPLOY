@@ -1906,6 +1906,12 @@ app.post('/api/news', async (req, res) => {
 // --- AI Summary API ----------------------------------------------------------
 app.post('/api/summary/generate', async (req, res) => {
   try {
+    // Require Google login to generate summaries
+    const sess = getSession(req);
+    if (!sess || !sess.uid) {
+      return res.status(401).json({ error: 'Authentication required. Please sign in with Google to generate summaries.' });
+    }
+
     const { alerts, tokens, sevFilter, tagFilter, model } = req.body;
     
     if (!alerts || !Array.isArray(alerts)) {
@@ -1913,25 +1919,21 @@ app.post('/api/summary/generate', async (req, res) => {
     }
 
     // Generate AI summary using available API
-  const summary = await generateAISummary(alerts, tokens || [], sevFilter || [], tagFilter || [], model);
+    const summary = await generateAISummary(alerts, tokens || [], sevFilter || [], tagFilter || [], model);
     const news = await fetchNewsForTokens(tokens || []);
     
-    // Persist for all users (anonymous and Google-authenticated)
+    // Persist for logged-in users
     try {
-      const sess = getSession(req);
-      const effectiveUid = sess?.uid || req.uid; // Use Google uid if available, otherwise anonymous uid
-      if (effectiveUid) {
-        const alertIds = (alerts || []).map(a => a.id).filter(Boolean);
-        await insertUserSummary(effectiveUid, {
-          model: summary.model,
-          tokens: tokens || [],
-          sevFilter: sevFilter || [],
-          tagFilter: tagFilter || [],
-          alertIds,
-          content: summary.content,
-          usage: summary.usage || null
-        });
-      }
+      const alertIds = (alerts || []).map(a => a.id).filter(Boolean);
+      await insertUserSummary(sess.uid, {
+        model: summary.model,
+        tokens: tokens || [],
+        sevFilter: sevFilter || [],
+        tagFilter: tagFilter || [],
+        alertIds,
+        content: summary.content,
+        usage: summary.usage || null
+      });
     } catch (persistErr) {
       console.warn('Failed to persist user summary (non-fatal):', persistErr && persistErr.message);
     }
@@ -1954,14 +1956,13 @@ app.post('/api/summary/generate', async (req, res) => {
   }
 });
 
-// Recent summaries for all users (anonymous and Google-authenticated)
+// Recent summaries for logged-in users only
 app.get('/api/summary/recent', async (req, res) => {
   try {
     const sess = getSession(req);
-    const effectiveUid = sess?.uid || req.uid; // Use Google uid if available, otherwise anonymous uid
-    if (!effectiveUid) return res.json({ summaries: [] }); // No uid → nothing
+    if (!sess || !sess.uid) return res.json({ summaries: [] }); // Not logged in → nothing
     const lim = req.query.limit ? parseInt(String(req.query.limit)) : 10;
-    const items = await getRecentUserSummaries(effectiveUid, lim);
+    const items = await getRecentUserSummaries(sess.uid, lim);
     res.json({ summaries: items });
   } catch (e) {
     console.error('Failed to fetch recent summaries:', e && e.message);
@@ -2051,8 +2052,8 @@ Please provide:
 
 Keep it concise, actionable, and focused on portfolio management decisions.`;
 
-  // Respect user-selected model if provided
-  const prefer = (selectedModel||'auto').toLowerCase();
+  // Respect user-selected model if provided, default to OpenAI
+  const prefer = (selectedModel||'openai').toLowerCase();
 
   // Helper to try providers in order
   async function tryOpenAI(){
