@@ -1877,47 +1877,10 @@ button#user-menu-btn.menu-btn{
   border-radius: 8px;
   padding: 1rem;
   transition: border-color 0.2s ease;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
 }
 
 .news-item:hover {
   border-color: #cbd5e1;
-}
-
-.news-content {
-  flex: 1;
-}
-
-.news-actions {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 0.5rem;
-  border-top: 1px solid #e2e8f0;
-}
-
-.btn-create-alert {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
-}
-
-.btn-create-alert:hover {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
-}
-
-.btn-create-alert:active {
-  transform: translateY(0);
 }
 
 .news-title {
@@ -2054,8 +2017,7 @@ button#user-menu-btn.menu-btn{
 }
 
 /* ---------------- Modal Styles ---------------- */
-.modal,
-.modal-overlay {
+.modal {
   position: fixed;
   top: 0;
   left: 0;
@@ -2073,7 +2035,7 @@ button#user-menu-btn.menu-btn{
 .modal-content {
   background: white;
   border-radius: 16px;
-  max-width: 650px;
+  max-width: 500px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
@@ -2182,65 +2144,6 @@ button#user-menu-btn.menu-btn{
   margin-top: 4px;
   font-size: 0.85rem;
   color: #64748b;
-}
-
-/* Form Grid Layout */
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.form-grid > div {
-  display: flex;
-  flex-direction: column;
-}
-
-.col-span-2 {
-  grid-column: span 2;
-}
-
-.form-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  padding-top: 8px;
-}
-
-/* Tag Checkbox for Modal */
-.tag-checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.875rem;
-  user-select: none;
-  background: white;
-}
-
-.tag-checkbox:hover {
-  border-color: #cbd5e1;
-  background: #f8fafc;
-}
-
-.tag-checkbox input[type="checkbox"] {
-  margin: 0;
-  cursor: pointer;
-}
-
-.tag-checkbox input[type="checkbox"]:checked + span,
-.tag-checkbox:has(input[type="checkbox"]:checked) {
-  font-weight: 600;
-  color: var(--ocean-blue);
-}
-
-.tag-checkbox:has(input[type="checkbox"]:checked) {
-  border-color: var(--ocean-blue);
-  background: rgba(59, 130, 246, 0.05);
 }
 
 .modal-actions {
