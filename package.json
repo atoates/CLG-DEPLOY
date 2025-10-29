@@ -1,17 +1,14 @@
 {
   "name": "crypto-lifeguard",
   "version": "1.0.0",
-  "description": "Crypto Lifeguard - Main App and Admin Panel",
+  "description": "Crypto Lifeguard - Main App",
   "private": true,
   "workspaces": [
-    "apps/admin",
     "packages/*"
   ],
   "scripts": {
     "dev": "vite",
-    "dev:admin": "npm run dev --workspace=apps/admin",
     "build": "vite build",
-    "build:admin": "npm run build --workspace=apps/admin",
     "install:all": "npm install",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules"
   },
