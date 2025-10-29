@@ -8,12 +8,18 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview --host 0.0.0.0 --port ${PORT:-4173}",
-    "start": "serve -s dist -l ${PORT:-4173}"
+    "start": "node migrate.js && node server.js",
+    "migrate": "node migrate.js"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.5",
     "axios": "^1.12.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.19.2",
     "lucide-react": "^0.546.0",
+    "pg": "^8.11.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.4",
