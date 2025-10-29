@@ -59,6 +59,7 @@ const allowedOrigins = [
   process.env.STAGING_ADMIN_URL,
   'https://app.crypto-lifeguard.com',  // Production main app
   'https://clg-staging.up.railway.app', // Staging main app
+  'https://clg-admin-production.up.railway.app', // Production admin dashboard
   process.env.FRONTEND_URL, // CLG-DEPLOY frontend (production)
   process.env.STAGING_FRONTEND_URL, // CLG-DEPLOY frontend (staging)
 ].filter(Boolean); // Remove undefined values
