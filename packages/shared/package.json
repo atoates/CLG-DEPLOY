@@ -1,0 +1,8 @@
+{
+  "name": "@clg/shared",
+  "version": "1.0.0",
+  "description": "Shared types and utilities for Crypto Lifeguard",
+  "main": "index.ts",
+  "types": "index.ts",
+  "private": true
+}

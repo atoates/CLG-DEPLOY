@@ -1,28 +1,29 @@
 {
-  "name": "crypto-lifeguard-demo",
+  "name": "crypto-lifeguard",
   "version": "1.0.0",
+  "description": "Crypto Lifeguard - Monorepo for Admin Panel and Backend API",
   "private": true,
+  "workspaces": [
+    "apps/admin",
+    "apps/backend",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "start": "node migrate.js && node restore-alerts.js && node update-tags.js && node server.js",
-    "preview": "vite preview --host",
-    "migrate": "node migrate.js",
-    "backup": "node backup.js",
-    "update-tags": "node update-tags.js"
-  },
-  "dependencies": {
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
-    "express": "^4.19.2",
-    "pg": "^8.11.3"
+    "dev": "concurrently \"npm run dev:admin\" \"npm run dev:backend\"",
+    "dev:admin": "npm run dev --workspace=apps/admin",
+    "dev:backend": "npm run dev --workspace=apps/backend",
+    "build": "npm run build --workspace=apps/admin",
+    "build:admin": "npm run build --workspace=apps/admin",
+    "build:backend": "echo 'No build step for backend'",
+    "start:backend": "npm run start --workspace=apps/backend",
+    "migrate": "npm run migrate --workspace=apps/backend",
+    "install:all": "npm install",
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules"
   },
   "devDependencies": {
-    "@types/node": "^24.9.1",
-    "vite": "^5.4.20"
+    "concurrently": "^8.2.2"
   },
   "engines": {
-    "node": "18.x"
+    "node": ">=20.0.0"
   }
 }

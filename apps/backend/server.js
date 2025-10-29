@@ -1982,7 +1982,8 @@ app.get('/admin/news/cache', requireAdmin, async (req, res) => {
       topics: safeParseJson(row.topics, []),
       image_url: row.image_url,
       expires_at: row.expires_at ? new Date(row.expires_at).toISOString() : null,
-      created_at: row.created_at ? new Date(row.created_at).toISOString() : null
+      created_at: row.created_at ? new Date(row.created_at).toISOString() : null,
+      alert_created: row.alert_created || false // NEW: Include alert_created tracking
     }));
 
     res.json(articles);
@@ -2952,6 +2953,12 @@ function gracefulShutdown(code = 0) {
   shuttingDown = true;
   console.log('Graceful shutdown initiated');
 
+  // Clear scheduled news fetching interval
+  if (typeof newsFetchInterval !== 'undefined') {
+    clearInterval(newsFetchInterval);
+    console.log('Stopped scheduled news fetching');
+  }
+
   try {
     // persist in-memory alerts to disk before closing
     persistAlerts();
@@ -3187,6 +3194,133 @@ app.get('/admin/stats', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('[Admin Stats] Error:', error);
     res.status(500).json({ error: 'Failed to fetch admin stats' });
+  }
+});
+
+// Create alert from admin panel (admin only)
+// Admin panel uses different field names: 'body' instead of 'description', optional deadline
+app.post('/admin/alerts', requireAdmin, async (req, res) => {
+  try {
+    const { token, title, body, severity, tags, deadline, source_url } = req.body || {};
+    
+    // Validate required fields
+    if (!token || !title || !body) {
+      return res.status(400).json({ 
+        error: 'token, title, and body are required',
+        details: { token: !!token, title: !!title, body: !!body }
+      });
+    }
+    
+    // Validate tags against known tag types
+    const validTags = [
+      'price-change', 'migration', 'hack', 'fork', 'scam',
+      'airdrop', 'whale', 'news', 'community', 'exploit', 'privacy',
+      'community-vote', 'token-unlocks'
+    ];
+    const sanitizedTags = Array.isArray(tags) 
+      ? tags.filter(t => typeof t === 'string' && validTags.includes(t))
+      : [];
+
+    // Validate severity
+    const validSeverities = ['critical', 'warning', 'info'];
+    const finalSeverity = validSeverities.includes(severity) ? severity : 'info';
+    
+    // Use provided tags or default based on severity
+    const finalTags = sanitizedTags.length > 0 ? sanitizedTags : JSON.parse(getDefaultTags(finalSeverity));
+    
+    // Parse deadline or default to 7 days from now
+    let finalDeadline;
+    if (deadline) {
+      try {
+        finalDeadline = new Date(deadline).toISOString();
+      } catch (e) {
+        return res.status(400).json({ error: 'Invalid deadline format. Use ISO 8601 format.' });
+      }
+    } else {
+      // Default: 7 days from now
+      const defaultDeadline = new Date();
+      defaultDeadline.setDate(defaultDeadline.getDate() + 7);
+      finalDeadline = defaultDeadline.toISOString();
+    }
+    
+    // Use source_url from request, or parse body to extract source URL if present
+    // Look for "Source: https://..." pattern in body
+    let finalSourceUrl = source_url || '';
+    if (!finalSourceUrl) {
+      const sourceMatch = body.match(/Source:\s*(https?:\/\/[^\s\n]+)/i);
+      finalSourceUrl = sourceMatch ? sourceMatch[1] : '';
+    }
+    
+    // Create alert object
+    const item = {
+      id: `a_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+      token: String(token).toUpperCase(),
+      title: String(title),
+      description: String(body), // Map 'body' to 'description'
+      severity: finalSeverity,
+      deadline: finalDeadline,
+      tags: finalTags,
+      further_info: '',
+      source_type: finalSourceUrl ? 'mainstream-media' : '',
+      source_url: finalSourceUrl
+    };
+    
+    // Add to in-memory alerts
+    alerts.push(item);
+    
+    // Insert into database if using DB-backed alerts
+    if (usingDatabaseAlerts) {
+      try {
+        await upsertAlert({
+          id: item.id,
+          token: item.token,
+          title: item.title,
+          description: item.description,
+          severity: item.severity,
+          deadline: item.deadline,
+          tags: JSON.stringify(item.tags),
+          further_info: item.further_info,
+          source_type: item.source_type,
+          source_url: item.source_url
+        });
+        await reloadAlertsFromDatabase();
+        
+        // NEW: Mark the news article as having an alert created from it
+        if (finalSourceUrl) {
+          try {
+            await pool.query(
+              'UPDATE news_cache SET alert_created = TRUE WHERE article_url = $1',
+              [finalSourceUrl]
+            );
+            console.log(`[Admin Alerts] Marked news article as processed: ${finalSourceUrl}`);
+          } catch (newsErr) {
+            // Log error but don't fail the alert creation
+            console.error('[Admin Alerts] Failed to mark news article as processed:', newsErr.message);
+          }
+        }
+        
+      } catch (dbError) {
+        console.error('[Admin Alerts] Failed to insert into database:', dbError.message);
+        return res.status(500).json({ error: 'Database error', details: dbError.message });
+      }
+    } else {
+      persistAlerts();
+    }
+    
+    console.log(`[Admin Alerts] Created alert: ${item.token} - ${item.title} (severity: ${item.severity})`);
+    
+    // Return the created alert
+    res.status(201).json({
+      success: true,
+      alert: item
+    });
+    
+  } catch (error) {
+    console.error('[Admin Alerts] Error creating alert:', error);
+    res.status(500).json({ 
+      error: 'Failed to create alert', 
+      details: error.message 
+    });
   }
 });
 
@@ -3554,6 +3688,94 @@ server.on('error', (error) => {
 process.stdin.resume();
 
 console.log('🔄 Server.js execution continuing after app.listen...');
+
+// ============================================================
+// SCHEDULED NEWS FETCHING (every 5 minutes)
+// ============================================================
+
+async function scheduledNewsFetch() {
+  try {
+    console.log('[Scheduled] Starting automatic news fetch...');
+    
+    // Fetch articles from CoinDesk RSS (no token filter, get all articles)
+    const articles = await fetchNewsFromCoinDesk([]);
+    
+    if (!articles || articles.length === 0) {
+      console.log('[Scheduled] No articles fetched from CoinDesk RSS');
+      return;
+    }
+    
+    console.log(`[Scheduled] Fetched ${articles.length} articles from CoinDesk`);
+    
+    let addedCount = 0;
+    let updatedCount = 0;
+    
+    // Insert/update articles in the database
+    for (const article of articles) {
+      try {
+        const articleUrl = article.news_url;
+        const title = article.title;
+        const text = article.text || '';
+        const sourceName = article.source_name || 'CoinDesk';
+        const sentiment = article.sentiment || 'neutral';
+        const tickers = ensureValidTickersArray(article.tickers || []);
+        const imageUrl = article.image_url || null;
+        
+        // Convert date to Unix timestamp (milliseconds)
+        const dateValue = article.date || new Date().toISOString();
+        const timestamp = new Date(dateValue).getTime();
+        
+        // Set expiration to 120 days from now
+        const expiresAt = Date.now() + (120 * 24 * 60 * 60 * 1000);
+        
+        // Check if article already exists (PostgreSQL syntax)
+        const existingResult = await pool.query(
+          'SELECT article_url FROM news_cache WHERE article_url = $1',
+          [articleUrl]
+        );
+        
+        if (existingResult.rows.length > 0) {
+          // Update existing article
+          await pool.query(
+            `UPDATE news_cache 
+             SET title = $1, text = $2, sentiment = $3, tickers = $4, 
+                 source_name = $5, image_url = $6, expires_at = $7
+             WHERE article_url = $8`,
+            [title, text, sentiment, JSON.stringify(tickers), sourceName, imageUrl, expiresAt, articleUrl]
+          );
+          updatedCount++;
+        } else {
+          // Insert new article
+          await pool.query(
+            `INSERT INTO news_cache (article_url, title, text, date, sentiment, tickers, source_name, image_url, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [articleUrl, title, text, timestamp, sentiment, JSON.stringify(tickers), sourceName, imageUrl, expiresAt]
+          );
+          addedCount++;
+        }
+        
+      } catch (articleError) {
+        console.error(`[Scheduled] Error processing article "${article.title}":`, articleError.message);
+      }
+    }
+    
+    console.log(`[Scheduled] News fetch complete: ${addedCount} added, ${updatedCount} updated`);
+    
+  } catch (error) {
+    console.error('[Scheduled] Error in scheduled news fetch:', error.message);
+  }
+}
+
+// Run initial fetch after server starts (wait 10 seconds for server to stabilize)
+setTimeout(() => {
+  console.log('[Scheduled] Running initial news fetch...');
+  scheduledNewsFetch();
+}, 10000);
+
+// Schedule news fetching every 5 minutes (300,000 milliseconds)
+const newsFetchInterval = setInterval(scheduledNewsFetch, 5 * 60 * 1000);
+
+console.log('📰 Scheduled news fetching enabled: every 5 minutes');
 
 // Optional heartbeat only when DEBUG_HTTP=true
 if (String(process.env.DEBUG_HTTP).toLowerCase() === 'true') {
