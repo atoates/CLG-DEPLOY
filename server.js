@@ -3196,6 +3196,115 @@ app.get('/admin/stats', requireAdmin, async (req, res) => {
   }
 });
 
+// Create alert from admin panel (admin only)
+// Admin panel uses different field names: 'body' instead of 'description', optional deadline
+app.post('/admin/alerts', requireAdmin, async (req, res) => {
+  try {
+    const { token, title, body, severity, tags, deadline } = req.body || {};
+    
+    // Validate required fields
+    if (!token || !title || !body) {
+      return res.status(400).json({ 
+        error: 'token, title, and body are required',
+        details: { token: !!token, title: !!title, body: !!body }
+      });
+    }
+    
+    // Validate tags against known tag types
+    const validTags = [
+      'price-change', 'migration', 'hack', 'fork', 'scam',
+      'airdrop', 'whale', 'news', 'community', 'exploit', 'privacy',
+      'community-vote', 'token-unlocks'
+    ];
+    const sanitizedTags = Array.isArray(tags) 
+      ? tags.filter(t => typeof t === 'string' && validTags.includes(t))
+      : [];
+
+    // Validate severity
+    const validSeverities = ['critical', 'warning', 'info'];
+    const finalSeverity = validSeverities.includes(severity) ? severity : 'info';
+    
+    // Use provided tags or default based on severity
+    const finalTags = sanitizedTags.length > 0 ? sanitizedTags : JSON.parse(getDefaultTags(finalSeverity));
+    
+    // Parse deadline or default to 7 days from now
+    let finalDeadline;
+    if (deadline) {
+      try {
+        finalDeadline = new Date(deadline).toISOString();
+      } catch (e) {
+        return res.status(400).json({ error: 'Invalid deadline format. Use ISO 8601 format.' });
+      }
+    } else {
+      // Default: 7 days from now
+      const defaultDeadline = new Date();
+      defaultDeadline.setDate(defaultDeadline.getDate() + 7);
+      finalDeadline = defaultDeadline.toISOString();
+    }
+    
+    // Parse body to extract source URL if present
+    // Look for "Source: https://..." pattern
+    const sourceMatch = body.match(/Source:\s*(https?:\/\/[^\s\n]+)/i);
+    const source_url = sourceMatch ? sourceMatch[1] : '';
+    
+    // Create alert object
+    const item = {
+      id: `a_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+      token: String(token).toUpperCase(),
+      title: String(title),
+      description: String(body), // Map 'body' to 'description'
+      severity: finalSeverity,
+      deadline: finalDeadline,
+      tags: finalTags,
+      further_info: '',
+      source_type: source_url ? 'mainstream-media' : '',
+      source_url: source_url
+    };
+    
+    // Add to in-memory alerts
+    alerts.push(item);
+    
+    // Insert into database if using DB-backed alerts
+    if (usingDatabaseAlerts) {
+      try {
+        await upsertAlert({
+          id: item.id,
+          token: item.token,
+          title: item.title,
+          description: item.description,
+          severity: item.severity,
+          deadline: item.deadline,
+          tags: JSON.stringify(item.tags),
+          further_info: item.further_info,
+          source_type: item.source_type,
+          source_url: item.source_url
+        });
+        await reloadAlertsFromDatabase();
+      } catch (dbError) {
+        console.error('[Admin Alerts] Failed to insert into database:', dbError.message);
+        return res.status(500).json({ error: 'Database error', details: dbError.message });
+      }
+    } else {
+      persistAlerts();
+    }
+    
+    console.log(`[Admin Alerts] Created alert: ${item.token} - ${item.title} (severity: ${item.severity})`);
+    
+    // Return the created alert
+    res.status(201).json({
+      success: true,
+      alert: item
+    });
+    
+  } catch (error) {
+    console.error('[Admin Alerts] Error creating alert:', error);
+    res.status(500).json({ 
+      error: 'Failed to create alert', 
+      details: error.message 
+    });
+  }
+});
+
 // Get users list as JSON (admin only)
 app.get('/admin/users', requireAdmin, async (req, res) => {
   try{
