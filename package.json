@@ -9,10 +9,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:admin\" \"npm run dev:backend\"",
+    "dev": "vite",
     "dev:admin": "npm run dev --workspace=apps/admin",
     "dev:backend": "npm run dev --workspace=apps/backend",
-    "build": "npm run build --workspace=apps/admin",
+    "build": "vite build",
     "build:admin": "npm run build --workspace=apps/admin",
     "build:backend": "echo 'No build step for backend'",
     "start:backend": "npm run start --workspace=apps/backend",
@@ -21,7 +21,8 @@
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "vite": "^5.4.20"
   },
   "engines": {
     "node": ">=20.0.0"
