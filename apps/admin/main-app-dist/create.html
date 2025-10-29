@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Create Alert — Crypto Lifeguard</title>
+  <script type="module" crossorigin src="/assets/create-TA7VJ_yY.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/config-B88kdatl.js">
+  <link rel="stylesheet" crossorigin href="/assets/main-BZsEe5DB.css">
+</head>
+<body>
+  <!-- Consistent dark-blue banner like the home page -->
+  <header class="topbar" role="banner">
+    <div class="topbar-inner">
+      <a class="brand-wrap" href="/" style="text-decoration:none; color:inherit;">
+        <img
+          class="brand-logo"
+          src="/logo.webp"
+          alt="Crypto Lifeguard Logo"
+          decoding="async"
+          fetchpriority="high"
+        />
+        <div class="brand-text">
+          <h1 class="brand-title">Crypto Lifeguard</h1>
+          <p class="brand-tagline">Create a new alert</p>
+        </div>
+      </a>
+
+      <div class="actions">
+        <a class="menu-btn" href="/">← Back to app</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="max-width: 960px;">
+    <section class="card" style="margin-top: 12px;">
+      <div class="token-select-row" style="justify-content: space-between; margin-bottom: 6px;">
+        <h2 class="section-title" style="margin: 0;">New Alert</h2>
+        <a href="/" class="btn" style="padding: 8px 12px;">← Back</a>
+      </div>
+
+      <form id="alert-form" class="alert-form">
+        <div class="form-grid">
+          <div>
+            <label class="label" for="form-token">Token</label>
+            <input id="form-token" class="input" placeholder="e.g., ETH or BTC" list="token-datalist" required />
+            <datalist id="token-datalist"></datalist>
+          </div>
+
+          <div>
+            <label class="label" for="form-severity">Severity</label>
+            <select id="form-severity" class="input" required>
+              <option value="critical">Critical (🚨)</option>
+              <option value="warning">Warning (⚠️)</option>
+              <option value="info" selected>Info (🛟)</option>
+            </select>
+          </div>
+
+          <div class="col-span-2">
+            <label class="label" for="form-title">Title</label>
+            <input id="form-title" class="input" placeholder="Short, action-oriented title (e.g., ‘Validator maintenance window’)" required />
+          </div>
+
+          <div class="col-span-2">
+            <label class="label" for="form-description">Description</label>
+            <textarea id="form-description" class="input" rows="3" placeholder="Optional details, steps, links…" required></textarea>
+          </div>
+
+          <div class="col-span-2">
+            <label class="label" for="form-info">Further information (optional)</label>
+            <textarea id="form-info" class="input" rows="3" placeholder="Longer context, analysis, or instructions…"></textarea>
+          </div>
+
+          <div>
+            <label class="label" for="form-deadline">Deadline</label>
+            <input id="form-deadline" class="input" type="datetime-local" required />
+          </div>
+
+          <div>
+            <label class="label" for="form-source-type">Source</label>
+            <div class="row">
+              <select id="form-source-type" class="input" style="height:36px">
+                <option value="">— Select type —</option>
+                <option value="anonymous">🙈 Anonymous</option>
+                <option value="mainstream-media">📰 Mainstream media</option>
+                <option value="trusted-source">✅ Trusted source</option>
+                <option value="social-media">💬 Social media</option>
+                <option value="dev-team">🛠️ Dev. Team</option>
+              </select>
+              <input id="form-source-url" class="input" placeholder="https://… (optional)" />
+            </div>
+          </div>
+
+          <div>
+            <label class="label">Tags</label>
+            <div id="tag-selectors" class="tag-filters" style="padding: 10px 0;"></div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-teal" id="submit-btn">Create alert</button>
+          </div>
+        </div>
+
+        <p id="msg" class="muted" style="margin-top:10px"></p>
+        <p class="muted">Note: Creating alerts requires admin authorization. If unauthorized, the request will be rejected.</p>
+      </form>
+    </section>
+  </main>
+
+  <footer class="footer muted">
+    <span>© 2025 Crypto Lifeguard — demo build</span>
+  </footer>
+
+  <!-- Backend configuration (must load before page script) -->
+  <!-- IMPORTANT: module so Vite bundles it -->
+</body>
+</html>

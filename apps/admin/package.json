@@ -4,9 +4,7 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:admin && npm run build:main-app",
-    "build:admin": "tsc -b && vite build",
-    "build:main-app": "cd ../.. && npm run build && mkdir -p apps/admin/main-app-dist && cp -R dist/* apps/admin/main-app-dist/",
+    "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview --host 0.0.0.0 --port ${PORT:-4173}",
     "start": "node migrate.js && node server.js",

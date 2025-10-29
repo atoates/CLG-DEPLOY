@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crypto Lifeguard — Web Demo</title>
+  <!-- Fonts: Anton for display, Poppins for body (fallback Montserrat) -->
+  <link href="https://fonts.googleapis.com/css2?family=Anton:wght@400;700&family=Poppins:wght@400;500;600;700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/assets/main-BfxWkISy.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/config-B88kdatl.js">
+  <link rel="stylesheet" crossorigin href="/assets/main-BZsEe5DB.css">
+</head>
+<body>
+  <!-- Environment Banner (only shown in test/staging) -->
+  <div id="env-banner" class="env-banner" hidden>
+    <span class="env-icon">🧪</span>
+    <span class="env-text">TEST ENVIRONMENT</span>
+    <span class="env-warning">Changes here won't affect production</span>
+  </div>
+
+  <a href="./create.html" class="fab" aria-label="New alert" title="New alert">+</a>
+
+  <header class="topbar" role="banner">
+    <div class="topbar-inner">
+      <a class="brand-wrap" href="/" style="text-decoration:none; color:inherit;">
+        <img
+          class="brand-logo"
+          src="/logo.webp"
+          alt="Crypto Lifeguard Logo"
+          decoding="async"
+          fetchpriority="high"
+        />
+        <div class="brand-text">
+          <h1 class="brand-title">Crypto Lifeguard</h1>
+          <p class="brand-tagline">Rescue your tokens — personalised alerts without the noise.</p>
+        </div>
+      </a>
+
+      <div class="actions">
+        <div class="dropdown">
+          <button id="user-menu-btn" class="menu-btn" aria-haspopup="true" aria-expanded="false">
+            Account ▾
+          </button>
+          <div id="user-menu" class="menu" hidden>
+            <button class="menu-item" data-action="login">Log in / Sign up</button>
+            <hr />
+            <button class="menu-item" data-action="settings">Settings</button>
+            <button class="menu-item" data-action="help">Help</button>
+            <hr />
+            <button class="menu-item" data-action="logout" id="menu-logout" hidden>Log out</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Price Ticker Banner -->
+  <div id="price-ticker" class="price-ticker" hidden>
+    <div class="ticker-track" id="ticker-track">
+      <div class="ticker-content" id="ticker-content">
+        <!-- Prices will be dynamically inserted here -->
+      </div>
+      <div class="ticker-content ticker-duplicate" id="ticker-duplicate">
+        <!-- Duplicate for seamless loop -->
+      </div>
+    </div>
+  </div>
+
+  <main class="container">
+    <!-- Collapsible Token Selector -->
+    <details class="token-selector-dropdown">
+      <summary class="token-selector-summary">
+        <span class="token-selector-title">Select tokens to monitor</span>
+        <span class="token-selector-chevron">▼</span>
+      </summary>
+      <div class="token-selector-content card">
+        <div class="token-select-row">
+          <input id="token-input" class="input" type="text" placeholder="Type token name or symbol (e.g., Bitcoin, BTC) and press Enter…" aria-label="Add token" autocomplete="off" autocorrect="off" aria-autocomplete="list" autocapitalize="off" spellcheck="false" />
+          <button id="add-token-btn" class="btn">Add</button>
+        </div>
+      </div>
+    </details>
+    
+    <!-- Selected tokens visible outside dropdown -->
+    <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
+
+
+
+    <div class="tabsbar" role="navigation" aria-label="Main tabs and filters">
+      <nav class="tabs" role="tablist" aria-label="Main tabs">
+        <button class="tab active" data-tab="alerts" aria-selected="true" role="tab">Alerts</button>
+        <button class="tab" data-tab="summary" aria-selected="false" role="tab">Summary</button>
+        <button class="tab" data-tab="news" aria-selected="false" role="tab">News</button>
+        <button class="tab" data-tab="market" aria-selected="false" role="tab">Market</button>
+      </nav>
+
+      <div id="sev-filter" class="sev-filter" role="group" aria-label="Filter by severity">
+        <button class="sev-btn active" data-sev="critical" aria-pressed="true" title="Critical">🚨</button>
+        <button class="sev-btn active" data-sev="warning"  aria-pressed="true" title="Warning">⚠️</button>
+        <button class="sev-btn active" data-sev="info"     aria-pressed="true" title="Info">🛟</button>
+        
+        <!-- Tag filter icon -->
+        <div class="tag-filter-wrapper">
+          <button class="filter-icon-btn" id="tag-dropdown-trigger" title="Filter by tags">
+            <div class="funnel-icon"></div>
+          </button>
+          <div class="tag-dropdown-popup" id="tag-dropdown-options">
+            <div class="dropdown-header">
+              <span>Filter by tags</span>
+              <button id="reset-tags" class="btn-clear-tags-popup">Clear All</button>
+            </div>
+            <div class="tag-filters" id="popup-tag-filters">
+              <!-- Tag filter buttons will be populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="toggle-group">
+        <label class="switch small" id="showall-tokens-wrap" title="Show alerts for all tokens">
+          <span class="switch-caption">All</span>
+          <input type="checkbox" id="toggle-show-all-tokens" />
+          <span class="slider" aria-hidden="true"></span>
+        </label>
+        <label class="switch small" id="showall-wrap" title="Include closed/dismissed alerts">
+          <span class="switch-caption">Closed</span>
+          <input type="checkbox" id="toggle-show-all" />
+          <span class="slider" aria-hidden="true"></span>
+        </label>
+      </div>
+    </div>
+
+    <section id="panel-alerts" class="card" role="tabpanel">
+      <div id="alerts-list" class="alerts-list"></div>
+      <p id="no-alerts" class="muted" hidden>No alerts for your selected filters. Adjust severity or watchlist to see alerts.</p>
+    </section>
+
+    <section id="panel-summary" class="card" hidden role="tabpanel">
+      <div class="summary-toolbar" style="display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;">
+        <div class="summary-history" style="display:flex;align-items:center;gap:8px;">
+          <button id="summary-prev" class="btn" aria-label="Previous summary" title="Previous" disabled>← Prev</button>
+          <div id="summary-stamp" class="muted" style="min-width:220px"></div>
+          <button id="summary-next" class="btn" aria-label="Next summary" title="Next" disabled>Next →</button>
+        </div>
+        <div class="summary-actions" style="display:flex;align-items:center;gap:8px;">
+          <label for="summary-model" style="font-size:12px;color:#475569;">Model:</label>
+          <select id="summary-model" style="padding:6px 8px;border-radius:8px;border:1px solid rgba(2,6,23,0.12);font-size:13px;">
+            <option value="auto">Auto</option>
+            <option value="openai" selected>OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="xai">xAI (Grok)</option>
+          </select>
+          <button id="summary-refresh" class="btn" aria-label="Generate new summary" title="Refresh">Refresh</button>
+        </div>
+      </div>
+      <div id="summary-content" class="summary"></div>
+    </section>
+
+    <section id="panel-news" class="card" hidden role="tabpanel">
+      <div id="news-content" class="news-tab-content">
+        <div class="news-placeholder">Select some tokens in your watchlist to see recent news.</div>
+      </div>
+    </section>
+
+    <section id="panel-market" class="card" hidden role="tabpanel">
+      <div id="market-grid" class="market-grid"></div>
+      <p id="market-empty" class="muted" hidden>No market data. Add tokens to your watchlist.</p>
+      <p id="market-note" class="muted" style="margin-top:8px"></p>
+    </section>
+  </main>
+
+  <footer class="footer muted"><span>© 2025 Crypto Lifeguard — demo build</span></footer>
+
+  <!-- Token Request Modal -->
+  <div id="token-request-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Request New Token</h2>
+        <button class="modal-close" onclick="closeTokenRequestModal()" aria-label="Close">&times;</button>
+      </div>
+      <form id="token-request-form" onsubmit="submitTokenRequest(event)">
+        <div class="form-group">
+          <label for="request-symbol">Token Symbol *</label>
+          <input type="text" id="request-symbol" maxlength="10" required readonly 
+                 placeholder="e.g., BTC" />
+          <small class="form-hint">The ticker symbol you searched for</small>
+        </div>
+        
+        <div class="form-group">
+          <label for="request-name">Token Name *</label>
+          <input type="text" id="request-name" maxlength="50" required 
+                 placeholder="e.g., Bitcoin" />
+          <small class="form-hint">Full name of the cryptocurrency</small>
+        </div>
+        
+        <div class="form-group">
+          <label for="request-reason">Why should we add this token? *</label>
+          <textarea id="request-reason" maxlength="500" rows="4" required 
+                    placeholder="Tell us why this token is important to monitor..."></textarea>
+          <small class="form-hint">Help us understand the value of adding this token</small>
+        </div>
+        
+        <div class="form-group">
+          <label for="request-website">Website (optional)</label>
+          <input type="url" id="request-website" maxlength="200" 
+                 placeholder="https://..." />
+          <small class="form-hint">Official project website</small>
+        </div>
+        
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeTokenRequestModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Submit Request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Backend configuration (must load before app.js) -->
+  
+  <!-- IMPORTANT for Vite build -->
+</body>
+</html>
