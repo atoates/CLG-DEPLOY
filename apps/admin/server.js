@@ -3456,13 +3456,35 @@ app.get('/admin/export/alerts.csv', requireAdmin, (_req, res) => {
 });
 
 // Serve static SPA (after API routes)
-const distDir = path.resolve(__dirname, 'dist');
-const distIndex = path.join(distDir, 'index.html');
-const rootIndex = path.join(__dirname, 'index.html');
-if (fs.existsSync(distDir)) {
-  // When built with Vite, prefer dist assets
-  app.use(express.static(distDir));
-}
+// Smart routing: serve main app at app.crypto-lifeguard.com, admin dashboard at Railway subdomain
+const mainAppDistDir = path.resolve(__dirname, 'main-app-dist');
+const adminDistDir = path.resolve(__dirname, 'dist');
+
+// Middleware to route to correct frontend based on hostname
+app.use((req, res, next) => {
+  const hostname = req.hostname || req.get('host') || '';
+  
+  // Check if this is the main app domain (app.crypto-lifeguard.com or localhost for dev)
+  const isMainAppDomain = hostname.includes('app.crypto-lifeguard.com') || 
+                          hostname.includes('localhost') ||
+                          hostname.includes('127.0.0.1');
+  
+  // Check if this is explicitly an admin dashboard domain
+  const isAdminDomain = hostname.includes('clg-admin-') && hostname.includes('railway.app');
+  
+  // Serve main app for main domain
+  if (isMainAppDomain && !isAdminDomain && fs.existsSync(mainAppDistDir)) {
+    return express.static(mainAppDistDir)(req, res, next);
+  }
+  
+  // Serve admin dashboard for admin domain or fallback
+  if (fs.existsSync(adminDistDir)) {
+    return express.static(adminDistDir)(req, res, next);
+  }
+  
+  next();
+});
+
 // Always serve the Vite public/ directory (for icons, static assets)
 const publicDir = path.resolve(__dirname, 'public');
 if (fs.existsSync(publicDir)) {
@@ -3491,11 +3513,15 @@ if (fs.existsSync(publicDir)) {
     });
   }
 }
+
+// Main app public directory (for main app icons, etc)
+const mainAppPublicDir = path.join(__dirname, '../../public');
+if (fs.existsSync(mainAppPublicDir)) {
+  app.use(express.static(mainAppPublicDir));
+}
+
 // In local dev without a Vite build, also serve static files from the project root
 app.use(express.static(__dirname));
-// Also serve standalone pages explicitly
-app.get('/signup', (_req,res) => res.sendFile(path.join(__dirname, 'signup.html')));
-app.get('/profile', (_req,res) => res.sendFile(path.join(__dirname, 'profile.html')));
 
 // Mask paths for logging (basic)
 function maskPath(p){
@@ -3668,10 +3694,37 @@ app.post('/auth/logout', (req, res) => {
   if (sid) { sessions.delete(sid); res.clearCookie('sid', COOKIE_SECURE ? { secure: true, sameSite: 'lax', httpOnly: true } : undefined); }
   res.json({ ok:true });
 });
-// Wildcard fallback should be last: point to dist or root index
-app.get('*', (_req,res) => {
-  if (fs.existsSync(distIndex)) return res.sendFile(distIndex);
-  if (fs.existsSync(rootIndex)) return res.sendFile(rootIndex);
+
+// SPA fallback route - serve appropriate index.html based on hostname
+app.get('*', (req, res) => {
+  const hostname = req.hostname || req.get('host') || '';
+  
+  // Check if this is the main app domain
+  const isMainAppDomain = hostname.includes('app.crypto-lifeguard.com') || 
+                          hostname.includes('localhost') ||
+                          hostname.includes('127.0.0.1');
+  
+  // Check if this is explicitly an admin dashboard domain
+  const isAdminDomain = hostname.includes('clg-admin-') && hostname.includes('railway.app');
+  
+  // Serve main app index for main domain
+  const mainAppIndex = path.join(__dirname, 'main-app-dist', 'index.html');
+  if (isMainAppDomain && !isAdminDomain && fs.existsSync(mainAppIndex)) {
+    return res.sendFile(mainAppIndex);
+  }
+  
+  // Serve admin dashboard index for admin domain or fallback
+  const adminIndex = path.join(__dirname, 'dist', 'index.html');
+  if (fs.existsSync(adminIndex)) {
+    return res.sendFile(adminIndex);
+  }
+  
+  // Final fallback
+  const rootIndex = path.join(__dirname, 'index.html');
+  if (fs.existsSync(rootIndex)) {
+    return res.sendFile(rootIndex);
+  }
+  
   res.status(404).send('Not found');
 });
 
