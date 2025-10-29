@@ -3727,8 +3727,9 @@ async function scheduledNewsFetch() {
         const dateValue = article.date || new Date().toISOString();
         const timestamp = new Date(dateValue).getTime();
         
-        // Set expiration to 120 days from now
-        const expiresAt = Date.now() + (120 * 24 * 60 * 60 * 1000);
+        // Set expiration to 120 days from now (PostgreSQL TIMESTAMP)
+        const expiresAtDate = new Date(Date.now() + (120 * 24 * 60 * 60 * 1000));
+        const expiresAt = expiresAtDate.toISOString();
         
         // Check if article already exists (PostgreSQL syntax)
         const existingResult = await pool.query(
