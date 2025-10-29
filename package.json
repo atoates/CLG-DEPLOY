@@ -1,22 +1,17 @@
 {
   "name": "crypto-lifeguard",
   "version": "1.0.0",
-  "description": "Crypto Lifeguard - Monorepo for Admin Panel and Backend API",
+  "description": "Crypto Lifeguard - Main App and Admin Panel",
   "private": true,
   "workspaces": [
     "apps/admin",
-    "apps/backend",
     "packages/*"
   ],
   "scripts": {
     "dev": "vite",
     "dev:admin": "npm run dev --workspace=apps/admin",
-    "dev:backend": "npm run dev --workspace=apps/backend",
     "build": "vite build",
     "build:admin": "npm run build --workspace=apps/admin",
-    "build:backend": "echo 'No build step for backend'",
-    "start:backend": "npm run start --workspace=apps/backend",
-    "migrate": "npm run migrate --workspace=apps/backend",
     "install:all": "npm install",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules"
   },
