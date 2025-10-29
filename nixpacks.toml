@@ -1,0 +1,14 @@
+# Nixpacks config for CLG-DEPLOY (main user-facing app)
+# This builds the root-level Vite app
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npx serve dist -p ${PORT:-3000}"

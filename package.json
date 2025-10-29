@@ -15,6 +15,9 @@
     "install:all": "npm install",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules"
   },
+  "dependencies": {
+    "serve": "^14.2.5"
+  },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "vite": "^5.4.20"
