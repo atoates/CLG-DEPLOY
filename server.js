@@ -1982,7 +1982,8 @@ app.get('/admin/news/cache', requireAdmin, async (req, res) => {
       topics: safeParseJson(row.topics, []),
       image_url: row.image_url,
       expires_at: row.expires_at ? new Date(row.expires_at).toISOString() : null,
-      created_at: row.created_at ? new Date(row.created_at).toISOString() : null
+      created_at: row.created_at ? new Date(row.created_at).toISOString() : null,
+      alert_created: row.alert_created || false // NEW: Include alert_created tracking
     }));
 
     res.json(articles);
@@ -3200,7 +3201,7 @@ app.get('/admin/stats', requireAdmin, async (req, res) => {
 // Admin panel uses different field names: 'body' instead of 'description', optional deadline
 app.post('/admin/alerts', requireAdmin, async (req, res) => {
   try {
-    const { token, title, body, severity, tags, deadline } = req.body || {};
+    const { token, title, body, severity, tags, deadline, source_url } = req.body || {};
     
     // Validate required fields
     if (!token || !title || !body) {
@@ -3242,10 +3243,13 @@ app.post('/admin/alerts', requireAdmin, async (req, res) => {
       finalDeadline = defaultDeadline.toISOString();
     }
     
-    // Parse body to extract source URL if present
-    // Look for "Source: https://..." pattern
-    const sourceMatch = body.match(/Source:\s*(https?:\/\/[^\s\n]+)/i);
-    const source_url = sourceMatch ? sourceMatch[1] : '';
+    // Use source_url from request, or parse body to extract source URL if present
+    // Look for "Source: https://..." pattern in body
+    let finalSourceUrl = source_url || '';
+    if (!finalSourceUrl) {
+      const sourceMatch = body.match(/Source:\s*(https?:\/\/[^\s\n]+)/i);
+      finalSourceUrl = sourceMatch ? sourceMatch[1] : '';
+    }
     
     // Create alert object
     const item = {
@@ -3257,8 +3261,8 @@ app.post('/admin/alerts', requireAdmin, async (req, res) => {
       deadline: finalDeadline,
       tags: finalTags,
       further_info: '',
-      source_type: source_url ? 'mainstream-media' : '',
-      source_url: source_url
+      source_type: finalSourceUrl ? 'mainstream-media' : '',
+      source_url: finalSourceUrl
     };
     
     // Add to in-memory alerts
@@ -3280,6 +3284,21 @@ app.post('/admin/alerts', requireAdmin, async (req, res) => {
           source_url: item.source_url
         });
         await reloadAlertsFromDatabase();
+        
+        // NEW: Mark the news article as having an alert created from it
+        if (finalSourceUrl) {
+          try {
+            await pool.query(
+              'UPDATE news_cache SET alert_created = TRUE WHERE article_url = $1',
+              [finalSourceUrl]
+            );
+            console.log(`[Admin Alerts] Marked news article as processed: ${finalSourceUrl}`);
+          } catch (newsErr) {
+            // Log error but don't fail the alert creation
+            console.error('[Admin Alerts] Failed to mark news article as processed:', newsErr.message);
+          }
+        }
+        
       } catch (dbError) {
         console.error('[Admin Alerts] Failed to insert into database:', dbError.message);
         return res.status(500).json({ error: 'Database error', details: dbError.message });
