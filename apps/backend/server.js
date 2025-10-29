@@ -3728,26 +3728,29 @@ async function scheduledNewsFetch() {
         // Set expiration to 120 days from now
         const expiresAt = Date.now() + (120 * 24 * 60 * 60 * 1000);
         
-        // Check if article already exists
-        const existing = pool.prepare(`
-          SELECT article_url FROM news_cache WHERE article_url = ?
-        `).get(articleUrl);
+        // Check if article already exists (PostgreSQL syntax)
+        const existingResult = await pool.query(
+          'SELECT article_url FROM news_cache WHERE article_url = $1',
+          [articleUrl]
+        );
         
-        if (existing) {
+        if (existingResult.rows.length > 0) {
           // Update existing article
-          pool.prepare(`
-            UPDATE news_cache 
-            SET title = ?, text = ?, sentiment = ?, tickers = ?, 
-                source_name = ?, image_url = ?, expires_at = ?
-            WHERE article_url = ?
-          `).run(title, text, sentiment, JSON.stringify(tickers), sourceName, imageUrl, expiresAt, articleUrl);
+          await pool.query(
+            `UPDATE news_cache 
+             SET title = $1, text = $2, sentiment = $3, tickers = $4, 
+                 source_name = $5, image_url = $6, expires_at = $7
+             WHERE article_url = $8`,
+            [title, text, sentiment, JSON.stringify(tickers), sourceName, imageUrl, expiresAt, articleUrl]
+          );
           updatedCount++;
         } else {
           // Insert new article
-          pool.prepare(`
-            INSERT INTO news_cache (article_url, title, text, date, sentiment, tickers, source_name, image_url, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(articleUrl, title, text, timestamp, sentiment, JSON.stringify(tickers), sourceName, imageUrl, expiresAt);
+          await pool.query(
+            `INSERT INTO news_cache (article_url, title, text, date, sentiment, tickers, source_name, image_url, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [articleUrl, title, text, timestamp, sentiment, JSON.stringify(tickers), sourceName, imageUrl, expiresAt]
+          );
           addedCount++;
         }
         
