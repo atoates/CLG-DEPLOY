@@ -3718,7 +3718,7 @@ async function scheduledNewsFetch() {
         const text = article.text || '';
         const sourceName = article.source_name || 'CoinDesk';
         const sentiment = article.sentiment || 'neutral';
-        const tickers = ensureValidTickersArray(article.tickers || []);
+        const tickers = normalizeTickers(article.tickers || []);
         const imageUrl = article.image_url || null;
         
         // Convert date to Unix timestamp (milliseconds)
