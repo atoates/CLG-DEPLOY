@@ -1,10 +1,21 @@
 // --- Config ------------------------------------------------------------------
-// API Base URL - defaults to same origin for local dev, uses env var for production
-const API_BASE_URL = window.BACKEND_URL || '';
+// API Base URL resolver — prefers injected BACKEND_URL, with safe production fallback
+function getApiBaseUrl() {
+  const injected = (typeof window !== 'undefined' && window.BACKEND_URL) ? window.BACKEND_URL : '';
+  if (injected) return injected;
+  // Fallback: in hosted environments (non-local), default to production backend
+  try {
+    const host = window.location.hostname || '';
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      return 'https://app.crypto-lifeguard.com';
+    }
+  } catch {}
+  return '';
+}
 
 // Helper to construct full API URL
 function apiUrl(path) {
-  return `${API_BASE_URL}${path}`;
+  return `${getApiBaseUrl()}${path}`;
 }
 
 // Helper to create fetch options with credentials for cross-origin requests
@@ -1413,7 +1424,7 @@ function renderAlerts(){
     coinLogo.className = 'coin-logo';
     
     const token = (a.token || '').toUpperCase();
-  const logoUrl = `/api/logo/${token}`;
+  const logoUrl = apiUrl(`/api/logo/${token}`);
     
     const img = document.createElement('img');
     img.className = 'coin-img';
@@ -1421,8 +1432,8 @@ function renderAlerts(){
     img.alt = `${token} logo`;
     img.onerror = function() {
       // Fallback to monogram service on error
-      this.onerror = null;
-      this.src = `/api/logo/${token}`; // proxy will return monogram
+  this.onerror = null;
+  this.src = apiUrl(`/api/logo/${token}`); // proxy will return monogram
     };
     
     coinLogo.appendChild(img);

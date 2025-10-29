@@ -1,6 +1,19 @@
 // Profile page script
 // Standalone profile logic
 
+// --- Config: shared helpers --------------------------------------------------
+function getApiBaseUrl(){
+  const injected = (typeof window !== 'undefined' && window.BACKEND_URL) ? window.BACKEND_URL : '';
+  if (injected) return injected;
+  try {
+    const host = window.location.hostname || '';
+    if (host && host !== 'localhost' && host !== '127.0.0.1') return 'https://app.crypto-lifeguard.com';
+  } catch {}
+  return '';
+}
+function apiUrl(path){ return `${getApiBaseUrl()}${path}`; }
+function apiFetch(url, options={}){ return fetch(url, { credentials:'include', ...options }); }
+
 const nameEl = document.getElementById('prof-name');
 const emailEl = document.getElementById('prof-email');
 const avatarEl = document.getElementById('prof-avatar');
@@ -38,7 +51,7 @@ function initAutocomplete() {
 // Fetch token database
 async function fetchTokenDatabase() {
   try {
-    const response = await fetch('/api/tokens/search');
+    const response = await apiFetch(apiUrl('/api/tokens/search'));
     if (response.ok) {
       tokenDatabase = await response.json();
     }
@@ -65,7 +78,6 @@ function searchTokens(query) {
     const bName = b.name.toLowerCase();
     
     if (aSymbol === q) return -1;
-    if (bSymbol === q) return 1;
     if (aSymbol.startsWith(q) && !bSymbol.startsWith(q)) return -1;
     if (!aSymbol.startsWith(q) && bSymbol.startsWith(q)) return 1;
     if (aName.startsWith(q) && !bName.startsWith(q)) return -1;
@@ -90,7 +102,6 @@ function showAutocomplete(matches, query) {
     autocompleteContainer.style.display = 'none';
     return;
   }
-  
   autocompleteContainer.innerHTML = '';
   selectedAutocompleteIndex = -1;
   
@@ -127,7 +138,6 @@ function hideAutocomplete() {
 
 function updateAutocompleteSelection() {
   if (!autocompleteContainer) return;
-  
   const items = autocompleteContainer.querySelectorAll('.autocomplete-item');
   items.forEach((item, idx) => {
     if (idx === selectedAutocompleteIndex) {
@@ -211,7 +221,7 @@ function renderTokenDatalist(){
 async function refreshTokenSuggestions(){
   try{
     // Enrich with current alerts' tokens
-    const r = await fetch('/api/alerts');
+    const r = await apiFetch(apiUrl('/api/alerts'));
     if (r.ok){
       const alerts = await r.json();
       alerts.forEach(a => {
@@ -226,7 +236,7 @@ async function refreshTokenSuggestions(){
 }
 
 async function loadMe(){
-  const r = await fetch('/api/me');
+  const r = await apiFetch(apiUrl('/api/me'));
   me = await r.json();
   if (!me.loggedIn){ window.location.href = '/'; return; }
   
@@ -251,7 +261,7 @@ async function loadMe(){
 }
 
 function savePrefs(){
-  fetch('/api/me/prefs', {
+  apiFetch(apiUrl('/api/me/prefs'), {
     method:'POST',
     headers:{ 'Content-Type':'application/json' },
     body: JSON.stringify({
@@ -343,7 +353,7 @@ if (currencySelect) {
 }
 
 document.getElementById('btn-logout').addEventListener('click', () => {
-  fetch('/auth/logout', { method:'POST' }).finally(() => window.location.href = '/');
+  apiFetch(apiUrl('/auth/logout'), { method:'POST' }).finally(() => window.location.href = '/');
 });
 
 document.getElementById('btn-export').addEventListener('click', async () => {
@@ -357,7 +367,7 @@ document.getElementById('btn-export').addEventListener('click', async () => {
 usernameSave.addEventListener('click', async () => {
   const u = (usernameInput.value||'').trim();
   if (!u) return;
-  const r = await fetch('/api/me/username', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: u }) });
+  const r = await apiFetch(apiUrl('/api/me/username'), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: u }) });
   if (!r.ok) {
     const j = await r.json().catch(()=>({}));
     msgEl.textContent = j.error === 'taken' ? 'That username is taken.' : (j.rules || 'Invalid username.');
@@ -390,7 +400,7 @@ function renderAvatarPresets(){
     btn.appendChild(img);
     btn.addEventListener('click', async () => {
       try{
-        const r = await fetch('/api/me/avatar', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ url }) });
+        const r = await apiFetch(apiUrl('/api/me/avatar'), { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ url }) });
         if (!r.ok){
           const j = await r.json().catch(()=>({}));
           msgEl.textContent = j.error === 'invalid_url' ? 'Invalid avatar URL.' : 'Failed to update avatar.';

@@ -1,5 +1,18 @@
 // create.js (module)
 
+// --- Config: shared helpers --------------------------------------------------
+function getApiBaseUrl(){
+  const injected = (typeof window !== 'undefined' && window.BACKEND_URL) ? window.BACKEND_URL : '';
+  if (injected) return injected;
+  try {
+    const host = window.location.hostname || '';
+    if (host && host !== 'localhost' && host !== '127.0.0.1') return 'https://app.crypto-lifeguard.com';
+  } catch {}
+  return '';
+}
+function apiUrl(path){ return `${getApiBaseUrl()}${path}`; }
+function apiFetch(url, options={}){ return fetch(url, { credentials:'include', ...options }); }
+
 // Token suggestions consistent with the main app
 const ALL_TOKENS = ['BTC','ETH','USDC','MATIC','DOGE','ADA','SOL','POL','UNI','LINK'];
 
@@ -91,12 +104,12 @@ function toISOFromLocal(dtLocalStr){
 // Ensure alert token is in the server-side watchlist so it shows after redirect
 async function addTokenToServerWatchlist(token){
   try{
-    const meRes = await fetch('/api/me');
+    const meRes = await apiFetch(apiUrl('/api/me'));
     if (!meRes.ok) return;
     const me = await meRes.json();
     const wl = Array.isArray(me.watchlist) ? me.watchlist.slice() : [];
     if (!wl.includes(token)) wl.push(token);
-    await fetch('/api/me/prefs', {
+    await apiFetch(apiUrl('/api/me/prefs'), {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify({
@@ -141,7 +154,7 @@ form.addEventListener('submit', async (e) => {
     .filter(Boolean);
 
   try{
-    const res = await fetch('/api/alerts', {
+    const res = await apiFetch(apiUrl('/api/alerts'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
