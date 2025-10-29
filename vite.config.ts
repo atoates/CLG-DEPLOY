@@ -1,5 +1,6 @@
 // vite.config.js
 import { resolve } from 'path';
+import { copyFileSync } from 'fs';
 
 export default {
   server: {
@@ -24,4 +25,13 @@ export default {
       },
     },
   },
+  plugins: [
+    {
+      name: 'copy-config',
+      closeBundle() {
+        // Copy config.js to dist after build
+        copyFileSync(resolve(__dirname, 'config.js'), resolve(__dirname, 'dist/config.js'));
+      }
+    }
+  ],
 };
