@@ -1,4 +1,20 @@
 // --- Config ------------------------------------------------------------------
+// API Base URL - defaults to same origin for local dev, uses env var for production
+const API_BASE_URL = window.BACKEND_URL || '';
+
+// Helper to construct full API URL
+function apiUrl(path) {
+  return `${API_BASE_URL}${path}`;
+}
+
+// Helper to create fetch options with credentials for cross-origin requests
+function apiFetch(url, options = {}) {
+  return fetch(url, {
+    credentials: 'include', // Always send cookies
+    ...options
+  });
+}
+
 // Curated base list for reliable suggestions, enriched dynamically from alerts/watchlist
 const BASE_TOKENS = [
   'BTC','ETH','USDT','USDC','BNB','SOL','XRP','ADA','DOGE','TRX','TON','DOT','MATIC','AVAX','LINK','UNI',
@@ -278,7 +294,7 @@ function updateFilterVisibility(activeTab){
 function persistPrefsServerDebounced(){
   clearTimeout(persistPrefsServerDebounced._t);
   persistPrefsServerDebounced._t = setTimeout(() => {
-    fetch('/api/me/prefs', {
+    apiFetch(apiUrl('/api/me/prefs'), {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify({
@@ -294,7 +310,7 @@ function persistPrefsServerDebounced(){
 // --- Environment Detection ---------------------------------------------------
 async function checkEnvironment() {
   try {
-    const response = await fetch('/api/environment');
+    const response = await apiFetch(apiUrl('/api/environment'));
     if (response.ok) {
       const data = await response.json();
       if (data.environment && data.environment !== 'production') {
@@ -354,7 +370,7 @@ async function fetchTickerPrices() {
     }
 
     const symbolsParam = tokens.join(',');
-    const response = await fetch(`/api/market/prices?symbols=${symbolsParam}&currency=${CURRENCY_CODE}`);
+    const response = await apiFetch(apiUrl(`/api/market/prices?symbols=${symbolsParam}&currency=${CURRENCY_CODE}`));
     
     if (!response.ok) {
       console.error('Failed to fetch ticker prices:', response.status);
@@ -492,7 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (action === 'settings' || action === 'profile') window.location.href = '/profile';
       if (action === 'help') window.open('https://github.com/atoates/CLG-DEPLOY', '_blank');
       if (action === 'logout') {
-        fetch('/auth/logout', { method:'POST' }).finally(() => { window.location.reload(); });
+        apiFetch(apiUrl('/auth/logout'), { method:'POST' }).finally(() => { window.location.reload(); });
       }
     });
   }
@@ -560,7 +576,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Fetch market config (currency symbol/code and LogoKit API key) before first render
   try{
-    const r = await fetch('/api/market/config');
+    const r = await apiFetch(apiUrl('/api/market/config'));
     if (r.ok){
       const j = await r.json();
       if (j && j.symbol) CURRENCY_SYMBOL = String(j.symbol);
@@ -577,7 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load user preferences from server (cookie-based anon ID)
   try{
-    const res = await fetch('/api/me');
+    const res = await apiFetch(apiUrl('/api/me'));
     if (res.ok){
       const me = await res.json();
       selectedTokens = Array.isArray(me.watchlist) ? me.watchlist : [];
@@ -690,7 +706,7 @@ let selectedAutocompleteIndex = -1;
 
 async function fetchTokenMetadata() {
   try {
-    const r = await fetch('/api/tokens');
+    const r = await apiFetch(apiUrl('/api/tokens'));
     if (r.ok) {
       const data = await r.json();
       tokenMetadata = data.tokens || [];
@@ -905,7 +921,7 @@ async function submitTokenRequest(e) {
   submitBtn.textContent = 'Submitting...';
   
   try {
-    const resp = await fetch('/api/token-requests', {
+    const resp = await apiFetch(apiUrl('/api/token-requests'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol, name, reason, website })
@@ -1024,7 +1040,7 @@ function renderDatalist() {
 
 async function enrichTokensFromAlerts(){
   try{
-    const r = await fetch('/api/alerts');
+    const r = await apiFetch(apiUrl('/api/alerts'));
     if (r.ok){
       const items = await r.json();
       const set = new Set(BASE_TOKENS.map(s=>String(s).toUpperCase()));
@@ -1043,7 +1059,7 @@ async function enrichTokensFromAlerts(){
 // --- Alerts (Saved + Auto) ---------------------------------------------------
 async function loadAlertsFromServer(){
   try{
-    const res = await fetch('/api/alerts');
+    const res = await apiFetch(apiUrl('/api/alerts'));
     serverAlerts = await res.json();
     console.log('DEBUG: Loaded', serverAlerts.length, 'alerts from server');
     console.log('DEBUG: First few alerts:', serverAlerts.slice(0, 3));
@@ -1065,7 +1081,7 @@ async function loadAutoAlerts(){
 
   const tasks = [
     // Market-derived alerts
-    fetch(`/api/market/auto-alerts?symbols=${encodeURIComponent(symbols)}`)
+    apiFetch(apiUrl(`/api/market/auto-alerts?symbols=${encodeURIComponent(symbols)}`))
       .then(r => r.ok ? r.json() : [])
       .catch(() => [])
   ];
@@ -1641,7 +1657,7 @@ async function generateNewSummary(){
     }
 
     // Call AI summary API
-    const response = await fetch('/api/summary/generate', {
+    const response = await apiFetch(apiUrl('/api/summary/generate'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -1872,7 +1888,7 @@ function updateSummaryHistoryNav(list, idx){
 
 async function fetchRecentSummaries(limit=10){
   try{
-    const r = await fetch(`/api/summary/recent?limit=${limit}`);
+    const r = await apiFetch(apiUrl(`/api/summary/recent?limit=${limit}`));
     if (!r.ok) return [];
     const j = await r.json();
     return Array.isArray(j.summaries) ? j.summaries : [];
@@ -2072,7 +2088,7 @@ async function loadNews() {
     const tokens = showAllTokens ? getUniqueTokensFromAlerts([...serverAlerts, ...autoAlerts]) : selectedTokens;
     console.log('[News Debug] Fetching news for tokens:', tokens);
     
-    const response = await fetch('/api/news', {
+    const response = await apiFetch(apiUrl('/api/news'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -2113,7 +2129,7 @@ async function loadMarket(){
   }
   const symbols = selectedTokens.join(',');
   try{
-    const res = await fetch(`/api/market/snapshot?symbols=${encodeURIComponent(symbols)}&currency=${CURRENCY_CODE}`);
+    const res = await apiFetch(apiUrl(`/api/market/snapshot?symbols=${encodeURIComponent(symbols)}&currency=${CURRENCY_CODE}`));
     const json = await res.json();
     marketItems = json.items || [];
     marketProvider = json.provider || 'none';
