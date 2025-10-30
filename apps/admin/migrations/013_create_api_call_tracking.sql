@@ -15,5 +15,8 @@ VALUES
   ('CoinMarketCap', '/v1/cryptocurrency/quotes/latest', 0),
   ('CoinMarketCap', '/v1/cryptocurrency/info', 0),
   ('CoinDesk', '/rss', 0),
-  ('CryptoNews', '/v1/news', 0)
+  ('CryptoNews', '/v1/news', 0),
+  ('OpenAI', '/v1/chat/completions', 0),
+  ('Anthropic', '/v1/messages', 0),
+  ('xAI', '/v1/chat/completions', 0)
 ON CONFLICT (service_name, endpoint) DO NOTHING;

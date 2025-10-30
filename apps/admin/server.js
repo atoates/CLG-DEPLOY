@@ -2714,6 +2714,9 @@ async function callOpenAI(prompt) {
     })
   });
 
+  // Track API call
+  await trackAPICall('OpenAI', '/v1/chat/completions');
+
   if (!response.ok) {
     throw new Error(`OpenAI API error: ${response.status}`);
   }
@@ -2743,6 +2746,9 @@ async function callAnthropic(prompt) {
     })
   });
 
+  // Track API call
+  await trackAPICall('Anthropic', '/v1/messages');
+
   if (!response.ok) {
     throw new Error(`Anthropic API error: ${response.status}`);
   }
@@ -2771,6 +2777,10 @@ async function callXAI(prompt){
       temperature: 0.3
     })
   });
+
+  // Track API call
+  await trackAPICall('xAI', '/v1/chat/completions');
+
   if (!response.ok) throw new Error(`xAI API error: ${response.status}`);
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content || '';
