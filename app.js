@@ -649,7 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
           btn.parentNode.replaceChild(clone, btn);
           clone.addEventListener('click', (e) => {
             e.preventDefault();
-            window.location.href = '/profile';
+            window.location.href = '/profile.html';
           });
         }
       }
