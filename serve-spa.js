@@ -41,6 +41,9 @@ const server = http.createServer((req, res) => {
     filePath = filePath.substring(0, queryIndex);
   }
   
+  // Log all requests
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} → ${filePath}`);
+  
   // Special handling for /auth/* routes - serve index.html for client-side redirect
   if (filePath.startsWith('/auth/')) {
     filePath = '/index.html';
@@ -50,6 +53,7 @@ const server = http.createServer((req, res) => {
   
   // Security: prevent directory traversal
   if (!fullPath.startsWith(DIST_DIR)) {
+    console.log(`❌ Forbidden: ${fullPath} not in ${DIST_DIR}`);
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('Forbidden');
     return;
@@ -59,9 +63,11 @@ const server = http.createServer((req, res) => {
   fs.readFile(fullPath, (err, data) => {
     if (err) {
       if (err.code === 'ENOENT') {
+        console.log(`❌ 404: ${fullPath} not found`);
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('404 Not Found');
       } else {
+        console.log(`❌ 500: ${err.message}`);
         res.writeHead(500, { 'Content-Type': 'text/plain' });
         res.end('Internal Server Error');
       }
@@ -71,6 +77,7 @@ const server = http.createServer((req, res) => {
     const ext = path.extname(fullPath);
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
     
+    console.log(`✅ 200: ${fullPath} (${contentType})`);
     res.writeHead(200, { 'Content-Type': contentType });
     res.end(data);
   });
@@ -79,4 +86,13 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`📂 Serving files from: ${DIST_DIR}`);
+  
+  // Verify dist directory exists and list contents
+  if (fs.existsSync(DIST_DIR)) {
+    const files = fs.readdirSync(DIST_DIR);
+    console.log(`📁 Dist directory contents (${files.length} items):`);
+    files.forEach(file => console.log(`   - ${file}`));
+  } else {
+    console.error(`❌ DIST_DIR does not exist: ${DIST_DIR}`);
+  }
 });
