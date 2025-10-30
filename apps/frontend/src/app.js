@@ -1424,8 +1424,8 @@ function renderAlerts(){
     coinLogo.className = 'coin-logo';
     
     const token = (a.token || '').toUpperCase();
-    // Use logo_url from alert if available, otherwise fetch from API
-    const logoUrl = a.logo_url || apiUrl(`/api/logo/${token}`);
+    // Always use API endpoint for logos (alerts may have empty logo_url)
+    const logoUrl = apiUrl(`/api/logo/${token}`);
     
     const img = document.createElement('img');
     img.className = 'coin-img';
