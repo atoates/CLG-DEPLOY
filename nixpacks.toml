@@ -15,4 +15,4 @@ cmds = [
 ]
 
 [start]
-cmd = "npx serve -s dist -p ${PORT:-3000}"
+cmd = "node serve-spa.js"
