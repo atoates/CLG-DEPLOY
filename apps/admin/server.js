@@ -147,6 +147,8 @@ function normalizeTickers(input) {
 const logoCache = new Map(); // key -> { t, contentType, body }
 const coinGeckoIdCache = new Map(); // symbol -> coin_id mapping cache
 const LOGO_TTL_MS = 365 * 24 * 60 * 60 * 1000; // 1 year - logos rarely change
+// Logo cache is now in PostgreSQL - no need for disk directory
+// Keeping this for backward compatibility with any existing disk cache
 const LOGO_CACHE_DIR = path.join(DATA_DIR, 'logo-cache');
 try { fs.mkdirSync(LOGO_CACHE_DIR, { recursive: true }); } catch {}
 
@@ -290,6 +292,44 @@ async function getLogoUrl(symbol) {
   return null;
 }
 
+// PostgreSQL-based logo cache functions
+async function readFromDbCache(sym) {
+  try {
+    const result = await pool.query(
+      'SELECT image_data, content_type, updated_at FROM logo_cache WHERE symbol = $1',
+      [sym]
+    );
+    
+    if (result.rows.length > 0) {
+      const row = result.rows[0];
+      const age = Date.now() - new Date(row.updated_at).getTime();
+      return {
+        buf: row.image_data,
+        ct: row.content_type,
+        age: age
+      };
+    }
+  } catch (err) {
+    console.error(`Failed to read logo from DB for ${sym}:`, err.message);
+  }
+  return null;
+}
+
+async function writeToDbCache(sym, buf, ct) {
+  try {
+    await pool.query(
+      `INSERT INTO logo_cache (symbol, image_data, content_type, updated_at)
+       VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+       ON CONFLICT (symbol) 
+       DO UPDATE SET image_data = $2, content_type = $3, updated_at = CURRENT_TIMESTAMP`,
+      [sym, buf, ct]
+    );
+  } catch (err) {
+    console.error(`Failed to write logo to DB for ${sym}:`, err.message);
+  }
+}
+
+// Legacy disk cache functions (kept for backward compatibility)
 function diskPathFor(sym, ext){
   return path.join(LOGO_CACHE_DIR, `${sym}.${ext}`);
 }
@@ -344,7 +384,7 @@ async function refreshLogoInBackground(sym) {
     const buf = Buffer.from(await resp.arrayBuffer());
     const ct = resp.headers.get('content-type') || 'image/png';
     
-    writeToDiskCache(sym, buf, ct);
+    await writeToDbCache(sym, buf, ct);
     console.log(`✅ Refreshed logo for ${sym} in background`);
   } catch (err) {
     // Silently fail - cached logo is still served
@@ -363,21 +403,21 @@ app.get('/api/logo/:symbol', async (req, res) => {
       return res.send(hit.body);
     }
 
-    // Disk cache - always use if available (makes us independent of external URLs)
-    const disk = readFromDiskCache(sym);
-    if (disk){
-      logoCache.set(cacheKey, { t: Date.now(), contentType: disk.ct, body: disk.buf });
-      res.setHeader('Content-Type', disk.ct);
+    // PostgreSQL cache - always use if available (persistent across deployments)
+    const db = await readFromDbCache(sym);
+    if (db){
+      logoCache.set(cacheKey, { t: Date.now(), contentType: db.ct, body: db.buf });
+      res.setHeader('Content-Type', db.ct);
       res.setHeader('Cache-Control', 'public, max-age=86400');
       
       // If logo is old (> 30 days), refresh in background without blocking response
       const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-      if (disk.age > thirtyDays) {
+      if (db.age > thirtyDays) {
         // Background refresh - don't await
         refreshLogoInBackground(sym).catch(() => {});
       }
       
-      return res.send(disk.buf);
+      return res.send(db.buf);
     }
 
     // Helper to try a URL
@@ -451,8 +491,8 @@ app.get('/api/logo/:symbol', async (req, res) => {
     }
     if (!found) throw new Error('no_logo');
 
-  logoCache.set(cacheKey, { t: Date.now(), contentType: found.ct, body: found.buf });
-  writeToDiskCache(sym, found.buf, found.ct);
+    logoCache.set(cacheKey, { t: Date.now(), contentType: found.ct, body: found.buf });
+    await writeToDbCache(sym, found.buf, found.ct);
     res.setHeader('Content-Type', found.ct);
     res.setHeader('Cache-Control', 'public, max-age=86400');
     return res.send(found.buf);
