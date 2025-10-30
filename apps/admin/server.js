@@ -3544,22 +3544,34 @@ const adminDistDir = path.resolve(__dirname, 'dist');
 app.use((req, res, next) => {
   const hostname = req.hostname || req.get('host') || '';
   
-  // Check if this is the main app domain (app.crypto-lifeguard.com or localhost for dev)
-  const isMainAppDomain = hostname.includes('app.crypto-lifeguard.com') || 
-                          hostname.includes('localhost') ||
-                          hostname.includes('127.0.0.1');
+  console.log(`[Static Files] Request for ${req.path} from ${hostname}`);
   
-  // Check if this is explicitly an admin dashboard domain
-  const isAdminDomain = hostname.includes('clg-admin-') && hostname.includes('railway.app');
+  // IMPORTANT: CLG-ADMIN service should ONLY serve admin dashboard
+  // The main app is served by CLG-DEPLOY service at app.crypto-lifeguard.com
+  // Never serve main-app-dist from this service in production
+  const isProduction = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
   
-  // Serve main app for main domain
-  if (isMainAppDomain && !isAdminDomain && fs.existsSync(mainAppDistDir)) {
-    return express.static(mainAppDistDir)(req, res, next);
-  }
-  
-  // Serve admin dashboard for admin domain or fallback
-  if (fs.existsSync(adminDistDir)) {
-    return express.static(adminDistDir)(req, res, next);
+  if (isProduction) {
+    // In production, ALWAYS serve admin dashboard only
+    console.log('[Static Files] Production mode: serving admin dashboard from', maskPath(adminDistDir));
+    if (fs.existsSync(adminDistDir)) {
+      return express.static(adminDistDir)(req, res, next);
+    }
+  } else {
+    // Development mode: support both
+    const isMainAppDomain = hostname.includes('app.crypto-lifeguard.com') || 
+                            hostname.includes('localhost') ||
+                            hostname.includes('127.0.0.1');
+    
+    const isAdminDomain = hostname.includes('clg-admin-') && hostname.includes('railway.app');
+    
+    if (isMainAppDomain && !isAdminDomain && fs.existsSync(mainAppDistDir)) {
+      return express.static(mainAppDistDir)(req, res, next);
+    }
+    
+    if (fs.existsSync(adminDistDir)) {
+      return express.static(adminDistDir)(req, res, next);
+    }
   }
   
   next();
