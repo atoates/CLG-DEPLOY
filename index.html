@@ -4,6 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Crypto Lifeguard — Web Demo</title>
+  <script>
+    // Early redirect for backend-only routes when user lands directly on /auth/*
+    (function(){
+      try {
+        var p = window.location && window.location.pathname || '';
+        if (p.startsWith('/auth/')) {
+          var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+            ? window.BACKEND_URL
+            : 'https://clg-admin-production.up.railway.app';
+          var target = backend + p + (window.location.search || '') + (window.location.hash || '');
+          window.location.replace(target);
+        }
+      } catch(_) {}
+    })();
+  </script>
   <!-- Fonts: Anton for display, Poppins for body (fallback Montserrat) -->
   <link href="https://fonts.googleapis.com/css2?family=Anton:wght@400;700&family=Poppins:wght@400;500;600;700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css?v=20251021a" />

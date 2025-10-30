@@ -15,4 +15,4 @@ cmds = [
 ]
 
 [start]
-cmd = "npx serve dist -p ${PORT:-3000}"
+cmd = "npx serve -s dist -p ${PORT:-3000}"
