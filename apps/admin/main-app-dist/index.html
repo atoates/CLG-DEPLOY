@@ -4,11 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Crypto Lifeguard — Web Demo</title>
+  <script>
+    // Early redirect for backend-only routes when user lands directly on /auth/*
+    (function(){
+      try {
+        var p = window.location && window.location.pathname || '';
+        if (p.startsWith('/auth/')) {
+          var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+            ? window.BACKEND_URL
+            : 'https://clg-admin-production.up.railway.app';
+          var target = backend + p + (window.location.search || '') + (window.location.hash || '');
+          window.location.replace(target);
+        }
+      } catch(_) {}
+    })();
+  </script>
   <!-- Fonts: Anton for display, Poppins for body (fallback Montserrat) -->
   <link href="https://fonts.googleapis.com/css2?family=Anton:wght@400;700&family=Poppins:wght@400;500;600;700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/main-BfxWkISy.js"></script>
+  <script type="module" crossorigin src="/assets/main-w7rFQ2yX.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/config-B88kdatl.js">
-  <link rel="stylesheet" crossorigin href="/assets/main-BZsEe5DB.css">
+  <link rel="stylesheet" crossorigin href="/assets/main-DjocSoEW.css">
 </head>
 <body>
   <!-- Environment Banner (only shown in test/staging) -->
@@ -81,10 +96,23 @@
       </div>
     </details>
     
-    <!-- Selected tokens visible outside dropdown -->
-    <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
-
-
+    <!-- Selected tokens visible outside dropdown with inline toggles -->
+    <div class="tokens-and-toggles-row">
+      <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
+      
+      <div class="toggle-group inline-toggles">
+        <label class="switch small" id="showall-tokens-wrap" title="Show alerts for all tokens">
+          <span class="switch-caption">All</span>
+          <input type="checkbox" id="toggle-show-all-tokens" />
+          <span class="slider" aria-hidden="true"></span>
+        </label>
+        <label class="switch small" id="showall-wrap" title="Include closed/dismissed alerts">
+          <span class="switch-caption">Closed</span>
+          <input type="checkbox" id="toggle-show-all" />
+          <span class="slider" aria-hidden="true"></span>
+        </label>
+      </div>
+    </div>
 
     <div class="tabsbar" role="navigation" aria-label="Main tabs and filters">
       <nav class="tabs" role="tablist" aria-label="Main tabs">
@@ -114,19 +142,6 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <div class="toggle-group">
-        <label class="switch small" id="showall-tokens-wrap" title="Show alerts for all tokens">
-          <span class="switch-caption">All</span>
-          <input type="checkbox" id="toggle-show-all-tokens" />
-          <span class="slider" aria-hidden="true"></span>
-        </label>
-        <label class="switch small" id="showall-wrap" title="Include closed/dismissed alerts">
-          <span class="switch-caption">Closed</span>
-          <input type="checkbox" id="toggle-show-all" />
-          <span class="slider" aria-hidden="true"></span>
-        </label>
       </div>
     </div>
 

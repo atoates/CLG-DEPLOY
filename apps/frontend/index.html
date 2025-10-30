@@ -94,10 +94,23 @@
       </div>
     </details>
     
-    <!-- Selected tokens visible outside dropdown -->
-    <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
-
-
+    <!-- Selected tokens visible outside dropdown with inline toggles -->
+    <div class="tokens-and-toggles-row">
+      <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
+      
+      <div class="toggle-group inline-toggles">
+        <label class="switch small" id="showall-tokens-wrap" title="Show alerts for all tokens">
+          <span class="switch-caption">All</span>
+          <input type="checkbox" id="toggle-show-all-tokens" />
+          <span class="slider" aria-hidden="true"></span>
+        </label>
+        <label class="switch small" id="showall-wrap" title="Include closed/dismissed alerts">
+          <span class="switch-caption">Closed</span>
+          <input type="checkbox" id="toggle-show-all" />
+          <span class="slider" aria-hidden="true"></span>
+        </label>
+      </div>
+    </div>
 
     <div class="tabsbar" role="navigation" aria-label="Main tabs and filters">
       <nav class="tabs" role="tablist" aria-label="Main tabs">
@@ -127,19 +140,6 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <div class="toggle-group">
-        <label class="switch small" id="showall-tokens-wrap" title="Show alerts for all tokens">
-          <span class="switch-caption">All</span>
-          <input type="checkbox" id="toggle-show-all-tokens" />
-          <span class="slider" aria-hidden="true"></span>
-        </label>
-        <label class="switch small" id="showall-wrap" title="Include closed/dismissed alerts">
-          <span class="switch-caption">Closed</span>
-          <input type="checkbox" id="toggle-show-all" />
-          <span class="slider" aria-hidden="true"></span>
-        </label>
       </div>
     </div>
 

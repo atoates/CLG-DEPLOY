@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign up — Crypto Lifeguard</title>
+  <style>.auth-card{max-width:520px;margin:24px auto}</style>
+  <script defer>
+    async function googleLogin(){ window.location.href = '/auth/google'; }
+  </script>
+    <link rel="stylesheet" crossorigin href="/assets/main-DjocSoEW.css">
+  </head>
+<body>
+  <header class="topbar"><div class="topbar-inner">
+    <div class="brand-wrap">
+      <img class="brand-logo" src="/logo.webp" alt="Logo" />
+      <div class="brand-text"><h1 class="brand-title">Crypto Lifeguard</h1><p class="brand-tagline">Create your account</p></div>
+    </div>
+    <div class="actions"><a class="menu-btn" href="/">Home</a></div>
+  </div></header>
+
+  <main class="container">
+    <section class="card auth-card">
+      <h2 class="section-title">Sign up</h2>
+      <p class="muted">Continue with Google to create an account and sync your preferences across devices.</p>
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <button class="btn" onclick="googleLogin()">Continue with Google</button>
+      </div>
+    </section>
+  </main>
+  <footer class="footer muted"><span>© 2025 Crypto Lifeguard — demo build</span></footer>
+</body>
+</html>

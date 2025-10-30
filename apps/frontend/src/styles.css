@@ -519,6 +519,27 @@ button#user-menu-btn.menu-btn{
 }
 
 .pill-row{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+
+/* Container for tokens and toggles inline */
+.tokens-and-toggles-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.tokens-and-toggles-row .pill-row {
+  flex: 1;
+  margin-top: 0;
+  min-width: 200px;
+}
+
+.tokens-and-toggles-row .toggle-group {
+  order: 0;
+  margin-left: auto;
+}
+
 .pill{
   display:inline-flex; align-items:center; gap:6px;
   background: linear-gradient(135deg, #e6f3ff 0%, #f0f8ff 100%);
