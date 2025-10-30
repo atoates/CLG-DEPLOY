@@ -1635,6 +1635,10 @@ app.get('/api/market/snapshot', async (req, res) => {
       });
       const url = `https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?${params.toString()}`;
       const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
+      
+      // Track API call
+      await trackAPICall('CoinMarketCap', '/v1/cryptocurrency/quotes/latest');
+      
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
       const quotesData = j?.data || {};
@@ -2331,6 +2335,149 @@ app.post('/admin/news/cache/bulk-delete', requireAdmin, async (req, res) => {
   }
 });
 
+// ============================================
+// NEWS FEEDS MANAGEMENT
+// ============================================
+
+// Get all news feeds
+app.get('/admin/news/feeds', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM news_feeds ORDER BY created_at DESC'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('[Admin Feeds] Failed to fetch feeds:', error);
+    res.status(500).json({ error: 'Failed to fetch news feeds' });
+  }
+});
+
+// Add a new news feed
+app.post('/admin/news/feeds', requireAdmin, async (req, res) => {
+  try {
+    const { name, url, feed_type = 'rss' } = req.body;
+    
+    if (!name || !url) {
+      return res.status(400).json({ error: 'Name and URL are required' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO news_feeds (name, url, feed_type, enabled, article_count)
+       VALUES ($1, $2, $3, true, 0)
+       RETURNING *`,
+      [name, url, feed_type]
+    );
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('[Admin Feeds] Failed to add feed:', error);
+    if (error.code === '23505') { // Unique violation
+      return res.status(409).json({ error: 'Feed URL already exists' });
+    }
+    res.status(500).json({ error: 'Failed to add news feed' });
+  }
+});
+
+// Update a news feed
+app.put('/admin/news/feeds/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, url, enabled } = req.body;
+    
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+    
+    if (name !== undefined) {
+      updates.push(`name = $${paramCount++}`);
+      values.push(name);
+    }
+    if (url !== undefined) {
+      updates.push(`url = $${paramCount++}`);
+      values.push(url);
+    }
+    if (enabled !== undefined) {
+      updates.push(`enabled = $${paramCount++}`);
+      values.push(enabled);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    values.push(id);
+    const result = await pool.query(
+      `UPDATE news_feeds SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`,
+      values
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Feed not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('[Admin Feeds] Failed to update feed:', error);
+    res.status(500).json({ error: 'Failed to update news feed' });
+  }
+});
+
+// Delete a news feed
+app.delete('/admin/news/feeds/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      'DELETE FROM news_feeds WHERE id = $1 RETURNING *',
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Feed not found' });
+    }
+    
+    res.json({ success: true, feed: result.rows[0] });
+  } catch (error) {
+    console.error('[Admin Feeds] Failed to delete feed:', error);
+    res.status(500).json({ error: 'Failed to delete news feed' });
+  }
+});
+
+// ============================================
+// API CALL TRACKING
+// ============================================
+
+// Get API call statistics
+app.get('/admin/api-stats', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM api_call_tracking ORDER BY call_count DESC'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('[Admin API Stats] Failed to fetch stats:', error);
+    res.status(500).json({ error: 'Failed to fetch API statistics' });
+  }
+});
+
+// Helper function to track API calls
+async function trackAPICall(serviceName, endpoint) {
+  try {
+    await pool.query(
+      `INSERT INTO api_call_tracking (service_name, endpoint, call_count, last_called_at)
+       VALUES ($1, $2, 1, CURRENT_TIMESTAMP)
+       ON CONFLICT (service_name, endpoint)
+       DO UPDATE SET 
+         call_count = api_call_tracking.call_count + 1,
+         last_called_at = CURRENT_TIMESTAMP`,
+      [serviceName, endpoint]
+    );
+  } catch (error) {
+    console.error('[API Tracking] Failed to track call:', error);
+    // Don't fail the main request if tracking fails
+  }
+}
+
 // --- AI Summary API ----------------------------------------------------------
 app.post('/api/summary/generate', async (req, res) => {
   try {
@@ -2758,6 +2905,9 @@ async function fetchNewsFromCoinDesk(tokens) {
       },
       redirect: 'follow' // Explicitly follow redirects (CoinDesk RSS redirects)
     });
+
+    // Track API call
+    await trackAPICall('CoinDesk', '/rss');
 
     console.log(`[News] CoinDesk RSS response status: ${response.status}`);
     

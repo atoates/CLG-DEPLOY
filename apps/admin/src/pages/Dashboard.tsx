@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import { fetchNewsStats } from '../lib/api'
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts'
-import { Users, Bell, AlertTriangle, Database, HardDrive, Server, Activity, Newspaper } from 'lucide-react'
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from 'recharts'
+import { Users, Bell, AlertTriangle, Database, HardDrive, Server, Activity, Newspaper, BarChart3 } from 'lucide-react'
 
 export function Dashboard() {
   const { data: adminInfo } = useQuery({
@@ -24,6 +24,14 @@ export function Dashboard() {
   const { data: newsStats } = useQuery({
     queryKey: ['news-stats'],
     queryFn: fetchNewsStats,
+  })
+
+  const { data: apiStats } = useQuery({
+    queryKey: ['api-stats'],
+    queryFn: async () => {
+      const { data } = await api.get('/admin/api-stats')
+      return data as Array<{ service_name: string; endpoint: string; call_count: number; last_called_at: string | null }>
+    },
   })
 
   const stats = [
@@ -186,6 +194,95 @@ export function Dashboard() {
                 </span>
               ))}
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* API Call Tracking Section */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-50 p-3 rounded-lg">
+              <BarChart3 className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">API Call Tracking</h2>
+              <p className="text-sm text-gray-500">External API usage across all services</p>
+            </div>
+          </div>
+        </div>
+        
+        {apiStats && apiStats.length > 0 ? (
+          <>
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              {['CoinMarketCap', 'CoinDesk', 'CryptoNews', 'Other'].map((serviceName) => {
+                const serviceStats = apiStats.filter((s) => s.service_name === serviceName)
+                const totalCalls = serviceStats.reduce((sum, s) => sum + s.call_count, 0)
+                return (
+                  <div key={serviceName} className="bg-gradient-to-br from-indigo-50 to-blue-50 p-4 rounded-lg border border-indigo-100">
+                    <p className="text-sm text-indigo-700 font-medium mb-1">{serviceName}</p>
+                    <p className="text-3xl font-bold text-indigo-900">{totalCalls.toLocaleString()}</p>
+                    <p className="text-xs text-indigo-600 mt-1">{serviceStats.length} endpoint{serviceStats.length !== 1 ? 's' : ''}</p>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Detailed Breakdown Chart */}
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-gray-700 mb-4">API Call Distribution</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={apiStats.map((stat) => ({
+                  name: `${stat.service_name}${stat.endpoint ? ` - ${stat.endpoint.split('/').pop()}` : ''}`,
+                  calls: stat.call_count,
+                  service: stat.service_name
+                }))}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} tick={{ fontSize: 12 }} />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="calls" fill="#6366f1" name="API Calls" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Detailed Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left p-3 font-medium text-gray-700">Service</th>
+                    <th className="text-left p-3 font-medium text-gray-700">Endpoint</th>
+                    <th className="text-right p-3 font-medium text-gray-700">Calls</th>
+                    <th className="text-left p-3 font-medium text-gray-700">Last Called</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {apiStats.map((stat, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="p-3">
+                        <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded">
+                          {stat.service_name}
+                        </span>
+                      </td>
+                      <td className="p-3 text-gray-600">
+                        <code className="text-xs bg-gray-100 px-2 py-1 rounded">{stat.endpoint || 'N/A'}</code>
+                      </td>
+                      <td className="p-3 text-right font-medium text-gray-900">{stat.call_count.toLocaleString()}</td>
+                      <td className="p-3 text-gray-600 text-xs">
+                        {stat.last_called_at ? new Date(stat.last_called_at).toLocaleString() : 'Never'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            No API call data available yet
           </div>
         )}
       </div>
