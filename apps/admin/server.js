@@ -733,7 +733,13 @@ function saveOAuthStates() {
 function setSession(res, data){
   const sid = crypto.randomBytes(16).toString('hex');
   sessions.set(sid, { ...data, t: Date.now() });
-  res.cookie('sid', sid, { httpOnly:true, sameSite:'lax', maxAge: 365*24*3600*1000, ...(COOKIE_SECURE ? { secure: true } : {}) });
+  // Use sameSite: 'none' for cross-domain cookies (frontend on different domain than backend)
+  res.cookie('sid', sid, { 
+    httpOnly: true, 
+    sameSite: 'none',  // Required for cross-domain
+    secure: true,      // Required when sameSite: 'none'
+    maxAge: 365*24*3600*1000 
+  });
 }
 function getSession(req){
   const sid = req.cookies.sid; if (!sid) return null;
@@ -745,7 +751,13 @@ app.use(async (req, res, next) => {
   let uid = req.cookies.uid;
   if (!uid) {
     uid = `usr_${Math.random().toString(36).slice(2,10)}`;
-    res.cookie('uid', uid, { httpOnly: true, sameSite: 'lax', maxAge: 365*24*3600*1000, ...(COOKIE_SECURE ? { secure: true } : {}) });
+    // Use sameSite: 'none' for cross-domain cookies
+    res.cookie('uid', uid, { 
+      httpOnly: true, 
+      sameSite: 'none',  // Required for cross-domain
+      secure: true,      // Required when sameSite: 'none'
+      maxAge: 365*24*3600*1000 
+    });
   }
   req.uid = uid;
   try {
@@ -3805,7 +3817,10 @@ app.post('/auth/exchange-token', express.json(), (req, res) => {
 
 app.post('/auth/logout', (req, res) => {
   const sid = req.cookies.sid;
-  if (sid) { sessions.delete(sid); res.clearCookie('sid', COOKIE_SECURE ? { secure: true, sameSite: 'lax', httpOnly: true } : undefined); }
+  if (sid) { 
+    sessions.delete(sid); 
+    res.clearCookie('sid', { secure: true, sameSite: 'none', httpOnly: true }); 
+  }
   res.json({ ok:true });
 });
 
