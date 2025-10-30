@@ -6,6 +6,8 @@ import type { NewsArticle, NewsStats, AdminStats } from '../types'
 const API_URL = import.meta.env.VITE_API_URL || 
   (import.meta.env.PROD ? window.location.origin : 'http://localhost:3000')
 
+console.log('[Admin API] Base URL:', API_URL, 'Mode:', import.meta.env.MODE)
+
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
