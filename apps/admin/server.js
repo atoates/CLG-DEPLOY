@@ -174,6 +174,44 @@ async function getCoinGeckoId(symbol) {
     return cached.id;
   }
 
+  // Well-known coin IDs (checked first to avoid API calls)
+  const wellKnownCoins = {
+    'BTC': 'bitcoin',
+    'ETH': 'ethereum',
+    'USDT': 'tether',
+    'BNB': 'binancecoin',
+    'SOL': 'solana',
+    'XRP': 'ripple',
+    'USDC': 'usd-coin',
+    'ADA': 'cardano',
+    'DOGE': 'dogecoin',
+    'TRX': 'tron',
+    'AVAX': 'avalanche-2',
+    'SHIB': 'shiba-inu',
+    'DOT': 'polkadot',
+    'MATIC': 'matic-network',
+    'POL': 'polygon-ecosystem-token',
+    'LTC': 'litecoin',
+    'UNI': 'uniswap',
+    'LINK': 'chainlink',
+    'ATOM': 'cosmos',
+    'XLM': 'stellar',
+    'BCH': 'bitcoin-cash',
+    'SUI': 'sui',
+    'PEPE': 'pepe',
+    'WIF': 'dogwifcoin',
+    'BONK': 'bonk',
+    'FLOKI': 'floki',
+    'TAO': 'bittensor'
+  };
+  
+  // Return well-known coin immediately (no API call needed)
+  if (wellKnownCoins[sym]) {
+    const coinId = wellKnownCoins[sym];
+    coinGeckoIdCache.set(sym, { id: coinId, t: Date.now() });
+    return coinId;
+  }
+
   // Fetch full coin list if needed (cache for 7 days)
   if (!coinGeckoList || (Date.now() - coinGeckoListFetchedAt > COINGECKO_ID_TTL_MS)) {
     try {
@@ -189,69 +227,29 @@ async function getCoinGeckoId(symbol) {
       if (resp.ok) {
         coinGeckoList = await resp.json();
         coinGeckoListFetchedAt = Date.now();
-        console.log(`✅ CoinGecko coin list fetched: ${coinGeckoList.length} coins`);
+        log.debug(`✅ CoinGecko coin list fetched: ${coinGeckoList.length} coins`);
       } else {
-        console.warn(`⚠️ CoinGecko list fetch failed (${resp.status}), trying without API key...`);
+        log.warn(`⚠️ CoinGecko list fetch failed (${resp.status}), trying without API key...`);
         // Fallback to free API without key
         const freeResp = await fetch('https://api.coingecko.com/api/v3/coins/list');
         if (freeResp.ok) {
           coinGeckoList = await freeResp.json();
           coinGeckoListFetchedAt = Date.now();
-          console.log(`✅ CoinGecko coin list fetched (free API): ${coinGeckoList.length} coins`);
+          log.debug(`✅ CoinGecko coin list fetched (free API): ${coinGeckoList.length} coins`);
         }
       }
     } catch (err) {
-      console.error('❌ Failed to fetch CoinGecko coin list:', err.message);
+      log.error('❌ Failed to fetch CoinGecko coin list:', err.message);
     }
   }
 
   // Find matching coin by symbol
   if (coinGeckoList) {
-    // First try: exact symbol match with highest market cap rank (lowest number = higher rank)
-    // Filter all matches, then sort by market_cap_rank if available, or prioritize well-known IDs
+    // First try: exact symbol match
     const exactMatches = coinGeckoList.filter(c => c.symbol.toUpperCase() === sym);
     
     if (exactMatches.length > 0) {
-      // Prioritize well-known coin IDs for common symbols
-      const wellKnownCoins = {
-        'BTC': 'bitcoin',
-        'ETH': 'ethereum',
-        'USDT': 'tether',
-        'BNB': 'binancecoin',
-        'SOL': 'solana',
-        'XRP': 'ripple',
-        'USDC': 'usd-coin',
-        'ADA': 'cardano',
-        'DOGE': 'dogecoin',
-        'TRX': 'tron',
-        'AVAX': 'avalanche-2',
-        'SHIB': 'shiba-inu',
-        'DOT': 'polkadot',
-        'MATIC': 'matic-network',
-        'POL': 'polygon-ecosystem-token',
-        'LTC': 'litecoin',
-        'UNI': 'uniswap',
-        'LINK': 'chainlink',
-        'ATOM': 'cosmos',
-        'XLM': 'stellar',
-        'BCH': 'bitcoin-cash',
-        'SUI': 'sui',
-        'PEPE': 'pepe',
-        'WIF': 'dogwifcoin',
-        'BONK': 'bonk',
-        'FLOKI': 'floki',
-        'TAO': 'bittensor'
-      };
-      
-      if (wellKnownCoins[sym]) {
-        const wellKnown = exactMatches.find(c => c.id === wellKnownCoins[sym]);
-        if (wellKnown) {
-          coinGeckoIdCache.set(sym, { id: wellKnown.id, t: Date.now() });
-          return wellKnown.id;
-        }
-      }
-      
-      // Otherwise return first match (CoinGecko list is roughly sorted by importance)
+      // Return first match (CoinGecko list is roughly sorted by importance)
       const match = exactMatches[0];
       coinGeckoIdCache.set(sym, { id: match.id, t: Date.now() });
       return match.id;
