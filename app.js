@@ -1705,7 +1705,7 @@ async function generateNewSummary(){
                 <li>Customizable filters and preferences</li>
               </ul>
             </div>
-            <a href="/auth/google" class="btn-primary" style="display: inline-block; padding: 12px 32px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 500;">
+            <a href="${apiUrl('/auth/google')}" class="btn-primary" style="display: inline-block; padding: 12px 32px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 500;">
               Sign in with Google to Continue
             </a>
           </div>
@@ -1819,7 +1819,7 @@ async function renderSummary(){
             <li>Customizable filters and preferences</li>
           </ul>
         </div>
-        <a href="/auth/google" class="btn-primary" style="display: inline-block; padding: 12px 32px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 500;">
+        <a href="${apiUrl('/auth/google')}" class="btn-primary" style="display: inline-block; padding: 12px 32px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 500;">
           Sign in with Google to Continue
         </a>
       </div>
