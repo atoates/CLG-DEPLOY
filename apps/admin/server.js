@@ -235,6 +235,7 @@ async function getCoinGeckoId(symbol) {
         'ATOM': 'cosmos',
         'XLM': 'stellar',
         'BCH': 'bitcoin-cash',
+        'SUI': 'sui',
         'PEPE': 'pepe',
         'WIF': 'dogwifcoin',
         'BONK': 'bonk',
@@ -1852,6 +1853,11 @@ app.get('/api/market/snapshot', async (req, res) => {
     const priceResp = await fetch(priceUrl);
     
     if (!priceResp.ok) {
+      // Handle rate limit (429) specifically
+      if (priceResp.status === 429) {
+        log.warn('CoinGecko rate limit hit (429) - using CMC as fallback');
+        throw new Error('Rate limit exceeded - try again in a moment');
+      }
       throw new Error(`CoinGecko HTTP ${priceResp.status}`);
     }
     
@@ -1896,9 +1902,15 @@ app.get('/api/market/snapshot', async (req, res) => {
       currency: requestedCurrency 
     });
   } catch (e) {
-    console.warn('CoinGecko API error:', e.message);
+    log.warn('CoinGecko API error:', e.message);
     const items = symbols.map(s=>({ token:s, lastPrice:null, dayChangePct:null, change30mPct:null, error:'coingecko-failed' }));
-    return res.json({ items, note: `CoinGecko API error: ${e.message}`, provider: 'coingecko', currency: requestedCurrency });
+    
+    // Provide more helpful error message for rate limits
+    const errorNote = e.message.includes('Rate limit') 
+      ? 'CoinGecko rate limit reached. Data will refresh automatically in a moment.'
+      : `CoinGecko API error: ${e.message}`;
+    
+    return res.json({ items, note: errorNote, provider: 'coingecko', currency: requestedCurrency });
   }
 });
 
