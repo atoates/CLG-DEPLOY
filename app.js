@@ -515,8 +515,8 @@ document.addEventListener('DOMContentLoaded', () => {
       userMenuBtn.setAttribute('aria-expanded', 'false');
       
       // Real actions
-  if (action === 'login') window.location.href = '/signup';
-      if (action === 'settings' || action === 'profile') window.location.href = '/profile';
+  if (action === 'login') window.location.href = '/signup.html';
+      if (action === 'settings' || action === 'profile') window.location.href = '/profile.html';
       if (action === 'help') window.open('https://github.com/atoates/CLG-DEPLOY', '_blank');
       if (action === 'logout') {
         apiFetch(apiUrl('/auth/logout'), { method:'POST' }).finally(() => { window.location.reload(); });
