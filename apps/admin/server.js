@@ -146,7 +146,7 @@ function normalizeTickers(input) {
 /* ---------------- Token Logo Proxy (with caching) ---------------- */
 const logoCache = new Map(); // key -> { t, contentType, body }
 const coinGeckoIdCache = new Map(); // symbol -> coin_id mapping cache
-const LOGO_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const LOGO_TTL_MS = 365 * 24 * 60 * 60 * 1000; // 1 year - logos rarely change
 const LOGO_CACHE_DIR = path.join(DATA_DIR, 'logo-cache');
 try { fs.mkdirSync(LOGO_CACHE_DIR, { recursive: true }); } catch {}
 
@@ -302,12 +302,13 @@ function readFromDiskCache(sym){
     for (const ext of candidates){
       const p = diskPathFor(sym, ext);
       if (fs.existsSync(p)){
+        // Always serve from disk cache if file exists, regardless of age
+        // This makes us independent of external URLs
+        const buf = fs.readFileSync(p);
+        const ct = ext === 'svg' ? 'image/svg+xml' : 'image/png';
         const st = fs.statSync(p);
-        if (Date.now() - st.mtimeMs < LOGO_TTL_MS){
-          const buf = fs.readFileSync(p);
-          const ct = ext === 'svg' ? 'image/svg+xml' : 'image/png';
-          return { buf, ct };
-        }
+        const age = Date.now() - st.mtimeMs;
+        return { buf, ct, age };
       }
     }
   } catch {}
@@ -318,6 +319,36 @@ function writeToDiskCache(sym, buf, ct){
     const ext = extForContentType(ct);
     fs.writeFileSync(diskPathFor(sym, ext), buf);
   } catch {}
+}
+
+// Background logo refresh function - fetches new logo without blocking requests
+async function refreshLogoInBackground(sym) {
+  try {
+    const coinId = await getCoinGeckoId(sym);
+    if (!coinId) return;
+
+    let coinUrl = COINGECKO_API_KEY
+      ? `https://api.coingecko.com/api/v3/coins/${coinId}?x_cg_demo_api_key=${COINGECKO_API_KEY}&localization=false&tickers=false&market_data=false&community_data=false&developer_data=false&sparkline=false`
+      : `https://api.coingecko.com/api/v3/coins/${coinId}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false&sparkline=false`;
+
+    const coinResp = await fetch(coinUrl);
+    if (!coinResp.ok) return;
+
+    const coinData = await coinResp.json();
+    const logoUrl = coinData.image?.large || coinData.image?.small;
+    if (!logoUrl) return;
+
+    const resp = await fetch(logoUrl);
+    if (!resp.ok) return;
+
+    const buf = Buffer.from(await resp.arrayBuffer());
+    const ct = resp.headers.get('content-type') || 'image/png';
+    
+    writeToDiskCache(sym, buf, ct);
+    console.log(`✅ Refreshed logo for ${sym} in background`);
+  } catch (err) {
+    // Silently fail - cached logo is still served
+  }
 }
 
 app.get('/api/logo/:symbol', async (req, res) => {
@@ -332,12 +363,20 @@ app.get('/api/logo/:symbol', async (req, res) => {
       return res.send(hit.body);
     }
 
-    // Disk cache
+    // Disk cache - always use if available (makes us independent of external URLs)
     const disk = readFromDiskCache(sym);
     if (disk){
       logoCache.set(cacheKey, { t: Date.now(), contentType: disk.ct, body: disk.buf });
       res.setHeader('Content-Type', disk.ct);
       res.setHeader('Cache-Control', 'public, max-age=86400');
+      
+      // If logo is old (> 30 days), refresh in background without blocking response
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+      if (disk.age > thirtyDays) {
+        // Background refresh - don't await
+        refreshLogoInBackground(sym).catch(() => {});
+      }
+      
       return res.send(disk.buf);
     }
 
