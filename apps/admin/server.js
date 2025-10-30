@@ -250,6 +250,46 @@ async function getCoinGeckoId(symbol) {
   return null;
 }
 
+// Get logo URL for database storage (doesn't download, just returns URL)
+async function getLogoUrl(symbol) {
+  const sym = String(symbol).toUpperCase();
+  
+  try {
+    const coinId = await getCoinGeckoId(sym);
+    if (coinId) {
+      let coinUrl = '';
+      if (COINGECKO_API_KEY) {
+        coinUrl = `https://api.coingecko.com/api/v3/coins/${coinId}?x_cg_demo_api_key=${COINGECKO_API_KEY}&localization=false&tickers=false&market_data=false&community_data=false&developer_data=false&sparkline=false`;
+      } else {
+        coinUrl = `https://api.coingecko.com/api/v3/coins/${coinId}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false&sparkline=false`;
+      }
+
+      const coinResp = await fetch(coinUrl);
+      
+      if (coinResp.ok) {
+        const coinData = await coinResp.json();
+        if (coinData.image && coinData.image.large) {
+          return coinData.image.large; // Return CoinGecko large image URL
+        }
+      } else if (COINGECKO_API_KEY) {
+        // Retry without API key
+        const freeUrl = `https://api.coingecko.com/api/v3/coins/${coinId}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false&sparkline=false`;
+        const freeResp = await fetch(freeUrl);
+        if (freeResp.ok) {
+          const coinData = await freeResp.json();
+          if (coinData.image && coinData.image.large) {
+            return coinData.image.large;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`⚠️ Failed to get logo URL for ${sym}:`, err.message);
+  }
+  
+  return null;
+}
+
 function diskPathFor(sym, ext){
   return path.join(LOGO_CACHE_DIR, `${sym}.${ext}`);
 }
@@ -577,8 +617,8 @@ async function insertAudit(userId, email, event, detail) {
 // Insert/update alert
 async function upsertAlert(alertData) {
   await pool.query(`
-    INSERT INTO alerts (id, token, title, description, severity, deadline, tags, further_info, source_type, source_url)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    INSERT INTO alerts (id, token, title, description, severity, deadline, tags, further_info, source_type, source_url, logo_url)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     ON CONFLICT (id) DO UPDATE SET
       token = excluded.token,
       title = excluded.title,
@@ -588,7 +628,8 @@ async function upsertAlert(alertData) {
       tags = excluded.tags,
       further_info = excluded.further_info,
       source_type = excluded.source_type,
-      source_url = excluded.source_url
+      source_url = excluded.source_url,
+      logo_url = excluded.logo_url
   `, [
     alertData.id,
     alertData.token,
@@ -599,7 +640,8 @@ async function upsertAlert(alertData) {
     alertData.tags,
     alertData.further_info,
     alertData.source_type,
-    alertData.source_url
+    alertData.source_url,
+    alertData.logo_url || ''
   ]);
 }
 
@@ -752,7 +794,7 @@ async function reloadAlertsFromDatabase() {
   if (!usingDatabaseAlerts) return false;
   
   try {
-    const { rows } = await pool.query('SELECT id, token, title, description, severity, deadline, tags, further_info, source_type, source_url FROM alerts');
+    const { rows } = await pool.query('SELECT id, token, title, description, severity, deadline, tags, further_info, source_type, source_url, logo_url FROM alerts');
     alerts = rows.map(r => ({
       id: r.id || `db_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
       token: String(r.token || '').toUpperCase(),
@@ -763,7 +805,8 @@ async function reloadAlertsFromDatabase() {
       tags: (() => { try{ const t = typeof r.tags === 'string' ? JSON.parse(r.tags) : r.tags; return Array.isArray(t) ? t : []; } catch { return []; } })(),
       further_info: String(r.further_info || ''),
       source_type: SOURCE_TYPES.includes(String(r.source_type||'')) ? String(r.source_type) : '',
-      source_url: String(r.source_url || '')
+      source_url: String(r.source_url || ''),
+      logo_url: String(r.logo_url || '')
     }));
     return true;
   } catch (e) {
@@ -775,7 +818,7 @@ async function reloadAlertsFromDatabase() {
 // Prefer DB alerts if available (keeps start sequence consistent with restore-alerts.js)
 (async () => {
   try {
-    const { rows } = await pool.query('SELECT id, token, title, description, severity, deadline, tags, further_info, source_type, source_url FROM alerts');
+    const { rows } = await pool.query('SELECT id, token, title, description, severity, deadline, tags, further_info, source_type, source_url, logo_url FROM alerts');
     if (Array.isArray(rows) && rows.length > 0) {
       alerts = rows.map(r => ({
         id: r.id || `db_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
@@ -787,7 +830,8 @@ async function reloadAlertsFromDatabase() {
         tags: (() => { try{ const t = typeof r.tags === 'string' ? JSON.parse(r.tags) : r.tags; return Array.isArray(t) ? t : []; } catch { return []; } })(),
         further_info: String(r.further_info || ''),
         source_type: SOURCE_TYPES.includes(String(r.source_type||'')) ? String(r.source_type) : '',
-        source_url: String(r.source_url || '')
+        source_url: String(r.source_url || ''),
+        logo_url: String(r.logo_url || '')
       }));
       usingDatabaseAlerts = true;
       // Alerts loaded from database - do NOT persist to JSON since DB is the master
@@ -965,6 +1009,14 @@ app.post('/api/alerts', requireAdmin, async (req, res) => {
   const srcType = source_type && SOURCE_TYPES.includes(String(source_type)) ? String(source_type) : '';
   const srcUrl = source_url && /^https?:\/\//i.test(String(source_url)) ? String(source_url) : '';
 
+  // Fetch logo URL from CoinGecko
+  let logoUrl = '';
+  try {
+    logoUrl = await getLogoUrl(String(token).toUpperCase()) || '';
+  } catch (err) {
+    console.warn(`⚠️ Failed to fetch logo URL for ${token}:`, err.message);
+  }
+
   const item = {
     id:`a_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
     token:String(token).toUpperCase(),
@@ -975,7 +1027,8 @@ app.post('/api/alerts', requireAdmin, async (req, res) => {
     tags: finalTags,
     further_info: String(further_info || ''),
     source_type: srcType,
-    source_url: srcUrl
+    source_url: srcUrl,
+    logo_url: logoUrl
   };
   alerts.push(item);
   
@@ -992,7 +1045,8 @@ app.post('/api/alerts', requireAdmin, async (req, res) => {
         tags: JSON.stringify(item.tags),
         further_info: item.further_info,
         source_type: item.source_type,
-        source_url: item.source_url
+        source_url: item.source_url,
+        logo_url: item.logo_url
       });
       await reloadAlertsFromDatabase();
     } catch (dbError) {
@@ -1058,6 +1112,19 @@ app.put('/api/alerts/:id', requireAdmin, async (req, res) => {
   // Apply changes
   const old = alerts[idx];
   const updated = { ...old, ...payload };
+  
+  // If token changed, fetch new logo URL
+  if (payload.token && payload.token !== old.token) {
+    try {
+      const newLogoUrl = await getLogoUrl(payload.token);
+      if (newLogoUrl) {
+        updated.logo_url = newLogoUrl;
+      }
+    } catch (err) {
+      console.warn(`⚠️ Failed to fetch logo URL for updated token ${payload.token}:`, err.message);
+    }
+  }
+  
   alerts[idx] = updated;
   
   // Also update in database if using DB-backed alerts
@@ -1073,7 +1140,8 @@ app.put('/api/alerts/:id', requireAdmin, async (req, res) => {
         tags: JSON.stringify(updated.tags),
         further_info: updated.further_info,
         source_type: updated.source_type,
-        source_url: updated.source_url
+        source_url: updated.source_url,
+        logo_url: updated.logo_url || ''
       });
       await reloadAlertsFromDatabase();
     } catch (dbError) {

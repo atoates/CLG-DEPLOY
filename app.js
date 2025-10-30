@@ -1424,16 +1424,17 @@ function renderAlerts(){
     coinLogo.className = 'coin-logo';
     
     const token = (a.token || '').toUpperCase();
-  const logoUrl = apiUrl(`/api/logo/${token}`);
+    // Use logo_url from alert if available, otherwise fetch from API
+    const logoUrl = a.logo_url || apiUrl(`/api/logo/${token}`);
     
     const img = document.createElement('img');
     img.className = 'coin-img';
     img.src = logoUrl;
     img.alt = `${token} logo`;
     img.onerror = function() {
-      // Fallback to monogram service on error
-  this.onerror = null;
-  this.src = apiUrl(`/api/logo/${token}`); // proxy will return monogram
+      // Fallback to API proxy service on error (will return monogram)
+      this.onerror = null;
+      this.src = apiUrl(`/api/logo/${token}`);
     };
     
     coinLogo.appendChild(img);
