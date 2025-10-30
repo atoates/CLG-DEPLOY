@@ -2174,9 +2174,9 @@ function renderMarket(){
     const badge = document.createElement('div');
     badge.className = 'mk-badge';
     
-    // Use LogoKit Crypto Logo API for token icons
+    // Use backend API for token logos
     const icon = document.createElement('img');
-  icon.src = `/api/logo/${it.token}`;
+  icon.src = apiUrl(`/api/logo/${it.token}`);
     icon.alt = `${it.token} logo`;
     icon.className = 'mk-icon';
     icon.onerror = function() {
