@@ -22,6 +22,7 @@ export default {
         main: resolve(__dirname, 'index.html'),
         create: resolve(__dirname, 'create.html'),
         profile: resolve(__dirname, 'profile.html'),
+        signup: resolve(__dirname, 'signup.html'),
       },
     },
   },
