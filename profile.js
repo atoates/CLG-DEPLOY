@@ -424,7 +424,33 @@ function renderAvatarPresets(){
 renderAvatarPresets();
 initAutocomplete();
 fetchTokenDatabase();
-loadMe();
+
+// Check for auth_token in URL (from OAuth redirect)
+async function handleAuthToken() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const authToken = urlParams.get('auth_token');
+  
+  if (authToken) {
+    try {
+      // Exchange token for session cookie
+      const response = await apiFetch(apiUrl('/auth/exchange-token'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: authToken })
+      });
+      
+      if (response.ok) {
+        // Remove token from URL
+        window.history.replaceState({}, document.title, '/profile.html');
+      }
+    } catch (error) {
+      console.error('Token exchange failed:', error);
+    }
+  }
+}
+
+// Handle auth token first, then load profile
+handleAuthToken().then(() => loadMe());
 
 // ---- Severity buttons handling ----
 function renderSeverityButtons(){

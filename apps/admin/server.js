@@ -3749,15 +3749,46 @@ app.get('/auth/google/callback', async (req, res) => {
       [googleId, email, name, avatar, uid]
     );
     setSession(res, { uid });
-    console.log('OAuth success, redirecting to frontend profile');
+    console.log('OAuth success, generating auth token for frontend handoff');
     
-    // Redirect to frontend domain, not backend
+    // Generate a one-time token for cross-domain auth handoff
+    const authToken = crypto.randomBytes(32).toString('hex');
+    sessions.set(`auth_token_${authToken}`, { uid, createdAt: Date.now() });
+    
+    // Redirect to frontend with token
     const frontendUrl = process.env.FRONTEND_URL || 'https://app.crypto-lifeguard.com';
-    res.redirect(`${frontendUrl}/profile.html`);
+    res.redirect(`${frontendUrl}/profile.html?auth_token=${authToken}`);
   }catch(e){
     console.error('OAuth callback error:', e.message, e.stack);
     res.status(500).send('oauth failed');
   }
+});
+
+// Exchange one-time auth token for session cookie
+app.post('/auth/exchange-token', express.json(), (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ error: 'Token required' });
+  }
+  
+  const sessionData = sessions.get(`auth_token_${token}`);
+  if (!sessionData) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+  
+  // Check if token is too old (5 minutes)
+  if (Date.now() - sessionData.createdAt > 5 * 60 * 1000) {
+    sessions.delete(`auth_token_${token}`);
+    return res.status(401).json({ error: 'Token expired' });
+  }
+  
+  // Delete one-time token
+  sessions.delete(`auth_token_${token}`);
+  
+  // Create session with uid
+  setSession(res, { uid: sessionData.uid });
+  
+  res.json({ success: true, uid: sessionData.uid });
 });
 
 app.post('/auth/logout', (req, res) => {
