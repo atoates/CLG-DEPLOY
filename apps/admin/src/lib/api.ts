@@ -1,13 +1,17 @@
 import axios, { type InternalAxiosRequestConfig, type AxiosResponse } from 'axios'
 import type { NewsArticle, NewsStats, AdminStats } from '../types'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+// In production, use the same domain as the admin dashboard (clg-admin-production.up.railway.app)
+// In development, use localhost:3000
+const API_URL = import.meta.env.VITE_API_URL || 
+  (import.meta.env.PROD ? window.location.origin : 'http://localhost:3000')
 
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Important for cross-domain cookies
 })
 
 // Add auth token to requests
