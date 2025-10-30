@@ -6,13 +6,10 @@ import type { NewsArticle, NewsStats, AdminStats } from '../types'
 const API_URL = import.meta.env.VITE_API_URL || 
   (import.meta.env.PROD ? window.location.origin : 'http://localhost:3000')
 
-console.log('[Admin API] Configuration:', {
-  baseURL: API_URL,
-  mode: import.meta.env.MODE,
-  isProd: import.meta.env.PROD,
-  windowOrigin: typeof window !== 'undefined' ? window.location.origin : 'N/A',
-  env: import.meta.env.VITE_API_URL || 'not set'
-})
+// Only log in development
+if (import.meta.env.DEV) {
+  console.log('[Admin API] Development mode - API URL:', API_URL)
+}
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -20,12 +17,6 @@ export const api = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true, // Important for cross-domain cookies
-})
-
-// Log all requests for debugging
-api.interceptors.request.use((config) => {
-  console.log('[Admin API] Request:', config.method?.toUpperCase(), config.url, 'Full URL:', `${config.baseURL || ''}${config.url || ''}`)
-  return config
 })
 
 // Add auth token to requests
@@ -41,12 +32,10 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: any) => {
-    console.error('[Admin API] Error:', {
-      message: error.message,
-      status: error.response?.status,
-      url: error.config?.url,
-      baseURL: error.config?.baseURL
-    })
+    // Only log errors (not every request)
+    if (import.meta.env.DEV) {
+      console.error('[Admin API] Request failed:', error.config?.url, error.response?.status, error.message)
+    }
     if (error.response?.status === 401) {
       localStorage.removeItem('admin_token')
       window.location.href = '/login'

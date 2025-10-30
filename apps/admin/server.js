@@ -11,6 +11,15 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const crypto = require('crypto');
 
+// Environment-based logging
+const LOG_LEVEL = process.env.LOG_LEVEL || (process.env.RAILWAY_ENVIRONMENT ? 'error' : 'debug');
+const log = {
+  error: (...args) => console.error(...args),
+  warn: (...args) => ['warn', 'info', 'debug'].includes(LOG_LEVEL) && console.warn(...args),
+  info: (...args) => ['info', 'debug'].includes(LOG_LEVEL) && console.log(...args),
+  debug: (...args) => LOG_LEVEL === 'debug' && console.log(...args)
+};
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, 'data');
@@ -64,8 +73,7 @@ const allowedOrigins = [
   process.env.STAGING_FRONTEND_URL, // CLG-DEPLOY frontend (staging)
 ].filter(Boolean); // Remove undefined values
 
-// Log CORS configuration on startup
-console.log('[CORS] Allowed origins:', allowedOrigins.length, 'configured');
+log.debug('[CORS] Allowed origins:', allowedOrigins.length, 'configured');
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -75,7 +83,7 @@ const corsOptions = {
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.log('[CORS] Blocked request from origin:', origin);
+      log.debug('[CORS] Blocked request from origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -1990,13 +1998,13 @@ app.post('/api/news', async (req, res) => {
       : ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
     
     // ALWAYS fetch fresh articles from CoinDesk RSS to add to database
-    console.log('[News API] Fetching fresh articles from CoinDesk RSS...');
+    log.debug('[News API] Fetching fresh articles from CoinDesk RSS...');
     let freshArticles = [];
     try {
       freshArticles = await fetchNewsFromCoinDesk(tokensToFetch);
-      console.log(`[News API] Fetched ${freshArticles.length} fresh articles from CoinDesk`);
+      log.debug(`[News API] Fetched ${freshArticles.length} fresh articles from CoinDesk`);
     } catch (error) {
-      console.warn('[News API] Failed to fetch from CoinDesk RSS:', error.message);
+      log.warn('[News API] Failed to fetch from CoinDesk RSS:', error.message);
     }
     
     // Add fresh CoinDesk articles to database cache
@@ -2030,10 +2038,10 @@ app.post('/api/news', async (req, res) => {
         addedCount++;
       } catch (dbError) {
         // Continue even if one article fails
-        console.error('[News API] Failed to cache article:', article.title?.substring(0, 50), 'Error:', dbError.message);
+        log.error('[News API] Failed to cache article:', article.title?.substring(0, 50), 'Error:', dbError.message);
       }
     }
-    console.log(`[News API] Added/updated ${addedCount} articles in cache`);
+    log.debug(`[News API] Added/updated ${addedCount} articles in cache`);
     
     // Now get all cached articles (including the fresh ones we just added)
     let allNews = [];
@@ -2072,9 +2080,9 @@ app.post('/api/news', async (req, res) => {
           !article.title.includes('No News Available')
         );
       
-      console.log(`[News API] Returning ${allNews.length} total articles from cache`);
+      log.debug(`[News API] Returning ${allNews.length} total articles from cache`);
     } catch (cacheError) {
-      console.warn('[News API] Cache read error, returning fresh articles only:', cacheError.message);
+      log.warn('[News API] Cache read error, returning fresh articles only:', cacheError.message);
       allNews = freshArticles;
     }
     
@@ -4131,17 +4139,17 @@ console.log('🔄 Server.js execution continuing after app.listen...');
 
 async function scheduledNewsFetch() {
   try {
-    console.log('[Scheduled] Starting automatic news fetch...');
+    log.debug('[Scheduled] Starting automatic news fetch...');
     
     // Fetch articles from CoinDesk RSS (no token filter, get all articles)
     const articles = await fetchNewsFromCoinDesk([]);
     
     if (!articles || articles.length === 0) {
-      console.log('[Scheduled] No articles fetched from CoinDesk RSS');
+      log.debug('[Scheduled] No articles fetched from CoinDesk RSS');
       return;
     }
     
-    console.log(`[Scheduled] Fetched ${articles.length} articles from CoinDesk`);
+    log.debug(`[Scheduled] Fetched ${articles.length} articles from CoinDesk`);
     
     let addedCount = 0;
     let updatedCount = 0;
@@ -4192,20 +4200,20 @@ async function scheduledNewsFetch() {
         }
         
       } catch (articleError) {
-        console.error(`[Scheduled] Error processing article "${article.title}":`, articleError.message);
+        log.error(`[Scheduled] Error processing article "${article.title}":`, articleError.message);
       }
     }
     
-    console.log(`[Scheduled] News fetch complete: ${addedCount} added, ${updatedCount} updated`);
+    log.debug(`[Scheduled] News fetch complete: ${addedCount} added, ${updatedCount} updated`);
     
   } catch (error) {
-    console.error('[Scheduled] Error in scheduled news fetch:', error.message);
+    log.error('[Scheduled] Error in scheduled news fetch:', error.message);
   }
 }
 
 // Run initial fetch after server starts (wait 10 seconds for server to stabilize)
 setTimeout(() => {
-  console.log('[Scheduled] Running initial news fetch...');
+  log.info('[Scheduled] Running initial news fetch...');
   scheduledNewsFetch();
 }, 10000);
 
