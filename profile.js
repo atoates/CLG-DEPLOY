@@ -431,6 +431,7 @@ async function handleAuthToken() {
   const authToken = urlParams.get('auth_token');
   
   if (authToken) {
+    console.log('Auth token detected, exchanging for session...');
     try {
       // Exchange token for session cookie
       const response = await apiFetch(apiUrl('/auth/exchange-token'), {
@@ -439,13 +440,21 @@ async function handleAuthToken() {
         body: JSON.stringify({ token: authToken })
       });
       
+      const result = await response.json();
+      console.log('Token exchange response:', response.status, result);
+      
       if (response.ok) {
+        console.log('✅ Session cookie set successfully');
         // Remove token from URL
         window.history.replaceState({}, document.title, '/profile.html');
+      } else {
+        console.error('❌ Token exchange failed:', result);
       }
     } catch (error) {
-      console.error('Token exchange failed:', error);
+      console.error('❌ Token exchange error:', error);
     }
+  } else {
+    console.log('No auth token in URL');
   }
 }
 

@@ -3767,27 +3767,39 @@ app.get('/auth/google/callback', async (req, res) => {
 // Exchange one-time auth token for session cookie
 app.post('/auth/exchange-token', express.json(), (req, res) => {
   const { token } = req.body;
+  console.log('Token exchange request received:', { hasToken: !!token, tokenPrefix: token ? token.substring(0, 8) : 'none' });
+  
   if (!token) {
+    console.log('❌ No token provided');
     return res.status(400).json({ error: 'Token required' });
   }
   
   const sessionData = sessions.get(`auth_token_${token}`);
+  console.log('Session data lookup:', { found: !!sessionData, totalSessions: sessions.size });
+  
   if (!sessionData) {
+    console.log('❌ Token not found in sessions');
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
   
   // Check if token is too old (5 minutes)
-  if (Date.now() - sessionData.createdAt > 5 * 60 * 1000) {
+  const age = Date.now() - sessionData.createdAt;
+  console.log('Token age:', age, 'ms');
+  
+  if (age > 5 * 60 * 1000) {
+    console.log('❌ Token expired');
     sessions.delete(`auth_token_${token}`);
     return res.status(401).json({ error: 'Token expired' });
   }
   
   // Delete one-time token
   sessions.delete(`auth_token_${token}`);
+  console.log('✅ Token validated, creating session for uid:', sessionData.uid);
   
   // Create session with uid
   setSession(res, { uid: sessionData.uid });
   
+  console.log('✅ Session created successfully');
   res.json({ success: true, uid: sessionData.uid });
 });
 
