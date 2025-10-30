@@ -6,31 +6,77 @@
  * - Returns 404 for other non-existent files (so signup.html, profile.html work)
  */
 
-const express = require('express');
-const path = require('path');
+const http = require('http');
 const fs = require('fs');
+const path = require('path');
 
-const app = express();
 const PORT = process.env.PORT || 3000;
 const DIST_DIR = path.join(__dirname, 'dist');
 
-// Serve static files
-app.use(express.static(DIST_DIR));
+const MIME_TYPES = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.eot': 'application/vnd.ms-fontobject',
+  '.otf': 'font/otf',
+};
 
-// Special handling for /auth/* routes - serve index.html for client-side redirect
-app.get('/auth/*', (req, res) => {
-  const indexPath = path.join(DIST_DIR, 'index.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(404).send('Not found');
+const server = http.createServer((req, res) => {
+  // Parse URL
+  let filePath = req.url === '/' ? '/index.html' : req.url;
+  
+  // Remove query string
+  const queryIndex = filePath.indexOf('?');
+  if (queryIndex !== -1) {
+    filePath = filePath.substring(0, queryIndex);
   }
+  
+  // Special handling for /auth/* routes - serve index.html for client-side redirect
+  if (filePath.startsWith('/auth/')) {
+    filePath = '/index.html';
+  }
+  
+  const fullPath = path.join(DIST_DIR, filePath);
+  
+  // Security: prevent directory traversal
+  if (!fullPath.startsWith(DIST_DIR)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Forbidden');
+    return;
+  }
+  
+  // Read and serve file
+  fs.readFile(fullPath, (err, data) => {
+    if (err) {
+      if (err.code === 'ENOENT') {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('404 Not Found');
+      } else {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Internal Server Error');
+      }
+      return;
+    }
+    
+    const ext = path.extname(fullPath);
+    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(data);
+  });
 });
 
-// For all other routes, let express.static handle it
-// If file doesn't exist, it will 404 (so signup.html, profile.html work correctly)
-
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`📂 Serving files from: ${DIST_DIR}`);
 });
