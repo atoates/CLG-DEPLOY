@@ -3749,8 +3749,11 @@ app.get('/auth/google/callback', async (req, res) => {
       [googleId, email, name, avatar, uid]
     );
     setSession(res, { uid });
-    console.log('OAuth success, redirecting to profile');
-    res.redirect('/profile');
+    console.log('OAuth success, redirecting to frontend profile');
+    
+    // Redirect to frontend domain, not backend
+    const frontendUrl = process.env.FRONTEND_URL || 'https://app.crypto-lifeguard.com';
+    res.redirect(`${frontendUrl}/profile.html`);
   }catch(e){
     console.error('OAuth callback error:', e.message, e.stack);
     res.status(500).send('oauth failed');
