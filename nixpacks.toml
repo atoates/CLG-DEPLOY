@@ -11,7 +11,7 @@ cmds = ["npm ci"]
 cmds = [
   "npm run build",
   "chmod +x inject-config.sh",
-  "./inject-config.sh"
+  "BACKEND_URL=\"${BACKEND_URL:-}\" ./inject-config.sh"
 ]
 
 [start]
