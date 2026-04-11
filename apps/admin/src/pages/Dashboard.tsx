@@ -1,24 +1,70 @@
+import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../lib/api'
-import { fetchNewsStats } from '../lib/api'
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from 'recharts'
-import { Users, Bell, AlertTriangle, Database, HardDrive, Server, Activity, Newspaper, BarChart3 } from 'lucide-react'
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  AreaChart,
+  Area,
+} from 'recharts'
+import {
+  Users,
+  Bell,
+  AlertTriangle,
+  Newspaper,
+  Sparkles,
+  Database,
+  Server,
+  TrendingUp,
+  Plus,
+  ArrowRight,
+  Clock,
+  ShieldAlert,
+  ShieldCheck,
+  Radio,
+} from 'lucide-react'
+import { api, fetchNewsStats } from '../lib/api'
+
+type Alert = {
+  id: string
+  token: string
+  title: string
+  body?: string
+  severity: 'critical' | 'warning' | 'info'
+  tags?: string[]
+  created_at: string
+}
+
+type ApiStat = {
+  service_name: string
+  endpoint: string
+  call_count: number
+  last_called_at: string | null
+}
+
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: '#ef4444',
+  warning: '#f59e0b',
+  info: '#38bdf8',
+}
 
 export function Dashboard() {
   const { data: adminInfo } = useQuery({
     queryKey: ['admin-info'],
-    queryFn: async () => {
-      const { data } = await api.get('/admin/info')
-      return data
-    },
+    queryFn: async () => (await api.get('/admin/info')).data,
   })
 
-  const { data: alerts } = useQuery({
+  const { data: alerts } = useQuery<Alert[]>({
     queryKey: ['alerts'],
-    queryFn: async () => {
-      const { data } = await api.get('/api/alerts')
-      return data
-    },
+    queryFn: async () => (await api.get('/api/alerts')).data,
   })
 
   const { data: newsStats } = useQuery({
@@ -26,71 +72,145 @@ export function Dashboard() {
     queryFn: fetchNewsStats,
   })
 
-  const { data: apiStats } = useQuery({
+  const { data: apiStats } = useQuery<ApiStat[]>({
     queryKey: ['api-stats'],
-    queryFn: async () => {
-      const { data } = await api.get('/admin/api-stats')
-      return data as Array<{ service_name: string; endpoint: string; call_count: number; last_called_at: string | null }>
-    },
+    queryFn: async () => (await api.get('/admin/api-stats')).data,
   })
 
-  const stats = [
+  const totalAlerts = adminInfo?.counts?.alerts ?? alerts?.length ?? 0
+  const totalUsers = adminInfo?.counts?.users ?? 0
+  const criticalCount = alerts?.filter((a) => a.severity === 'critical').length ?? 0
+  const warningCount = alerts?.filter((a) => a.severity === 'warning').length ?? 0
+  const infoCount = alerts?.filter((a) => a.severity === 'info').length ?? 0
+
+  // 14-day trend from created_at
+  const trendData = useMemo(() => {
+    if (!alerts) return []
+    const days: Record<string, number> = {}
+    const now = new Date()
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(now.getDate() - i)
+      const key = d.toISOString().slice(0, 10)
+      days[key] = 0
+    }
+    for (const a of alerts) {
+      if (!a.created_at) continue
+      const key = new Date(a.created_at).toISOString().slice(0, 10)
+      if (key in days) days[key] += 1
+    }
+    return Object.entries(days).map(([date, count]) => ({
+      date: date.slice(5),
+      alerts: count,
+    }))
+  }, [alerts])
+
+  const severityData = [
+    { name: 'Critical', value: criticalCount, color: SEVERITY_COLORS.critical },
+    { name: 'Warning', value: warningCount, color: SEVERITY_COLORS.warning },
+    { name: 'Info', value: infoCount, color: SEVERITY_COLORS.info },
+  ].filter((s) => s.value > 0)
+
+  const recentAlerts = useMemo(
+    () =>
+      (alerts || [])
+        .slice()
+        .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+        .slice(0, 6),
+    [alerts]
+  )
+
+  const topApiServices = useMemo(() => {
+    if (!apiStats) return []
+    const map: Record<string, number> = {}
+    for (const s of apiStats) {
+      map[s.service_name] = (map[s.service_name] || 0) + s.call_count
+    }
+    return Object.entries(map)
+      .map(([service, calls]) => ({ service, calls }))
+      .sort((a, b) => b.calls - a.calls)
+      .slice(0, 5)
+  }, [apiStats])
+
+  const kpis = [
     {
       name: 'Total Alerts',
-      value: adminInfo?.counts?.alerts || 0,
+      value: totalAlerts,
       icon: Bell,
-      color: 'text-primary-500',
-      bgColor: 'bg-primary-50',
+      accent: 'from-teal-400 to-teal-600',
+      hint: `${recentAlerts.length} recent`,
+    },
+    {
+      name: 'Critical Active',
+      value: criticalCount,
+      icon: AlertTriangle,
+      accent: 'from-red-400 to-red-600',
+      hint: criticalCount > 0 ? 'Action needed' : 'All clear',
     },
     {
       name: 'Active Users',
-      value: adminInfo?.counts?.users || 0,
+      value: totalUsers,
       icon: Users,
-      color: 'text-emerald-600',
-      bgColor: 'bg-emerald-50',
+      accent: 'from-blue-400 to-blue-600',
+      hint: 'Subscribed',
     },
     {
-      name: 'Critical Alerts',
-      value: alerts?.filter((a: any) => a.severity === 'critical').length || 0,
-      icon: AlertTriangle,
-      color: 'text-red-500',
-      bgColor: 'bg-red-50',
-    },
-    {
-      name: 'News Articles',
+      name: 'News Cached',
       value: newsStats?.totalCached || 0,
       icon: Newspaper,
-      color: 'text-navy-500',
-      bgColor: 'bg-navy-50',
+      accent: 'from-indigo-400 to-indigo-600',
+      hint: `${newsStats?.byToken?.length || 0} tokens`,
     },
-  ]
-
-  const severityData = [
-    { name: 'Critical', value: alerts?.filter((a: any) => a.severity === 'critical').length || 0, color: '#ef4444' },
-    { name: 'Warning', value: alerts?.filter((a: any) => a.severity === 'warning').length || 0, color: '#f59e0b' },
-    { name: 'Info', value: alerts?.filter((a: any) => a.severity === 'info').length || 0, color: '#10b981' },
   ]
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-2">Welcome to the Crypto Lifeguard Admin Dashboard</p>
+    <div className="space-y-8 animate-fade-up">
+      {/* Quick actions */}
+      <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-gradient-to-br from-teal-500/10 via-white/[0.02] to-blue-500/10 p-6 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-teal-400/30 bg-teal-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-teal-300">
+            <Sparkles className="h-3 w-3" />
+            AI-Powered
+          </div>
+          <h2 className="font-display text-2xl font-bold text-white">
+            Welcome back. Ready to publish the next alert?
+          </h2>
+          <p className="mt-1 max-w-xl text-sm text-slate-400">
+            Use the composer to paste a tip, headline or article and get a ready-to-review draft in seconds.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Link to="/alerts" className="btn-primary">
+            <Plus className="h-4 w-4" />
+            New Alert
+          </Link>
+          <Link to="/news" className="btn-ghost">
+            <Newspaper className="h-4 w-4" />
+            Triage News
+          </Link>
+        </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => {
-          const Icon = stat.icon
+      {/* KPI grid */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {kpis.map((kpi) => {
+          const Icon = kpi.icon
           return (
-            <div key={stat.name} className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex items-center justify-between">
+            <div key={kpi.name} className="kpi-card">
+              <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">{stat.name}</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{stat.value}</p>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    {kpi.name}
+                  </div>
+                  <div className="mt-3 font-display text-4xl font-bold text-white">
+                    {kpi.value.toLocaleString()}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-400">{kpi.hint}</div>
                 </div>
-                <div className={`${stat.bgColor} p-3 rounded-lg`}>
-                  <Icon className={`w-6 h-6 ${stat.color}`} />
+                <div
+                  className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${kpi.accent} shadow-glow-teal`}
+                >
+                  <Icon className="h-5 w-5 text-white" />
                 </div>
               </div>
             </div>
@@ -98,288 +218,265 @@ export function Dashboard() {
         })}
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Severity Distribution */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Alert Severity Distribution</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={severityData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {severityData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
+      {/* Trend + Severity donut */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="glass-card p-6 lg:col-span-2">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <div className="section-title">Alert Volume</div>
+              <div className="mt-1 font-display text-xl font-bold text-white">Last 14 days</div>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-teal-300">
+              <TrendingUp className="h-4 w-4" />
+              {trendData.reduce((sum, d) => sum + d.alerts, 0)} alerts published
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={trendData}>
+              <defs>
+                <linearGradient id="alertGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.5} />
+                  <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" />
+              <YAxis allowDecimals={false} />
               <Tooltip />
-            </PieChart>
+              <Area
+                type="monotone"
+                dataKey="alerts"
+                stroke="#5eead4"
+                strokeWidth={2.5}
+                fill="url(#alertGrad)"
+              />
+            </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        {/* System Info */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">System Information</h2>
-          <div className="space-y-3">
-            <div className="flex justify-between py-2 border-b border-gray-100">
-              <span className="text-gray-600">Database</span>
-              <span className="font-medium">{adminInfo?.counts ? 'PostgreSQL' : 'Not configured'}</span>
+        <div className="glass-card p-6">
+          <div className="mb-4">
+            <div className="section-title">Severity Mix</div>
+            <div className="mt-1 font-display text-xl font-bold text-white">Current breakdown</div>
+          </div>
+          {severityData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={severityData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={52}
+                  outerRadius={85}
+                  paddingAngle={4}
+                  dataKey="value"
+                >
+                  {severityData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} stroke="none" />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-[220px] items-center justify-center text-sm text-slate-500">
+              No alerts yet
             </div>
-            <div className="flex justify-between py-2 border-b border-gray-100">
-              <span className="text-gray-600">Market Provider</span>
-              <span className="font-medium">CoinMarketCap</span>
+          )}
+          <div className="mt-3 space-y-2">
+            {[
+              { label: 'Critical', value: criticalCount, icon: ShieldAlert, color: 'text-red-400', bg: 'bg-red-500/15' },
+              { label: 'Warning',  value: warningCount,  icon: AlertTriangle, color: 'text-amber-300', bg: 'bg-amber-500/15' },
+              { label: 'Info',     value: infoCount,     icon: ShieldCheck, color: 'text-sky-300', bg: 'bg-sky-500/15' },
+            ].map((row) => {
+              const Icon = row.icon
+              return (
+                <div key={row.label} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`flex h-6 w-6 items-center justify-center rounded-md ${row.bg}`}>
+                      <Icon className={`h-3.5 w-3.5 ${row.color}`} />
+                    </span>
+                    <span className="text-sm text-slate-300">{row.label}</span>
+                  </div>
+                  <span className="text-sm font-semibold text-white">{row.value}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Recent alerts + API usage */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="glass-card p-6 lg:col-span-2">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <div className="section-title">Activity</div>
+              <div className="mt-1 font-display text-xl font-bold text-white">Recent alerts</div>
             </div>
-            <div className="flex justify-between py-2 border-b border-gray-100">
-              <span className="text-gray-600">Currency</span>
-              <span className="font-medium">USD</span>
+            <Link
+              to="/alerts"
+              className="inline-flex items-center gap-1 text-sm font-semibold text-teal-300 hover:text-teal-200"
+            >
+              View all <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+          {recentAlerts.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-white/10 py-12 text-center text-sm text-slate-500">
+              No alerts yet. Head to the Alerts page to publish your first one.
             </div>
-            <div className="flex justify-between py-2">
-              <span className="text-gray-600">News Source</span>
-              <span className="font-medium">CoinDesk RSS</span>
+          ) : (
+            <ul className="divide-y divide-white/5">
+              {recentAlerts.map((a) => {
+                const sevClass =
+                  a.severity === 'critical'
+                    ? 'badge-critical'
+                    : a.severity === 'warning'
+                    ? 'badge-warning'
+                    : 'badge-info'
+                return (
+                  <li key={a.id} className="flex items-start gap-4 py-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-[11px] font-bold uppercase tracking-wider text-teal-300">
+                      {a.token?.slice(0, 4)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`badge ${sevClass}`}>{a.severity}</span>
+                        <span className="truncate text-sm font-semibold text-white">{a.title}</span>
+                      </div>
+                      {a.body && (
+                        <p className="mt-1 line-clamp-2 text-xs text-slate-400">{a.body}</p>
+                      )}
+                      <div className="mt-1 flex items-center gap-1 text-[11px] text-slate-500">
+                        <Clock className="h-3 w-3" />
+                        {a.created_at ? new Date(a.created_at).toLocaleString() : 'just now'}
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div className="glass-card p-6">
+          <div className="mb-4">
+            <div className="section-title">Integrations</div>
+            <div className="mt-1 font-display text-xl font-bold text-white">API usage</div>
+          </div>
+          {topApiServices.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={topApiServices} layout="vertical" margin={{ left: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="service" width={90} />
+                <Tooltip />
+                <Bar dataKey="calls" fill="#5eead4" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-[220px] items-center justify-center text-sm text-slate-500">
+              No call data yet
+            </div>
+          )}
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+              <div className="text-slate-500">Endpoints</div>
+              <div className="mt-1 font-semibold text-white">{apiStats?.length || 0}</div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+              <div className="text-slate-500">Total Calls</div>
+              <div className="mt-1 font-semibold text-white">
+                {(apiStats || []).reduce((s, x) => s + x.call_count, 0).toLocaleString()}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* News Cache Section */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="bg-navy-50 p-3 rounded-lg">
-              <Newspaper className="w-6 h-6 text-navy-500" />
+      {/* System row */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="glass-card p-6">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/15 text-teal-300">
+              <Database className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">News Cache Statistics</h2>
-              <p className="text-sm text-gray-500">Articles cached from CoinDesk</p>
+              <div className="section-title">Database</div>
+              <div className="font-display text-base font-bold text-white">PostgreSQL</div>
             </div>
           </div>
+          <dl className="space-y-2 text-sm">
+            <Row label="Alerts" value={adminInfo?.counts?.alerts || 0} />
+            <Row label="Users" value={adminInfo?.counts?.users || 0} />
+            <Row label="Preferences" value={adminInfo?.counts?.user_prefs || 0} />
+          </dl>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div>
-            <p className="text-sm text-gray-600 mb-1">Total Cached</p>
-            <p className="text-2xl font-bold text-gray-900">{newsStats?.totalCached || 0}</p>
+
+        <div className="glass-card p-6">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/15 text-blue-300">
+              <Server className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="section-title">Server</div>
+              <div className="font-display text-base font-bold text-white">Status</div>
+            </div>
           </div>
-          <div>
-            <p className="text-sm text-gray-600 mb-1">Expiring Soon (7d)</p>
-            <p className="text-2xl font-bold text-orange-600">{newsStats?.expiringSoon || 0}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600 mb-1">Average Age</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {newsStats?.avgAgeSeconds ? Math.round(newsStats.avgAgeSeconds / 86400) : 0}d
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600 mb-1">Unique Tokens</p>
-            <p className="text-2xl font-bold text-gray-900">{newsStats?.byToken?.length || 0}</p>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 animate-pulse-soft rounded-full bg-emerald-400" />
+              <span className="text-emerald-300 font-semibold">Online</span>
+            </div>
+            <Row label="Market" value="CoinMarketCap" />
+            <Row label="News" value="CoinDesk RSS" />
+            <Row label="AI" value="OpenAI + Anthropic" />
           </div>
         </div>
-        {newsStats?.byToken && newsStats.byToken.length > 0 && (
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-sm font-medium text-gray-700 mb-3">Top Tokens in News</p>
-            <div className="flex flex-wrap gap-2">
-              {newsStats.byToken.slice(0, 10).map((item) => (
-                <span
-                  key={item.token}
-                  className="px-3 py-1 bg-primary-50 text-primary-500 text-sm font-medium rounded-full"
-                >
-                  {item.token}: {item.count}
+
+        <div className="glass-card p-6">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-300">
+              <Radio className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="section-title">News cache</div>
+              <div className="font-display text-base font-bold text-white">Health</div>
+            </div>
+          </div>
+          <div className="space-y-2 text-sm">
+            <Row label="Cached" value={newsStats?.totalCached || 0} />
+            <Row label="Expiring ≤7d" value={newsStats?.expiringSoon || 0} />
+            <Row
+              label="Avg age"
+              value={
+                newsStats?.avgAgeSeconds
+                  ? `${Math.round(newsStats.avgAgeSeconds / 86400)}d`
+                  : '0d'
+              }
+            />
+            <Row label="Tokens" value={newsStats?.byToken?.length || 0} />
+          </div>
+          {newsStats?.byToken && newsStats.byToken.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {newsStats.byToken.slice(0, 6).map((t: any) => (
+                <span key={t.token} className="badge badge-teal text-[10px]">
+                  {t.token} · {t.count}
                 </span>
               ))}
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* API Call Tracking Section */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary-50 p-3 rounded-lg">
-              <BarChart3 className="w-6 h-6 text-primary-500" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">API Call Tracking</h2>
-              <p className="text-sm text-gray-500">External API usage across all services</p>
-            </div>
-          </div>
-        </div>
-        
-        {apiStats && apiStats.length > 0 ? (
-          <>
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              {['CoinMarketCap', 'CoinDesk', 'CryptoNews', 'Other'].map((serviceName) => {
-                const serviceStats = apiStats.filter((s) => s.service_name === serviceName)
-                const totalCalls = serviceStats.reduce((sum, s) => sum + s.call_count, 0)
-                return (
-                  <div key={serviceName} className="bg-gradient-to-br from-primary-50 to-navy-50 p-4 rounded-lg border border-primary-100">
-                    <p className="text-sm text-navy-500 font-medium mb-1">{serviceName}</p>
-                    <p className="text-3xl font-bold text-navy-800">{totalCalls.toLocaleString()}</p>
-                    <p className="text-xs text-primary-500 mt-1">{serviceStats.length} endpoint{serviceStats.length !== 1 ? 's' : ''}</p>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Detailed Breakdown Chart */}
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-700 mb-4">API Call Distribution</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={apiStats.map((stat) => ({
-                  name: `${stat.service_name}${stat.endpoint ? ` - ${stat.endpoint.split('/').pop()}` : ''}`,
-                  calls: stat.call_count,
-                  service: stat.service_name
-                }))}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} tick={{ fontSize: 12 }} />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="calls" fill="#2E7CF6" name="API Calls" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Detailed Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="text-left p-3 font-medium text-gray-700">Service</th>
-                    <th className="text-left p-3 font-medium text-gray-700">Endpoint</th>
-                    <th className="text-right p-3 font-medium text-gray-700">Calls</th>
-                    <th className="text-left p-3 font-medium text-gray-700">Last Called</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {apiStats.map((stat, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50">
-                      <td className="p-3">
-                        <span className="px-2 py-1 bg-primary-50 text-primary-500 text-xs font-medium rounded">
-                          {stat.service_name}
-                        </span>
-                      </td>
-                      <td className="p-3 text-gray-600">
-                        <code className="text-xs bg-gray-100 px-2 py-1 rounded">{stat.endpoint || 'N/A'}</code>
-                      </td>
-                      <td className="p-3 text-right font-medium text-gray-900">{stat.call_count.toLocaleString()}</td>
-                      <td className="p-3 text-gray-600 text-xs">
-                        {stat.last_called_at ? new Date(stat.last_called_at).toLocaleString() : 'Never'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            No API call data available yet
-          </div>
-        )}
-      </div>
-
-      {/* Database Details Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Database Storage */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="bg-primary-50 p-3 rounded-lg">
-              <Database className="w-6 h-6 text-primary-500" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Database Storage</h3>
-              <p className="text-sm text-gray-500">PostgreSQL on Railway</p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Total Records</span>
-              <span className="font-medium text-gray-900">
-                {(adminInfo?.counts?.alerts || 0) + (adminInfo?.counts?.users || 0) + (adminInfo?.counts?.user_prefs || 0)}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Alerts</span>
-              <span className="font-medium text-gray-900">{adminInfo?.counts?.alerts || 0}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Users</span>
-              <span className="font-medium text-gray-900">{adminInfo?.counts?.users || 0}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Preferences</span>
-              <span className="font-medium text-gray-900">{adminInfo?.counts?.user_prefs || 0}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Data Directory */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="bg-emerald-50 p-3 rounded-lg">
-              <HardDrive className="w-6 h-6 text-emerald-600" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Data Directory</h3>
-              <p className="text-sm text-gray-500">File storage location</p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <span className="text-xs text-gray-500 block mb-1">Path</span>
-              <code className="text-xs bg-gray-100 px-2 py-1 rounded block overflow-x-auto">
-                {adminInfo?.dataDir || '/app/data'}
-              </code>
-            </div>
-            <div>
-              <span className="text-xs text-gray-500 block mb-1">Backup Directory</span>
-              <code className="text-xs bg-gray-100 px-2 py-1 rounded block overflow-x-auto">
-                {adminInfo?.backupDir || '/app/data/backups'}
-              </code>
-            </div>
-          </div>
-        </div>
-
-        {/* Server Status */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="bg-navy-50 p-3 rounded-lg">
-              <Server className="w-6 h-6 text-navy-500" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Server Status</h3>
-              <p className="text-sm text-gray-500">Backend health</p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-emerald-500" />
-              <span className="text-sm font-medium text-emerald-500">Online</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Database</span>
-              <span className="font-medium text-emerald-500">
-                {adminInfo?.counts ? 'Connected' : 'Not configured'}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">API Provider</span>
-              <span className="font-medium text-emerald-500">
-                {adminInfo?.counts ? 'Active' : 'Inactive'}
-              </span>
-            </div>
-          </div>
+          )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-slate-400">{label}</span>
+      <span className="font-semibold text-white">{value}</span>
     </div>
   )
 }

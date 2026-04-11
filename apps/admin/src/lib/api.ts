@@ -133,3 +133,38 @@ export async function fetchAdminStats(): Promise<AdminStats> {
   const { data } = await api.get('/admin/stats')
   return data
 }
+
+// ============================================
+// AI DRAFTING API
+// ============================================
+
+export interface DraftAlertInput {
+  text: string
+  source_url?: string
+  hint_token?: string
+  model?: 'openai' | 'anthropic'
+}
+
+export interface DraftAlertResponse {
+  draft: {
+    token: string
+    title: string
+    body: string
+    severity: 'critical' | 'warning' | 'info'
+    tags: string[]
+    deadline: string | null
+    source_type: string
+    source_url?: string
+    reasoning?: string
+  }
+  model: string
+}
+
+/**
+ * Ask the backend AI to draft a ready-to-edit alert from free text or a news article.
+ * Server-side call; uses OpenAI / Anthropic keys held on the backend.
+ */
+export async function draftAlert(input: DraftAlertInput): Promise<DraftAlertResponse> {
+  const { data } = await api.post('/admin/ai/draft-alert', input)
+  return data
+}

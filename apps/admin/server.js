@@ -3538,6 +3538,184 @@ app.get('/admin/stats', requireAdmin, async (req, res) => {
   }
 });
 
+// ============================================
+// AI ALERT DRAFTING (admin only)
+// ============================================
+// Uses the same OpenAI/Anthropic integration as /api/summary/generate to draft
+// a ready-to-publish alert from a free-form description or news article.
+app.post('/admin/ai/draft-alert', requireAdmin, async (req, res) => {
+  try {
+    const { text, source_url, hint_token, model } = req.body || {};
+    if (!text || String(text).trim().length < 8) {
+      return res.status(400).json({ error: 'text is required (min 8 chars)' });
+    }
+
+    const validTags = [
+      'price-change','migration','hack','fork','scam','airdrop','whale',
+      'news','community','exploit','privacy','community-vote','token-unlocks'
+    ];
+    const validSeverities = ['critical','warning','info'];
+    const validSourceTypes = ['anonymous','mainstream-media','trusted-source','social-media','dev-team'];
+
+    const systemPrompt = `You are a senior crypto-security analyst for Crypto Lifeguard.
+You write concise, accurate, actionable alerts for crypto holders.
+
+Output STRICT JSON only (no markdown fences, no commentary) with this exact shape:
+{
+  "token": "<primary ticker symbol, upper-case, 2-6 chars>",
+  "title": "<max 80 chars, specific, no clickbait>",
+  "body": "<2-4 sentence description: what happened, who it affects, what to do>",
+  "severity": "critical" | "warning" | "info",
+  "tags": [<one or more of: ${validTags.join(', ')}>],
+  "deadline_days": <integer 1-90 if time sensitive, else null>,
+  "source_type": "anonymous" | "mainstream-media" | "trusted-source" | "social-media" | "dev-team",
+  "reasoning": "<1-2 sentence explanation of severity + tag choices>"
+}
+
+Severity guidelines:
+- critical: active exploit, hack confirmed, exchange halt, major regulatory ban, stablecoin depeg
+- warning: upcoming hard fork / migration, token unlock cliff, suspicious movement, governance vote deadline, fraud allegation
+- info: general announcement, partnership, release, market commentary, price milestone`;
+
+    const userPrompt = `Draft an alert from this source material.
+${hint_token ? `The admin suggested primary token is: ${hint_token}\n` : ''}${source_url ? `Source URL: ${source_url}\n` : ''}
+---
+${String(text).slice(0, 4000)}
+---
+
+Return ONLY the JSON object, no prose.`;
+
+    // Prefer OpenAI, fall back to Anthropic, then rule-based.
+    async function callOpenAIJson() {
+      if (!OPENAI_API_KEY) throw new Error('no-openai');
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 600,
+          response_format: { type: 'json_object' }
+        })
+      });
+      try { await trackAPICall('OpenAI', '/v1/chat/completions'); } catch(_) {}
+      if (!r.ok) throw new Error(`openai ${r.status}`);
+      const d = await r.json();
+      return { content: d.choices[0].message.content, model: 'OpenAI gpt-4o-mini' };
+    }
+
+    async function callAnthropicJson() {
+      if (!ANTHROPIC_API_KEY) throw new Error('no-anthropic');
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': ANTHROPIC_API_KEY,
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 600,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt + '\n\nRespond with ONLY the JSON object.' }]
+        })
+      });
+      try { await trackAPICall('Anthropic', '/v1/messages'); } catch(_) {}
+      if (!r.ok) throw new Error(`anthropic ${r.status}`);
+      const d = await r.json();
+      const txt = (d.content && d.content[0] && d.content[0].text) || '';
+      return { content: txt, model: 'Anthropic claude-3-5-sonnet' };
+    }
+
+    const prefer = (model || 'openai').toLowerCase();
+    let raw = null;
+    let usedModel = null;
+    const attempts = prefer === 'anthropic'
+      ? [callAnthropicJson, callOpenAIJson]
+      : [callOpenAIJson, callAnthropicJson];
+    for (const fn of attempts) {
+      try {
+        const out = await fn();
+        raw = out.content;
+        usedModel = out.model;
+        break;
+      } catch (e) {
+        console.warn('[draft-alert] provider failed:', e && e.message);
+      }
+    }
+
+    function ruleBasedFallback() {
+      const symMatch = String(text).match(/\b([A-Z]{2,6})\b/);
+      const token = (hint_token || (symMatch && symMatch[1]) || 'BTC').toUpperCase();
+      const lower = String(text).toLowerCase();
+      let severity = 'info';
+      const tags = ['news'];
+      if (/\bhack|exploit|breach|drained|stolen|rug ?pull\b/.test(lower)) { severity = 'critical'; tags.push('hack','exploit'); }
+      else if (/\bmigration|fork|upgrade|unlock|vote|proposal|ban\b/.test(lower)) { severity = 'warning'; }
+      const title = (String(text).split(/[.\n!?]/)[0] || '').slice(0, 80).trim() || `${token} update`;
+      return {
+        token,
+        title,
+        body: String(text).slice(0, 320).trim(),
+        severity,
+        tags: Array.from(new Set(tags)).filter(t => validTags.includes(t)),
+        deadline_days: null,
+        source_type: source_url ? 'mainstream-media' : 'anonymous',
+        reasoning: 'Heuristic fallback — no AI provider configured.'
+      };
+    }
+
+    let draft;
+    if (raw) {
+      try {
+        // Strip ```json fences if present
+        const cleaned = String(raw).replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+        draft = JSON.parse(cleaned);
+      } catch (e) {
+        console.warn('[draft-alert] JSON parse failed, using fallback:', e.message);
+        draft = ruleBasedFallback();
+        usedModel = (usedModel || '') + ' (parse-failed)';
+      }
+    } else {
+      draft = ruleBasedFallback();
+      usedModel = 'Heuristic';
+    }
+
+    // Normalise / sanitise
+    const token = String(draft.token || 'BTC').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'BTC';
+    const title = String(draft.title || '').slice(0, 120) || `${token} update`;
+    const body  = String(draft.body || draft.description || '').slice(0, 1200);
+    const severity = validSeverities.includes(String(draft.severity)) ? draft.severity : 'info';
+    const tags = Array.isArray(draft.tags)
+      ? Array.from(new Set(draft.tags.map(t => String(t).toLowerCase()).filter(t => validTags.includes(t))))
+      : [];
+    let deadline = null;
+    const dd = Number(draft.deadline_days);
+    if (Number.isFinite(dd) && dd > 0 && dd <= 365) {
+      const d = new Date();
+      d.setDate(d.getDate() + Math.floor(dd));
+      deadline = d.toISOString();
+    }
+    const source_type = validSourceTypes.includes(String(draft.source_type)) ? draft.source_type : (source_url ? 'mainstream-media' : 'anonymous');
+    const reasoning = String(draft.reasoning || '').slice(0, 400);
+
+    res.json({
+      draft: { token, title, body, severity, tags, deadline, source_type, source_url: source_url || '', reasoning },
+      model: usedModel || 'Heuristic'
+    });
+  } catch (error) {
+    console.error('[draft-alert] error:', error);
+    res.status(500).json({ error: 'Failed to draft alert', details: error && error.message });
+  }
+});
+
 // Create alert from admin panel (admin only)
 // Admin panel uses different field names: 'body' instead of 'description', optional deadline
 app.post('/admin/alerts', requireAdmin, async (req, res) => {

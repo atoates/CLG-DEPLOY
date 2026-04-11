@@ -1,67 +1,124 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Newspaper, RefreshCw, Trash2, Edit2, Search, Filter, X, Save, Bell, CheckCircle2, Sparkles } from 'lucide-react'
-import { fetchNewsCache, fetchNewsStats, updateNewsArticle, deleteNewsArticle, refreshNewsCache, createAlert } from '../lib/api'
-import { generateAlertFromNews, isAIEnabled } from '../lib/aiAlertGenerator'
+import {
+  Newspaper,
+  RefreshCw,
+  Trash2,
+  Edit2,
+  Search,
+  X,
+  Save,
+  Bell,
+  CheckCircle2,
+  Sparkles,
+  Wand2,
+  Loader2,
+  ExternalLink,
+  Clock,
+} from 'lucide-react'
+import {
+  fetchNewsCache,
+  fetchNewsStats,
+  updateNewsArticle,
+  deleteNewsArticle,
+  refreshNewsCache,
+  createAlert,
+} from '../lib/api'
+import { generateAlertFromNews, type AIGeneratedAlert } from '../lib/aiAlertGenerator'
 import type { NewsArticle } from '../types'
+
+const VALID_TAGS = [
+  'price-change',
+  'migration',
+  'hack',
+  'fork',
+  'scam',
+  'airdrop',
+  'whale',
+  'news',
+  'community',
+  'exploit',
+  'privacy',
+  'community-vote',
+  'token-unlocks',
+] as const
+
+type AlertComposer = {
+  token: string
+  title: string
+  body: string
+  severity: 'critical' | 'warning' | 'info'
+  tags: string[]
+  deadline: string
+  source_url: string
+}
+
+function toLocalInput(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function defaultDeadline(days: number) {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  d.setHours(23, 59, 0, 0)
+  return toLocalInput(d)
+}
 
 export function NewsFeed() {
   const queryClient = useQueryClient()
   const [selectedToken, setSelectedToken] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
   const [editingArticle, setEditingArticle] = useState<NewsArticle | null>(null)
-  const [creatingAlert, setCreatingAlert] = useState<NewsArticle | null>(null)
-  const [viewingArticle, setViewingArticle] = useState<NewsArticle | null>(null)
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
-  const [aiReasoning, setAiReasoning] = useState<string>('')
   const [editForm, setEditForm] = useState({
     title: '',
     text: '',
     sentiment: '' as 'positive' | 'neutral' | 'negative' | '',
     tickers: [] as string[],
   })
-  const [alertForm, setAlertForm] = useState({
+  const [creatingAlert, setCreatingAlert] = useState<NewsArticle | null>(null)
+  const [alertForm, setAlertForm] = useState<AlertComposer>({
     token: '',
     title: '',
     body: '',
-    severity: 'info' as 'critical' | 'warning' | 'info',
-    tags: [] as string[],
-    deadline: '',
+    severity: 'info',
+    tags: [],
+    deadline: defaultDeadline(7),
     source_url: '',
   })
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiModel, setAiModel] = useState('')
+  const [aiReasoning, setAiReasoning] = useState('')
+  const [successToast, setSuccessToast] = useState('')
 
-  // Fetch news articles
-  const { data: articles = [], isLoading } = useQuery({
+  const { data: articles = [], isLoading } = useQuery<NewsArticle[]>({
     queryKey: ['news-cache', selectedToken],
     queryFn: () => fetchNewsCache({ token: selectedToken || undefined, days: 120 }),
   })
 
-  // Fetch news stats
   const { data: stats } = useQuery({
     queryKey: ['news-stats'],
     queryFn: fetchNewsStats,
   })
 
-  // Refresh news mutation
   const refreshMutation = useMutation({
     mutationFn: refreshNewsCache,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['news-cache'] })
       queryClient.invalidateQueries({ queryKey: ['news-stats'] })
+      setSuccessToast('News cache refreshed')
+      setTimeout(() => setSuccessToast(''), 2500)
     },
   })
 
-  // Update news mutation
   const updateMutation = useMutation({
-    mutationFn: ({ url, updates }: { url: string; updates: any }) => 
-      updateNewsArticle(url, updates),
+    mutationFn: ({ url, updates }: { url: string; updates: any }) => updateNewsArticle(url, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['news-cache'] })
       setEditingArticle(null)
     },
   })
 
-  // Delete news mutation
   const deleteMutation = useMutation({
     mutationFn: deleteNewsArticle,
     onSuccess: () => {
@@ -70,644 +127,536 @@ export function NewsFeed() {
     },
   })
 
-  // Create alert mutation
   const createAlertMutation = useMutation({
     mutationFn: createAlert,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['alerts'] })
-      // Refetch news to get updated alert_created status
       queryClient.invalidateQueries({ queryKey: ['news-cache'] })
       setCreatingAlert(null)
-      alert('Alert created successfully!')
+      setSuccessToast('Alert created from article')
+      setTimeout(() => setSuccessToast(''), 2500)
     },
   })
 
-  // Filter articles by search
-  const filteredArticles = articles.filter(article => {
-    if (!searchQuery) return true
-    const search = searchQuery.toLowerCase()
-    return (
-      article.title.toLowerCase().includes(search) ||
-      article.text?.toLowerCase().includes(search) ||
-      article.source_name.toLowerCase().includes(search)
+  const filteredArticles = useMemo(() => {
+    if (!searchQuery) return articles
+    const q = searchQuery.toLowerCase()
+    return articles.filter(
+      (a) =>
+        a.title.toLowerCase().includes(q) ||
+        a.text?.toLowerCase().includes(q) ||
+        a.source_name?.toLowerCase().includes(q)
     )
-  })
+  }, [articles, searchQuery])
 
-  // Get unique tokens from stats
-  const tokens = stats?.byToken?.map(t => t.token) || []
+  const tokens = stats?.byToken?.map((t: any) => t.token) || []
 
-  // Handle edit
-  const handleEdit = (article: NewsArticle) => {
-    setEditingArticle(article)
-    setEditForm({
-      title: article.title,
-      text: article.text || '',
-      sentiment: article.sentiment || '',
-      tickers: article.tickers,
-    })
-  }
-
-  const handleSaveEdit = () => {
-    if (!editingArticle) return
-    updateMutation.mutate({
-      url: editingArticle.article_url,
-      updates: {
-        title: editForm.title,
-        text: editForm.text,
-        sentiment: editForm.sentiment || null,
-        tickers: editForm.tickers,
-      },
-    })
-  }
-
-  const handleDelete = (articleUrl: string) => {
-    if (confirm('Are you sure you want to delete this article from cache?')) {
-      deleteMutation.mutate(articleUrl)
-    }
-  }
-
-  // Handle create alert from news
-  const handleCreateAlert = (article: NewsArticle) => {
+  function openAlertComposer(article: NewsArticle) {
     setCreatingAlert(article)
-    setAiReasoning('')
-    // Pre-populate form with article data (basic mode)
     setAlertForm({
-      token: article.tickers[0] || '',
-      title: article.title,
+      token: article.tickers[0]?.toUpperCase() || '',
+      title: article.title.substring(0, 120),
       body: article.text || '',
       severity: article.sentiment === 'negative' ? 'warning' : 'info',
-      tags: article.sentiment === 'negative' ? ['news', 'warning'] : ['news'],
-      deadline: '',
+      tags: ['news'],
+      deadline: defaultDeadline(7),
       source_url: article.article_url,
     })
+    setAiReasoning('')
+    setAiModel('')
   }
 
-  // Handle AI-assisted alert generation
-  const handleGenerateWithAI = async () => {
+  async function handleGenerateAI() {
     if (!creatingAlert) return
-    
-    setIsGeneratingAI(true)
-    setAiReasoning('')
-    
+    setAiLoading(true)
     try {
-      const aiAlert = await generateAlertFromNews(creatingAlert)
-      
+      const draft: AIGeneratedAlert = await generateAlertFromNews(creatingAlert)
       setAlertForm({
-        token: aiAlert.token,
-        title: aiAlert.title,
-        body: aiAlert.body,
-        severity: aiAlert.severity,
-        tags: aiAlert.tags,
-        deadline: aiAlert.deadline || '',
-        source_url: creatingAlert.article_url,
+        token: draft.token || alertForm.token,
+        title: draft.title || alertForm.title,
+        body: draft.body || alertForm.body,
+        severity: draft.severity || 'info',
+        tags: draft.tags || ['news'],
+        deadline: draft.deadline ? toLocalInput(new Date(draft.deadline)) : alertForm.deadline,
+        source_url: draft.source_url || alertForm.source_url,
       })
-      
-      if (aiAlert.reasoning) {
-        setAiReasoning(aiAlert.reasoning)
-      }
-    } catch (error) {
-      console.error('AI generation failed:', error)
-      alert('AI generation failed. Please try again or edit manually.')
+      setAiModel(draft.model || '')
+      setAiReasoning(draft.reasoning || '')
+    } catch (err) {
+      console.error(err)
     } finally {
-      setIsGeneratingAI(false)
+      setAiLoading(false)
     }
   }
 
-  const handleSaveAlert = () => {
-    if (!creatingAlert || !alertForm.token || !alertForm.title) return
-    
+  function handleCreateAlertSubmit() {
+    if (!alertForm.token || !alertForm.title) return
     createAlertMutation.mutate({
-      token: alertForm.token,
+      token: alertForm.token.toUpperCase(),
       title: alertForm.title,
       body: alertForm.body,
       severity: alertForm.severity,
       tags: alertForm.tags,
-      deadline: alertForm.deadline || undefined,
-      source_url: alertForm.source_url || creatingAlert.article_url,  // Use form source_url or fallback to article URL
+      deadline: new Date(alertForm.deadline).toISOString(),
+      source_url: alertForm.source_url,
     })
   }
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
+  const sentimentClass = (s?: string | null) =>
+    s === 'negative'
+      ? 'badge-critical'
+      : s === 'positive'
+      ? 'badge-teal'
+      : 'badge-soft'
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">News Cache Management</h1>
-          <p className="text-gray-600 mt-2">Manage cached news articles from CoinDesk</p>
-        </div>
-        <button
-          onClick={() => refreshMutation.mutate()}
-          disabled={refreshMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
-          Refresh Cache
-        </button>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <p className="text-sm text-gray-600">Total Cached</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{stats?.totalCached || 0}</p>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <p className="text-sm text-gray-600">Expiring Soon (7d)</p>
-          <p className="text-3xl font-bold text-orange-600 mt-2">{stats?.expiringSoon || 0}</p>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <p className="text-sm text-gray-600">Avg Age</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">
-            {stats?.avgAgeSeconds ? Math.round(stats.avgAgeSeconds / 86400) : 0}d
-          </p>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <p className="text-sm text-gray-600">Unique Tokens</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{tokens.length}</p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Search className="w-4 h-4 inline mr-2" />
-              Search Articles
-            </label>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by title, content, or source..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
+    <div className="space-y-6 animate-fade-up">
+      {/* Header + stats */}
+      <div className="glass-card p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-400 to-blue-600 shadow-glow-teal">
+              <Newspaper className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <div className="section-title">News Triage</div>
+              <h2 className="font-display text-2xl font-bold text-white">
+                CoinDesk cache{stats ? ` (${stats.totalCached})` : ''}
+              </h2>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Filter className="w-4 h-4 inline mr-2" />
-              Filter by Token
-            </label>
-            <select
-              value={selectedToken}
-              onChange={(e) => setSelectedToken(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+          <div className="flex gap-2">
+            <button
+              onClick={() => refreshMutation.mutate()}
+              disabled={refreshMutation.isPending}
+              className="btn-ghost"
             >
-              <option value="">All Tokens</option>
-              {tokens.map(token => (
-                <option key={token} value={token}>{token}</option>
-              ))}
-            </select>
+              <RefreshCw className={`h-4 w-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* Articles List */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        {isLoading ? (
-          <div className="p-8 text-center text-gray-600">Loading articles...</div>
-        ) : filteredArticles.length === 0 ? (
-          <div className="p-8 text-center">
-            <Newspaper className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No articles found</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-200">
-            {filteredArticles.map(article => (
-              <div key={article.article_url} className="p-6 hover:bg-gray-50">
-                <div className="flex items-start justify-between gap-4">
-                  <div 
-                    className="flex-1 cursor-pointer" 
-                    onClick={() => setViewingArticle(article)}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-medium text-gray-500">{article.source_name}</span>
-                      <span className="text-xs text-gray-400">•</span>
-                      <span className="text-xs text-gray-500">{formatDate(article.date)}</span>
-                      {article.sentiment && (
-                        <>
-                          <span className="text-xs text-gray-400">•</span>
-                          <span className={`text-xs font-medium ${
-                            article.sentiment === 'positive' ? 'text-primary-600' :
-                            article.sentiment === 'negative' ? 'text-red-600' :
-                            'text-gray-600'
-                          }`}>
-                            {article.sentiment}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2 hover:text-primary-600">{article.title}</h3>
-                    {article.text && (
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">{article.text}</p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      {article.tickers.map(ticker => (
-                        <span
-                          key={ticker}
-                          className="px-2 py-1 bg-primary-100 text-primary-700 text-xs font-medium rounded"
-                        >
-                          {ticker}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {article.alert_created ? (
-                      <button
-                        className="p-2 text-primary-600 bg-primary-50 rounded cursor-default"
-                        title="Alert already created from this article"
-                        disabled
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleCreateAlert(article)}
-                        className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded"
-                        title="Create alert from this article"
-                      >
-                        <Bell className="w-4 h-4" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleEdit(article)}
-                      className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded"
-                      title="Edit article"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(article.article_url)}
-                      disabled={deleteMutation.isPending}
-                      className="p-2 text-gray-600 hover:text-red-600 hover:bg-gray-100 rounded"
-                      title="Delete article"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Stat label="Total cached" value={stats?.totalCached || 0} />
+          <Stat label="Expiring ≤7d" value={stats?.expiringSoon || 0} accent="amber" />
+          <Stat
+            label="Avg age"
+            value={stats?.avgAgeSeconds ? `${Math.round(stats.avgAgeSeconds / 86400)}d` : '0d'}
+          />
+          <Stat label="Unique tokens" value={stats?.byToken?.length || 0} />
+        </div>
+
+        {successToast && (
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-200">
+            <CheckCircle2 className="h-4 w-4" />
+            {successToast}
           </div>
         )}
       </div>
 
-      {/* Edit Modal */}
-      {editingArticle && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Edit Article</h2>
-              <button
-                onClick={() => setEditingArticle(null)}
-                className="p-2 text-gray-600 hover:text-gray-900"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
-                <input
-                  type="text"
-                  value={editForm.title}
-                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Content</label>
-                <textarea
-                  value={editForm.text}
-                  onChange={(e) => setEditForm({ ...editForm, text: e.target.value })}
-                  rows={4}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Sentiment</label>
-                <select
-                  value={editForm.sentiment}
-                  onChange={(e) => setEditForm({ ...editForm, sentiment: e.target.value as any })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">None</option>
-                  <option value="positive">Positive</option>
-                  <option value="neutral">Neutral</option>
-                  <option value="negative">Negative</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tickers (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  value={editForm.tickers.join(', ')}
-                  onChange={(e) => setEditForm({ 
-                    ...editForm, 
-                    tickers: e.target.value.split(',').map(t => t.trim()).filter(Boolean)
-                  })}
-                  placeholder="BTC, ETH, SOL"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-            </div>
-            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
-              <button
-                onClick={() => setEditingArticle(null)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveEdit}
-                disabled={updateMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                Save Changes
-              </button>
-            </div>
-          </div>
+      {/* Filters */}
+      <div className="glass-card flex flex-col gap-3 p-4 md:flex-row md:items-center">
+        <div className="relative flex-1">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">
+            <Search className="h-4 w-4" />
+          </span>
+          <input
+            className="input pl-10"
+            placeholder="Search headline, body or source"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
-      )}
+        <select
+          className="input md:w-48"
+          value={selectedToken}
+          onChange={(e) => setSelectedToken(e.target.value)}
+        >
+          <option value="">All tokens</option>
+          {tokens.map((t: string) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      {/* Create Alert Modal */}
-      {creatingAlert && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Create Alert from News</h2>
-              <button
-                onClick={() => setCreatingAlert(null)}
-                className="p-2 text-gray-600 hover:text-gray-900"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* AI Generation Button */}
-            {isAIEnabled() && (
-              <div className="px-6 pt-4 pb-2 bg-gradient-to-r from-primary-50 to-primary-100 border-b border-primary-100">
-                <button
-                  onClick={handleGenerateWithAI}
-                  disabled={isGeneratingAI}
-                  className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-3 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Sparkles className={`w-5 h-5 ${isGeneratingAI ? 'animate-spin' : ''}`} />
-                  {isGeneratingAI ? 'AI is analyzing article...' : 'Generate Smart Alert with AI'}
-                </button>
-                {aiReasoning && (
-                  <div className="mt-3 p-3 bg-white rounded-lg border border-primary-200">
-                    <p className="text-xs font-semibold text-navy-800 mb-1">AI Reasoning:</p>
-                    <p className="text-sm text-gray-700">{aiReasoning}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Token <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={alertForm.token}
-                  onChange={(e) => setAlertForm({ ...alertForm, token: e.target.value.toUpperCase() })}
-                  placeholder="BTC, ETH, SOL..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Select from tickers: {creatingAlert.tickers.join(', ') || 'None'}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Alert Title <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={alertForm.title}
-                  onChange={(e) => setAlertForm({ ...alertForm, title: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Alert Body</label>
-                <textarea
-                  value={alertForm.body}
-                  onChange={(e) => setAlertForm({ ...alertForm, body: e.target.value })}
-                  rows={6}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Alert description and source URL..."
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Severity</label>
-                <select
-                  value={alertForm.severity}
-                  onChange={(e) => setAlertForm({ ...alertForm, severity: e.target.value as any })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="info">Info</option>
-                  <option value="warning">Warning</option>
-                  <option value="critical">Critical</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tags (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  value={alertForm.tags.join(', ')}
-                  onChange={(e) => setAlertForm({ 
-                    ...alertForm, 
-                    tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean)
-                  })}
-                  placeholder="news, community, warning..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Deadline (optional)
-                </label>
-                <input
-                  type="datetime-local"
-                  value={alertForm.deadline}
-                  onChange={(e) => setAlertForm({ ...alertForm, deadline: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Source URL
-                </label>
-                <input
-                  type="url"
-                  value={alertForm.source_url}
-                  onChange={(e) => setAlertForm({ ...alertForm, source_url: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  readOnly
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Auto-populated from news article
-                </p>
-              </div>
-            </div>
-            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
-              <button
-                onClick={() => setCreatingAlert(null)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveAlert}
-                disabled={createAlertMutation.isPending || !alertForm.token || !alertForm.title}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-              >
-                <Bell className="w-4 h-4" />
-                Create Alert
-              </button>
-            </div>
-          </div>
+      {/* Articles */}
+      {isLoading ? (
+        <div className="py-12 text-center text-sm text-slate-500">Loading news…</div>
+      ) : filteredArticles.length === 0 ? (
+        <div className="glass-card py-16 text-center">
+          <Newspaper className="mx-auto mb-3 h-8 w-8 text-slate-500" />
+          <div className="text-sm text-slate-400">No articles match your filter.</div>
         </div>
-      )}
-
-      {/* View Article Modal */}
-      {viewingArticle && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-medium text-gray-600">{viewingArticle.source_name}</span>
-                  <span className="text-xs text-gray-400">•</span>
-                  <span className="text-sm text-gray-500">{formatDate(viewingArticle.date)}</span>
-                  {viewingArticle.sentiment && (
-                    <>
-                      <span className="text-xs text-gray-400">•</span>
-                      <span className={`px-2 py-1 text-xs font-medium rounded ${
-                        viewingArticle.sentiment === 'positive' ? 'bg-primary-100 text-primary-700' :
-                        viewingArticle.sentiment === 'negative' ? 'bg-red-100 text-red-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {viewingArticle.sentiment}
-                      </span>
-                    </>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {filteredArticles.map((a) => (
+            <article
+              key={a.article_url}
+              className="glass-card flex flex-col gap-3 p-5 transition-all hover:border-teal-400/30"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="badge badge-soft">{a.source_name}</span>
+                  {a.sentiment && (
+                    <span className={`badge ${sentimentClass(a.sentiment)}`}>{a.sentiment}</span>
+                  )}
+                  {a.alert_created && (
+                    <span className="badge badge-teal">
+                      <CheckCircle2 className="h-3 w-3" /> Alerted
+                    </span>
                   )}
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">{viewingArticle.title}</h2>
-              </div>
-              <button
-                onClick={() => setViewingArticle(null)}
-                className="p-2 text-gray-600 hover:text-gray-900 ml-4"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Article Image */}
-              {viewingArticle.image_url && (
-                <div className="rounded-lg overflow-hidden">
-                  <img 
-                    src={viewingArticle.image_url} 
-                    alt={viewingArticle.title}
-                    className="w-full h-auto"
-                    onError={(e) => { e.currentTarget.style.display = 'none' }}
-                  />
-                </div>
-              )}
-
-              {/* Article Content */}
-              <div className="prose max-w-none">
-                {viewingArticle.text ? (
-                  <p className="text-gray-700 text-base leading-relaxed whitespace-pre-wrap">
-                    {viewingArticle.text}
-                  </p>
-                ) : (
-                  <p className="text-gray-500 italic">No article content available</p>
-                )}
-              </div>
-
-              {/* Tokens */}
-              {viewingArticle.tickers.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Related Tokens</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {viewingArticle.tickers.map(ticker => (
-                      <span
-                        key={ticker}
-                        className="px-3 py-1 bg-primary-100 text-primary-700 text-sm font-medium rounded"
-                      >
-                        {ticker}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Source Link */}
-              <div className="border-t border-gray-200 pt-4">
-                <a
-                  href={viewingArticle.article_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium"
-                >
-                  Read full article on {viewingArticle.source_name}
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                </a>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 border-t border-gray-200 pt-4">
-                {!viewingArticle.alert_created && (
+                <div className="flex gap-1">
+                  <a
+                    href={a.article_url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white/5 hover:text-teal-300"
+                    title="Open source"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
                   <button
                     onClick={() => {
-                      setViewingArticle(null)
-                      handleCreateAlert(viewingArticle)
+                      setEditingArticle(a)
+                      setEditForm({
+                        title: a.title,
+                        text: a.text || '',
+                        sentiment: a.sentiment || '',
+                        tickers: a.tickers,
+                      })
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                    className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white/5 hover:text-teal-300"
+                    title="Edit"
                   >
-                    <Bell className="w-4 h-4" />
-                    Create Alert from Article
+                    <Edit2 className="h-3.5 w-3.5" />
                   </button>
-                )}
-                <button
-                  onClick={() => {
-                    setViewingArticle(null)
-                    handleEdit(viewingArticle)
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  Edit Article
+                  <button
+                    onClick={() => {
+                      if (confirm('Delete this article?')) deleteMutation.mutate(a.article_url)
+                    }}
+                    className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-300"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+              <h3 className="line-clamp-2 text-base font-semibold leading-snug text-white">
+                {a.title}
+              </h3>
+              {a.text && <p className="line-clamp-3 text-sm text-slate-400">{a.text}</p>}
+              {a.tickers?.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {a.tickers.slice(0, 6).map((t) => (
+                    <span key={t} className="badge badge-teal text-[10px]">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="mt-auto flex items-center justify-between gap-2 border-t border-white/5 pt-3">
+                <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                  <Clock className="h-3 w-3" />
+                  {a.date ? new Date(a.date).toLocaleString() : '—'}
+                </div>
+                <button onClick={() => openAlertComposer(a)} className="btn-primary px-3 py-1.5 text-xs">
+                  <Bell className="h-3.5 w-3.5" />
+                  Create alert
                 </button>
               </div>
-            </div>
-          </div>
+            </article>
+          ))}
         </div>
       )}
+
+      {/* Edit article modal */}
+      {editingArticle && (
+        <Modal title="Edit article" onClose={() => setEditingArticle(null)}>
+          <div className="space-y-4">
+            <div>
+              <label className="label">Title</label>
+              <input
+                className="input"
+                value={editForm.title}
+                onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="label">Body</label>
+              <textarea
+                className="input h-32 resize-none"
+                value={editForm.text}
+                onChange={(e) => setEditForm({ ...editForm, text: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="label">Sentiment</label>
+                <select
+                  className="input"
+                  value={editForm.sentiment}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, sentiment: e.target.value as any })
+                  }
+                >
+                  <option value="">—</option>
+                  <option value="positive">positive</option>
+                  <option value="neutral">neutral</option>
+                  <option value="negative">negative</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Tickers (comma-separated)</label>
+                <input
+                  className="input"
+                  value={editForm.tickers.join(', ')}
+                  onChange={(e) =>
+                    setEditForm({
+                      ...editForm,
+                      tickers: e.target.value
+                        .split(',')
+                        .map((t) => t.trim().toUpperCase())
+                        .filter(Boolean),
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                className="btn-primary flex-1"
+                onClick={() =>
+                  updateMutation.mutate({
+                    url: editingArticle.article_url,
+                    updates: {
+                      title: editForm.title,
+                      text: editForm.text,
+                      sentiment: editForm.sentiment || null,
+                      tickers: editForm.tickers,
+                    },
+                  })
+                }
+              >
+                <Save className="h-4 w-4" /> Save
+              </button>
+              <button className="btn-ghost" onClick={() => setEditingArticle(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Create alert from article modal */}
+      {creatingAlert && (
+        <Modal title="Create alert from article" onClose={() => setCreatingAlert(null)}>
+          <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              Source article
+            </div>
+            <div className="text-sm font-semibold text-white">{creatingAlert.title}</div>
+            <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
+              <span>{creatingAlert.source_name}</span>
+              <span>·</span>
+              <a
+                href={creatingAlert.article_url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center gap-1 text-teal-300 hover:underline"
+              >
+                open <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGenerateAI}
+            disabled={aiLoading}
+            className="btn-primary mb-4 w-full"
+          >
+            {aiLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Drafting with AI…
+              </>
+            ) : (
+              <>
+                <Wand2 className="h-4 w-4" /> Auto-fill with AI
+              </>
+            )}
+          </button>
+
+          {aiModel && (
+            <div className="mb-4 rounded-xl border border-teal-400/30 bg-teal-500/10 p-3 text-xs">
+              <div className="mb-1 flex items-center gap-2 font-semibold uppercase tracking-wider text-teal-300">
+                <Sparkles className="h-3 w-3" /> {aiModel}
+              </div>
+              {aiReasoning && <p className="text-slate-300">{aiReasoning}</p>}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label className="label">Token</label>
+                <input
+                  className="input"
+                  value={alertForm.token}
+                  onChange={(e) =>
+                    setAlertForm({ ...alertForm, token: e.target.value.toUpperCase() })
+                  }
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label">Severity</label>
+                <select
+                  className="input"
+                  value={alertForm.severity}
+                  onChange={(e) =>
+                    setAlertForm({
+                      ...alertForm,
+                      severity: e.target.value as 'critical' | 'warning' | 'info',
+                    })
+                  }
+                >
+                  <option value="critical">critical</option>
+                  <option value="warning">warning</option>
+                  <option value="info">info</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Title</label>
+              <input
+                className="input"
+                value={alertForm.title}
+                onChange={(e) => setAlertForm({ ...alertForm, title: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="label">Body</label>
+              <textarea
+                className="input h-28 resize-none"
+                value={alertForm.body}
+                onChange={(e) => setAlertForm({ ...alertForm, body: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="label">Tags</label>
+              <div className="flex flex-wrap gap-2">
+                {VALID_TAGS.map((tag) => {
+                  const active = alertForm.tags.includes(tag)
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      className={`chip ${active ? 'chip-active' : ''}`}
+                      onClick={() =>
+                        setAlertForm({
+                          ...alertForm,
+                          tags: active
+                            ? alertForm.tags.filter((t) => t !== tag)
+                            : [...alertForm.tags, tag],
+                        })
+                      }
+                    >
+                      {tag}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Deadline</label>
+              <input
+                type="datetime-local"
+                className="input"
+                value={alertForm.deadline}
+                onChange={(e) => setAlertForm({ ...alertForm, deadline: e.target.value })}
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                className="btn-primary flex-1"
+                disabled={createAlertMutation.isPending}
+                onClick={handleCreateAlertSubmit}
+              >
+                {createAlertMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Creating…
+                  </>
+                ) : (
+                  <>
+                    <Bell className="h-4 w-4" /> Publish alert
+                  </>
+                )}
+              </button>
+              <button className="btn-ghost" onClick={() => setCreatingAlert(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function Stat({
+  label,
+  value,
+  accent,
+}: {
+  label: string
+  value: React.ReactNode
+  accent?: 'amber'
+}) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+      <div
+        className={`mt-1 font-display text-2xl font-bold ${
+          accent === 'amber' ? 'text-amber-300' : 'text-white'
+        }`}
+      >
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function Modal({
+  title,
+  children,
+  onClose,
+}: {
+  title: string
+  children: React.ReactNode
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
+      <div className="glass-card-solid my-10 w-full max-w-2xl p-6 shadow-glow-soft">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-display text-xl font-bold text-white">{title}</h3>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   )
 }
