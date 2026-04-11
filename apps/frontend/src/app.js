@@ -121,6 +121,10 @@ let summaryPrevBtn = null;
 let summaryNextBtn = null;
 let summaryRefreshBtn = null;
 
+/** Paginated alerts list (main feed mockup) */
+const ALERTS_PAGE_SIZE = 6;
+let alertsPageIndex = 0;
+
 // --- Helpers ---------------------------------------------------------------
 function fmtTimeLeft(ms){
   if (!Number.isFinite(ms)) return '';
@@ -185,11 +189,13 @@ function unhideAlert(a){
 function renderPills(){
   if (!selectedTokensEl) return;
   selectedTokensEl.innerHTML = '';
+  const statusEl = document.getElementById('watchlist-status');
+  if (statusEl) {
+    statusEl.textContent = selectedTokens.length
+      ? `${selectedTokens.length} on watchlist`
+      : 'No tokens selected';
+  }
   if (!selectedTokens.length){
-    const hint = document.createElement('span');
-    hint.className = 'muted';
-    hint.textContent = 'No tokens selected yet.';
-    selectedTokensEl.appendChild(hint);
     return;
   }
   selectedTokens.forEach(sym => {
@@ -464,6 +470,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (userMenuBtn && userMenu) {
     userMenuBtn.addEventListener('click', (e) => {
+      if (isLoggedIn) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.location.href = '/profile.html';
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       const isHidden = userMenu.hidden;
@@ -601,33 +613,36 @@ document.addEventListener('DOMContentLoaded', () => {
         if (logoutNode) logoutNode.hidden = !me.loggedIn;
       }catch(_e){}
 
-      // If logged in, replace the Account dropdown with avatar + name button to Profile
-      if (me.loggedIn) {
-        const btn = document.getElementById('user-menu-btn');
-        const menu = document.getElementById('user-menu');
-        if (menu) menu.hidden = true;
-        if (btn) {
-          const clone = btn.cloneNode(false);
-          clone.id = 'user-menu-btn';
-          clone.setAttribute('aria-haspopup', 'false');
-          clone.setAttribute('aria-expanded', 'false');
-          // Build avatar + name label
-          const wrap = document.createElement('span');
-          wrap.style.display = 'inline-flex'; wrap.style.alignItems = 'center'; wrap.style.gap = '8px';
-          const av = document.createElement('span');
-          av.style.width = '22px'; av.style.height = '22px'; av.style.borderRadius = '999px'; av.style.display = 'inline-block'; av.style.overflow = 'hidden'; av.style.background = '#e2e8f0';
+      const nameEl = document.getElementById('user-name-el');
+      const avEl = document.getElementById('user-avatar-el');
+      const pillBtn = document.getElementById('user-menu-btn');
+      const menu = document.getElementById('user-menu');
+      if (avEl) {
+        avEl.innerHTML = '';
+        avEl.classList.toggle('user-avatar--filled', !!me.loggedIn);
+        if (me.loggedIn) {
           const url = me.profile?.avatar || '';
-          if (url){ const img=document.createElement('img'); img.src=url; img.alt=''; img.width=22; img.height=22; img.style.display='block'; av.appendChild(img); }
-          else { av.textContent = (me.profile?.name||'U').trim().charAt(0).toUpperCase(); av.style.fontWeight='800'; av.style.color='#0f172a'; av.style.display='grid'; }
-          const nm = document.createElement('span'); nm.textContent = (me.profile?.username ? `@${me.profile.username}` : (me.profile?.name || 'Profile'));
-          wrap.appendChild(av); wrap.appendChild(nm);
-          clone.appendChild(wrap);
-          btn.parentNode.replaceChild(clone, btn);
-          clone.addEventListener('click', (e) => {
-            e.preventDefault();
-            window.location.href = '/profile.html';
-          });
+          if (url) {
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = '';
+            img.width = 32;
+            img.height = 32;
+            avEl.appendChild(img);
+          } else {
+            avEl.textContent = (me.profile?.name || 'U').trim().charAt(0).toUpperCase();
+          }
         }
+      }
+      if (nameEl) {
+        nameEl.textContent = me.loggedIn
+          ? (me.profile?.username || me.profile?.name || 'Profile')
+          : 'Account';
+      }
+      if (me.loggedIn && pillBtn && menu) {
+        pillBtn.setAttribute('aria-haspopup', 'false');
+        pillBtn.setAttribute('aria-expanded', 'false');
+        menu.hidden = true;
       }
     }
   }catch(e){}
@@ -1307,24 +1322,98 @@ function sortAlertsByDeadline(list){
   return upcoming.concat(expired);
 }
 
-function renderAlerts(){
-  const list = sortAlertsByDeadline(getRelevantAlerts());
-  alertsListEl.innerHTML = '';
-  if (list.length === 0){
-    noAlertsEl.hidden = false;
+function renderAlertsPagination(total, pageSize) {
+  const nav = document.getElementById('alerts-pagination');
+  if (!nav) return;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  if (total <= pageSize) {
+    nav.hidden = true;
+    nav.innerHTML = '';
     return;
-  } else {
-    noAlertsEl.hidden = true;
   }
+  nav.hidden = false;
+  nav.innerHTML = '';
+  const prev = document.createElement('button');
+  prev.type = 'button';
+  prev.className = 'pagination-btn';
+  prev.setAttribute('aria-label', 'Previous page');
+  prev.textContent = '←';
+  prev.disabled = alertsPageIndex <= 0;
+  prev.addEventListener('click', () => {
+    if (alertsPageIndex > 0) {
+      alertsPageIndex--;
+      renderAlerts();
+    }
+  });
+  nav.appendChild(prev);
+  const maxIdx = pages - 1;
+  const windowSize = 8;
+  let start = Math.max(0, alertsPageIndex - Math.floor(windowSize / 2));
+  let end = Math.min(maxIdx + 1, start + windowSize);
+  if (end - start < windowSize) start = Math.max(0, end - windowSize);
+  for (let i = start; i < end; i++) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pagination-num' + (i === alertsPageIndex ? ' is-current' : '');
+    b.textContent = String(i + 1);
+    b.addEventListener('click', () => {
+      alertsPageIndex = i;
+      renderAlerts();
+    });
+    nav.appendChild(b);
+  }
+  const next = document.createElement('button');
+  next.type = 'button';
+  next.className = 'pagination-btn';
+  next.setAttribute('aria-label', 'Next page');
+  next.textContent = '→';
+  next.disabled = alertsPageIndex >= maxIdx;
+  next.addEventListener('click', () => {
+    if (alertsPageIndex < maxIdx) {
+      alertsPageIndex++;
+      renderAlerts();
+    }
+  });
+  nav.appendChild(next);
+}
+
+function renderAlerts(){
+  const fullList = sortAlertsByDeadline(getRelevantAlerts());
+  const total = fullList.length;
+  const pageSize = ALERTS_PAGE_SIZE;
+  const maxPageIdx = Math.max(0, Math.ceil(total / pageSize) - 1);
+  if (alertsPageIndex > maxPageIdx) alertsPageIndex = maxPageIdx;
+  const list = fullList.slice(alertsPageIndex * pageSize, alertsPageIndex * pageSize + pageSize);
+
+  renderAlertsPagination(total, pageSize);
+
+  alertsListEl.innerHTML = '';
+  if (fullList.length === 0){
+    noAlertsEl.hidden = false;
+    const nav = document.getElementById('alerts-pagination');
+    if (nav) { nav.hidden = true; nav.innerHTML = ''; }
+    return;
+  }
+  noAlertsEl.hidden = true;
+
+  const v = '20251021c';
 
   list.forEach(a => {
     const wrap = document.createElement('div');
-    wrap.className = 'alert-item severity-' + (a.severity || 'info');
+    wrap.className = 'alert-item alert-item--feed severity-' + (a.severity || 'info');
 
     const hidden = isHidden(a);
     if (showAll && hidden) wrap.classList.add('is-hidden');
 
-    // Compact dismiss button (cross) in top-left of the card
+    const tagsArrForAccent = getAlertTagsArray(a);
+
+    const accentSide = document.createElement('div');
+    accentSide.className = 'alert-accent-side';
+    if (tagsArrForAccent.includes('migration')) accentSide.classList.add('accent-migration');
+
+    const row = document.createElement('div');
+    row.className = 'alert-item-row';
+
     const dismissBtn = document.createElement('button');
     dismissBtn.type = 'button';
     dismissBtn.className = 'alert-dismiss-btn';
@@ -1332,111 +1421,56 @@ function renderAlerts(){
     dismissBtn.title = hidden ? 'Unhide alert' : 'Dismiss alert';
     dismissBtn.textContent = '×';
     dismissBtn.addEventListener('click', () => {
-      // Toggle dismiss/undismiss
-      if (isHidden(a)) {
-        unhideAlert(a);
-      } else {
-        dismissAlert(a);
-      }
+      if (isHidden(a)) unhideAlert(a);
+      else dismissAlert(a);
     });
-    wrap.appendChild(dismissBtn);
 
-  // Accent strip (severity, with migration override)
-  const accent = document.createElement('div');
-  accent.className = 'alert-accent';
-  const tagsArrForAccent = getAlertTagsArray(a);
-  if (tagsArrForAccent.includes('migration')) accent.classList.add('accent-migration');
-  wrap.appendChild(accent);
-
-  // COIN LOGO/SYMBOL SECTION
     const coinSection = document.createElement('div');
     coinSection.className = 'coin-section';
-    
     const coinLogo = document.createElement('div');
     coinLogo.className = 'coin-logo';
-    
     const token = (a.token || '').toUpperCase();
-    // Always use API endpoint for logos (alerts may have empty logo_url)
     const logoUrl = apiUrl(`/api/logo/${token}`);
-    
     const img = document.createElement('img');
     img.className = 'coin-img';
     img.src = logoUrl;
     img.alt = `${token} logo`;
     img.onerror = function() {
-      // Fallback to API proxy service on error (will return monogram)
       this.onerror = null;
       this.src = apiUrl(`/api/logo/${token}`);
     };
-    
     coinLogo.appendChild(img);
-    
-    const coinSymbol = document.createElement('div');
-    coinSymbol.className = 'coin-symbol';
-    coinSymbol.textContent = token;
-    
     coinSection.appendChild(coinLogo);
-    coinSection.appendChild(coinSymbol);
 
-    // SEVERITY INDICATOR
-    const severityBadge = document.createElement('div');
-    severityBadge.className = 'severity-badge';
-    const iconImg = document.createElement('img');
-    iconImg.alt = `${a.severity || 'info'} icon`;
-    iconImg.className = 'severity-icon-img';
-    iconImg.decoding = 'async';
-    iconImg.fetchPriority = 'low';
-    // Choose icon by severity
-    const sev = a.severity || 'info';
-    const v = '20251021c';
-    iconImg.src = sev === 'critical' 
-      ? `/icons/siren@64px.svg?v=${v}` 
-      : (sev === 'warning' ? `/icons/flag@64px.svg?v=${v}` : `/icons/lifebuoy@64px.svg?v=${v}`);
-    iconImg.onerror = function(){
-      // Hide broken icon to avoid layout jank
-      this.style.display = 'none';
-    };
-    severityBadge.appendChild(iconImg);
+    const stack = document.createElement('div');
+    stack.className = 'alert-content-stack';
 
-    // MAIN CONTENT AREA
-    const contentArea = document.createElement('div');
-    contentArea.className = 'alert-content-area';
-
-    const text = document.createElement('div');
-    text.className = 'alert-text';
+    const tokenName = document.createElement('div');
+    tokenName.className = 'alert-token-name';
+    tokenName.textContent = token || 'Token';
 
     const title = document.createElement('div');
     title.className = 'alert-title';
     title.textContent = a.title;
-    text.appendChild(title);
 
     const desc = document.createElement('div');
     desc.className = 'alert-desc';
     desc.textContent = a.description || '';
-    text.appendChild(desc);
 
     const metaWrap = document.createElement('div');
     metaWrap.className = 'alert-meta';
-    const metaChip = document.createElement('span');
-    metaChip.className = 'deadline-chip';
-    const msLeft = new Date(a.deadline).getTime() - Date.now();
-    metaChip.textContent = fmtTimeLeft(msLeft);
-    metaWrap.appendChild(metaChip);
-
-    // Migration banner pill when applicable
     try {
-      const tagsForPill = getAlertTagsArray(a);
-      if (tagsForPill.includes('migration')){
+      if (tagsArrForAccent.includes('migration')){
         const mig = document.createElement('span');
         mig.className = 'alert-pill-migration';
         const icon = document.createElement('span');
         icon.className = 'icon';
-        const img = document.createElement('img');
-  img.src = `/icons/lifebuoy@64px.svg?v=${v}`;
-        img.alt = '';
-        img.className = 'icon-img';
-  img.onerror = function(){ this.style.display = 'none'; };
-        icon.appendChild(img);
+        const mimg = document.createElement('img');
+        mimg.src = `/icons/lifebuoy@64px.svg?v=${v}`;
+        mimg.alt = '';
+        mimg.className = 'icon-img';
+        mimg.onerror = function(){ this.style.display = 'none'; };
+        icon.appendChild(mimg);
         const label = document.createElement('span');
         label.textContent = 'Token Migration';
         mig.appendChild(icon);
@@ -1445,22 +1479,23 @@ function renderAlerts(){
       }
     } catch {}
 
-    text.appendChild(metaWrap);
+    const actionsRow = document.createElement('div');
+    actionsRow.className = 'alert-actions-row';
 
-    // Read more: shows further_info and source details when expanded
     const hasMore = !!(a.further_info && a.further_info.trim()) || !!(a.source_type || a.source_url);
+    let toggle = null;
+    let more = null;
     if (hasMore) {
-      const toggle = document.createElement('button');
+      toggle = document.createElement('button');
       toggle.type = 'button';
       toggle.className = 'more-toggle';
       toggle.setAttribute('aria-expanded', 'false');
-      toggle.textContent = 'Read more';
+      toggle.innerHTML = 'Read more <span class="more-chevron" aria-hidden="true">↓</span>';
 
-      const more = document.createElement('div');
+      more = document.createElement('div');
       more.className = 'more-content';
       more.hidden = true;
 
-      // Further info block
       if (a.further_info && a.further_info.trim()){
         const moreInfo = document.createElement('div');
         moreInfo.className = 'more-info';
@@ -1468,7 +1503,6 @@ function renderAlerts(){
         more.appendChild(moreInfo);
       }
 
-      // Source details block (chip + optional external link)
       if (a.source_type || a.source_url){
         const sourceRow = document.createElement('div');
         sourceRow.className = 'source-row';
@@ -1496,32 +1530,81 @@ function renderAlerts(){
         const nowOpen = more.hidden;
         more.hidden = !nowOpen;
         toggle.setAttribute('aria-expanded', String(nowOpen));
-        toggle.textContent = nowOpen ? 'Read less' : 'Read more';
+        toggle.innerHTML = nowOpen
+          ? 'Read less <span class="more-chevron" aria-hidden="true">↑</span>'
+          : 'Read more <span class="more-chevron" aria-hidden="true">↓</span>';
       });
 
-      text.appendChild(toggle);
-      text.appendChild(more);
+      actionsRow.appendChild(toggle);
     }
 
-    contentArea.appendChild(severityBadge);
-    contentArea.appendChild(text);
+    if (a.source_url) {
+      try {
+        const u = new URL(a.source_url);
+        const srcBtn = document.createElement('a');
+        srcBtn.className = 'alert-source-btn';
+        srcBtn.href = u.href;
+        srcBtn.target = '_blank';
+        srcBtn.rel = 'noopener noreferrer';
+        srcBtn.innerHTML = '<span class="alert-source-btn__icon" aria-hidden="true">🔗</span> Link to Source';
+        actionsRow.appendChild(srcBtn);
+      } catch (_e) {}
+    }
 
-    // No action buttons on card per design (removed Discuss/Acknowledge)
+    const footer = document.createElement('div');
+    footer.className = 'alert-card-footer';
+    const pA = document.createElement('a');
+    pA.className = 'alert-footer-link';
+    pA.href = 'https://github.com/atoates/CLG-DEPLOY';
+    pA.target = '_blank';
+    pA.rel = 'noopener noreferrer';
+    pA.textContent = 'Privacy';
+    const pB = document.createElement('a');
+    pB.className = 'alert-footer-link';
+    pB.href = 'https://github.com/atoates/CLG-DEPLOY';
+    pB.target = '_blank';
+    pB.rel = 'noopener noreferrer';
+    pB.textContent = 'Community';
+    footer.appendChild(pA);
+    footer.appendChild(document.createTextNode(' · '));
+    footer.appendChild(pB);
+    const tagLabels = getAlertTagsArray(a).filter(t => t === 'privacy' || t === 'community');
+    tagLabels.forEach((tg, idx) => {
+      const info = ALERT_TAGS[tg];
+      if (!info) return;
+      footer.appendChild(document.createTextNode(' · '));
+      const span = document.createElement('span');
+      span.className = 'alert-footer-tag';
+      span.textContent = info.label;
+      footer.appendChild(span);
+    });
 
-    // TAGS SECTION
-    const tagsSection = document.createElement('div');
-    tagsSection.className = 'alert-tags-section';
-    renderAlertTags(a, tagsSection);
+    const aside = document.createElement('aside');
+    aside.className = 'alert-aside';
+    const metaChip = document.createElement('span');
+    metaChip.className = 'deadline-chip deadline-chip--aside';
+    const msLeft = new Date(a.deadline).getTime() - Date.now();
+    metaChip.textContent = fmtTimeLeft(msLeft);
+    aside.appendChild(metaChip);
+    aside.appendChild(dismissBtn);
 
-    // Assemble the card
-    wrap.appendChild(coinSection);
-    wrap.appendChild(contentArea);
-    wrap.appendChild(tagsSection);
+    stack.appendChild(tokenName);
+    stack.appendChild(title);
+    stack.appendChild(desc);
+    if (metaWrap.childNodes.length) stack.appendChild(metaWrap);
+    if (actionsRow.childNodes.length) stack.appendChild(actionsRow);
+    if (more) stack.appendChild(more);
+    stack.appendChild(footer);
 
-    // live tick function
+    row.appendChild(coinSection);
+    row.appendChild(stack);
+    row.appendChild(aside);
+
+    wrap.appendChild(accentSide);
+    wrap.appendChild(row);
+
     wrap._tick = () => {
-      const leftMs = new Date(a.deadline).getTime() - Date.now();
-      metaChip.textContent = fmtTimeLeft(leftMs);
+      metaChip.textContent = fmtTimeLeft(new Date(a.deadline).getTime() - Date.now());
     };
 
     alertsListEl.appendChild(wrap);

@@ -25,7 +25,7 @@
   <script src="/config.js"></script>
   <link rel="stylesheet" href="/src/styles.css" />
 </head>
-<body>
+<body class="clg-theme-dark">
   <!-- Environment Banner (only shown in test/staging) -->
   <div id="env-banner" class="env-banner" hidden>
     <span class="env-icon">🧪</span>
@@ -45,7 +45,7 @@
           decoding="async"
           fetchpriority="high"
         />
-        <div class="brand-text">
+        <div class="brand-text brand-text--hidden">
           <h1 class="brand-title">Crypto Lifeguard</h1>
           <p class="brand-tagline">Protect your crypto assets with personalised alerts.</p>
         </div>
@@ -53,8 +53,10 @@
 
       <div class="actions">
         <div class="dropdown">
-          <button id="user-menu-btn" class="menu-btn" aria-haspopup="true" aria-expanded="false">
-            Account ▾
+          <button type="button" id="user-menu-btn" class="user-menu-pill menu-btn" aria-haspopup="true" aria-expanded="false">
+            <span class="user-avatar" id="user-avatar-el" aria-hidden="true"></span>
+            <span class="user-name" id="user-name-el">Account</span>
+            <span class="user-menu-chevron" aria-hidden="true">▾</span>
           </button>
           <div id="user-menu" class="menu" hidden>
             <button class="menu-item" data-action="login">Log in / Sign up</button>
@@ -98,7 +100,10 @@
     
     <!-- Selected tokens visible outside dropdown with inline toggles -->
     <div class="tokens-and-toggles-row">
-      <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
+      <div class="watchlist-row-inner">
+        <span id="watchlist-status" class="watchlist-status">No tokens selected</span>
+        <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
+      </div>
       
       <div class="toggle-group inline-toggles">
         <label class="switch small" id="showall-tokens-wrap" title="Show alerts for all tokens">
@@ -145,8 +150,9 @@
       </div>
     </div>
 
-    <section id="panel-alerts" class="card" role="tabpanel">
+    <section id="panel-alerts" class="card card--alerts-feed" role="tabpanel">
       <div id="alerts-list" class="alerts-list"></div>
+      <nav id="alerts-pagination" class="alerts-pagination" aria-label="Alert pages" hidden></nav>
       <p id="no-alerts" class="muted" hidden>No alerts for your selected filters. Adjust severity or watchlist to see alerts.</p>
     </section>
 
@@ -184,7 +190,10 @@
     </section>
   </main>
 
-  <footer class="footer muted"><span>© 2026 Crypto Lifeguard</span></footer>
+  <footer class="footer footer--split">
+    <img class="footer-logo" src="/full@4x.png" alt="" width="120" height="32" decoding="async" />
+    <span class="footer-rights">All rights reserved 2026</span>
+  </footer>
 
   <!-- Token Request Modal -->
   <div id="token-request-modal" class="modal" style="display: none;">
