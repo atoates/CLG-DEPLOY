@@ -1553,30 +1553,16 @@ function renderAlerts(){
 
     const footer = document.createElement('div');
     footer.className = 'alert-card-footer';
-    const pA = document.createElement('a');
-    pA.className = 'alert-footer-link';
-    pA.href = 'https://github.com/atoates/CLG-DEPLOY';
-    pA.target = '_blank';
-    pA.rel = 'noopener noreferrer';
-    pA.textContent = 'Privacy';
-    const pB = document.createElement('a');
-    pB.className = 'alert-footer-link';
-    pB.href = 'https://github.com/atoates/CLG-DEPLOY';
-    pB.target = '_blank';
-    pB.rel = 'noopener noreferrer';
-    pB.textContent = 'Community';
-    footer.appendChild(pA);
-    footer.appendChild(document.createTextNode(' · '));
-    footer.appendChild(pB);
-    const tagLabels = getAlertTagsArray(a).filter(t => t === 'privacy' || t === 'community');
-    tagLabels.forEach((tg, idx) => {
+    const tagLabels = getAlertTagsArray(a);
+    const seenTags = new Set();
+    tagLabels.forEach((tg) => {
       const info = ALERT_TAGS[tg];
-      if (!info) return;
-      footer.appendChild(document.createTextNode(' · '));
-      const span = document.createElement('span');
-      span.className = 'alert-footer-tag';
-      span.textContent = info.label;
-      footer.appendChild(span);
+      if (!info || seenTags.has(tg)) return;
+      seenTags.add(tg);
+      const chip = document.createElement('span');
+      chip.className = 'alert-footer-tag';
+      chip.textContent = info.label;
+      footer.appendChild(chip);
     });
 
     const aside = document.createElement('aside');
