@@ -470,17 +470,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (userMenuBtn && userMenu) {
     userMenuBtn.addEventListener('click', (e) => {
-      if (isLoggedIn) {
-        e.preventDefault();
-        e.stopPropagation();
-        window.location.href = '/profile.html';
-        return;
-      }
       e.preventDefault();
       e.stopPropagation();
       const isHidden = userMenu.hidden;
       userMenu.hidden = !isHidden;
-      userMenuBtn.setAttribute('aria-expanded', !isHidden);
+      userMenuBtn.setAttribute('aria-expanded', String(isHidden));
     });
 
     // Close on click outside
@@ -616,10 +610,15 @@ document.addEventListener('DOMContentLoaded', () => {
         CURRENCY_SYMBOL = currencySymbols[me.currency];
       }
 
-      // Control visibility of logout in menu
+      // Control visibility of menu items based on login state
       try{
         const logoutNode = document.getElementById('menu-logout');
         if (logoutNode) logoutNode.hidden = !me.loggedIn;
+        const loginNode  = document.querySelector('#user-menu [data-action="login"]');
+        if (loginNode)  loginNode.hidden  =  !!me.loggedIn;
+        // Rename "Settings" → "Profile" when logged in for clarity
+        const settingsNode = document.querySelector('#user-menu [data-action="settings"]');
+        if (settingsNode) settingsNode.textContent = me.loggedIn ? 'Profile' : 'Settings';
       }catch(_e){}
 
       const nameEl = document.getElementById('user-name-el');
@@ -648,11 +647,11 @@ document.addEventListener('DOMContentLoaded', () => {
           ? (me.profile?.username || me.profile?.name || 'Profile')
           : 'Account';
       }
-      if (me.loggedIn && pillBtn && menu) {
-        pillBtn.setAttribute('aria-haspopup', 'false');
+      if (pillBtn) {
+        pillBtn.setAttribute('aria-haspopup', 'true');
         pillBtn.setAttribute('aria-expanded', 'false');
-        menu.hidden = true;
       }
+      if (menu) menu.hidden = true;
     }
   }catch(e){}
 
