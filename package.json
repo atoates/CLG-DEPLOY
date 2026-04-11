@@ -4,15 +4,14 @@
   "description": "Crypto Lifeguard — Protect your crypto assets with personalised alerts",
   "private": true,
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/*"
   ],
   "scripts": {
     "dev:admin": "npm run dev --workspace=apps/admin",
     "dev:frontend": "npm run dev --workspace=apps/frontend",
     "build:admin": "npm run build --workspace=apps/admin",
     "build:frontend": "npm run build --workspace=apps/frontend",
-    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules"
+    "clean": "rm -rf node_modules apps/*/node_modules"
   },
   "engines": {
     "node": ">=20.0.0"
