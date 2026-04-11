@@ -23,11 +23,11 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-navy-800 to-navy-500 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Crypto Lifeguard
+          <h1 className="text-3xl font-bold text-navy-800 mb-2">
+            Crypto <span className="text-primary-500">Lifeguard</span>
           </h1>
           <p className="text-gray-600">Admin Dashboard</p>
         </div>
@@ -49,7 +49,7 @@ export function Login() {
                 setError('')
               }}
               placeholder="Enter your admin token"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition"
             />
             {error && (
               <p className="mt-2 text-sm text-red-600">{error}</p>
@@ -58,7 +58,7 @@ export function Login() {
 
           <button
             type="submit"
-            className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+            className="w-full bg-primary-500 hover:bg-primary-600 text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition"
           >
             <LogIn className="w-5 h-5" />
             Sign In

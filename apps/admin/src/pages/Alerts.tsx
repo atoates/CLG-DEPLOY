@@ -191,7 +191,7 @@ export function Alerts() {
       case 'warning':
         return <AlertCircle className="w-5 h-5 text-yellow-600" />
       case 'info':
-        return <Info className="w-5 h-5 text-blue-600" />
+        return <Info className="w-5 h-5 text-primary-600" />
       default:
         return <Bell className="w-5 h-5 text-gray-600" />
     }
@@ -201,7 +201,7 @@ export function Alerts() {
     const styles = {
       critical: 'bg-red-100 text-red-800',
       warning: 'bg-yellow-100 text-yellow-800',
-      info: 'bg-blue-100 text-blue-800',
+      info: 'bg-primary-100 text-primary-800',
     }
     return styles[severity as keyof typeof styles] || 'bg-gray-100 text-gray-800'
   }
@@ -587,12 +587,12 @@ export function Alerts() {
 
             <div className="p-6 space-y-6">
               {/* Instructions */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
                 <div className="flex gap-3">
-                  <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-blue-900">
+                  <Info className="w-5 h-5 text-primary-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-navy-800">
                     <p className="font-medium mb-2">Upload Format Requirements:</p>
-                    <ul className="list-disc list-inside space-y-1 text-blue-800">
+                    <ul className="list-disc list-inside space-y-1 text-primary-900">
                       <li><strong>JSON:</strong> Array of alert objects with fields: token, title, description, severity, deadline</li>
                       <li><strong>CSV:</strong> Header row with columns: token, title, description, severity, deadline</li>
                       <li><strong>Severity:</strong> Must be one of: info, warning, critical</li>
@@ -651,12 +651,12 @@ export function Alerts() {
                 <div className={`p-4 rounded-lg flex items-center gap-3 ${
                   uploadStatus === 'success' ? 'bg-green-50 text-green-800' :
                   uploadStatus === 'error' ? 'bg-red-50 text-red-800' :
-                  'bg-blue-50 text-blue-800'
+                  'bg-primary-50 text-primary-800'
                 }`}>
                   {uploadStatus === 'success' && <Info className="w-5 h-5" />}
                   {uploadStatus === 'error' && <AlertCircle className="w-5 h-5" />}
                   {uploadStatus === 'uploading' && (
-                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
                   )}
                   <span className="font-medium">{uploadMessage || 'Processing...'}</span>
                 </div>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Crypto Lifeguard — Web Demo</title>
+  <title>Crypto Lifeguard — Protect Your Crypto Assets</title>
   <script>
     // Early redirect for backend-only routes when user lands directly on /auth/*
     (function(){
@@ -19,11 +19,11 @@
       } catch(_) {}
     })();
   </script>
-  <!-- Fonts: Anton for display, Poppins for body (fallback Montserrat) -->
-  <link href="https://fonts.googleapis.com/css2?family=Anton:wght@400;700&family=Poppins:wght@400;500;600;700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+  <meta name="description" content="Crypto Lifeguard — Protect your crypto assets with personalised alerts. Real-time monitoring for tokens you care about." />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <!-- Load config BEFORE Vite bundles to ensure BACKEND_URL is set -->
   <script src="/config.js"></script>
-  <link rel="stylesheet" href="/src/styles.css?v=20251021a" />
+  <link rel="stylesheet" href="/src/styles.css" />
 </head>
 <body>
   <!-- Environment Banner (only shown in test/staging) -->
@@ -47,7 +47,7 @@
         />
         <div class="brand-text">
           <h1 class="brand-title">Crypto Lifeguard</h1>
-          <p class="brand-tagline">Rescue your tokens — personalised alerts without the noise.</p>
+          <p class="brand-tagline">Protect your crypto assets with personalised alerts.</p>
         </div>
       </a>
 
@@ -184,7 +184,7 @@
     </section>
   </main>
 
-  <footer class="footer muted"><span>© 2025 Crypto Lifeguard — demo build</span></footer>
+  <footer class="footer muted"><span>© 2026 Crypto Lifeguard</span></footer>
 
   <!-- Token Request Modal -->
   <div id="token-request-modal" class="modal" style="display: none;">
@@ -232,6 +232,6 @@
 
   <!-- Backend configuration loaded in HEAD -->
   <!-- App.js loaded by Vite bundle -->
-  <script type="module" src="/src/app.js?v=20251021a"></script>
+  <script type="module" src="/src/app.js"></script>
 </body>
 </html>

@@ -153,8 +153,8 @@ export function Settings() {
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="bg-blue-50 p-3 rounded-lg">
-              <Database className="w-6 h-6 text-blue-600" />
+            <div className="bg-primary-50 p-3 rounded-lg">
+              <Database className="w-6 h-6 text-primary-600" />
             </div>
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Database Backups</h2>
@@ -176,26 +176,26 @@ export function Settings() {
           <div className={`mb-4 p-4 rounded-lg flex items-center gap-3 ${
             backupStatus === 'success' ? 'bg-green-50 text-green-800' :
             backupStatus === 'error' ? 'bg-red-50 text-red-800' :
-            'bg-blue-50 text-blue-800'
+            'bg-primary-50 text-primary-800'
           }`}>
             {backupStatus === 'success' && <CheckCircle className="w-5 h-5" />}
             {backupStatus === 'error' && <AlertCircle className="w-5 h-5" />}
             {backupStatus === 'creating' && (
-              <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
             )}
             <span className="font-medium">{backupMessage || 'Processing...'}</span>
           </div>
         )}
 
         {/* Backup Note */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-6">
           <div className="flex gap-3">
-            <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-900">
+            <AlertCircle className="w-5 h-5 text-primary-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-navy-800">
               <p className="font-medium mb-1">PostgreSQL Backup Information</p>
-              <p className="text-blue-800">
+              <p className="text-primary-900">
                 Railway provides automatic point-in-time recovery for PostgreSQL databases. 
-                Manual backups can be created using <code className="bg-blue-100 px-1 rounded">pg_dump</code>.
+                Manual backups can be created using <code className="bg-primary-100 px-1 rounded">pg_dump</code>.
                 Contact support for restoration assistance.
               </p>
             </div>
@@ -264,7 +264,7 @@ export function Settings() {
               <div className="font-medium text-gray-900">Auto Backup</div>
               <div className="text-sm text-gray-600">Automatic database backups</div>
             </div>
-            <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
+            <span className="px-3 py-1 bg-primary-100 text-primary-800 text-sm font-medium rounded-full">
               Railway Managed
             </span>
           </div>
@@ -284,8 +284,8 @@ export function Settings() {
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="bg-orange-50 p-3 rounded-lg">
-              <Rss className="w-6 h-6 text-orange-600" />
+            <div className="bg-primary-50 p-3 rounded-lg">
+              <Rss className="w-6 h-6 text-primary-600" />
             </div>
             <div>
               <h2 className="text-xl font-semibold text-gray-900">News Feeds</h2>

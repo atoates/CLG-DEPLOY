@@ -298,7 +298,7 @@ export function NewsFeed() {
                         <>
                           <span className="text-xs text-gray-400">•</span>
                           <span className={`text-xs font-medium ${
-                            article.sentiment === 'positive' ? 'text-green-600' :
+                            article.sentiment === 'positive' ? 'text-primary-600' :
                             article.sentiment === 'negative' ? 'text-red-600' :
                             'text-gray-600'
                           }`}>
@@ -325,7 +325,7 @@ export function NewsFeed() {
                   <div className="flex gap-2">
                     {article.alert_created ? (
                       <button
-                        className="p-2 text-green-600 bg-green-50 rounded cursor-default"
+                        className="p-2 text-primary-600 bg-primary-50 rounded cursor-default"
                         title="Alert already created from this article"
                         disabled
                       >
@@ -334,7 +334,7 @@ export function NewsFeed() {
                     ) : (
                       <button
                         onClick={() => handleCreateAlert(article)}
-                        className="p-2 text-gray-600 hover:text-green-600 hover:bg-gray-100 rounded"
+                        className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded"
                         title="Create alert from this article"
                       >
                         <Bell className="w-4 h-4" />
@@ -460,18 +460,18 @@ export function NewsFeed() {
 
             {/* AI Generation Button */}
             {isAIEnabled() && (
-              <div className="px-6 pt-4 pb-2 bg-gradient-to-r from-purple-50 to-blue-50 border-b border-purple-100">
+              <div className="px-6 pt-4 pb-2 bg-gradient-to-r from-primary-50 to-primary-100 border-b border-primary-100">
                 <button
                   onClick={handleGenerateWithAI}
                   disabled={isGeneratingAI}
-                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-4 py-3 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-3 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Sparkles className={`w-5 h-5 ${isGeneratingAI ? 'animate-spin' : ''}`} />
                   {isGeneratingAI ? 'AI is analyzing article...' : 'Generate Smart Alert with AI'}
                 </button>
                 {aiReasoning && (
-                  <div className="mt-3 p-3 bg-white rounded-lg border border-purple-200">
-                    <p className="text-xs font-semibold text-purple-900 mb-1">AI Reasoning:</p>
+                  <div className="mt-3 p-3 bg-white rounded-lg border border-primary-200">
+                    <p className="text-xs font-semibold text-navy-800 mb-1">AI Reasoning:</p>
                     <p className="text-sm text-gray-700">{aiReasoning}</p>
                   </div>
                 )}
@@ -580,7 +580,7 @@ export function NewsFeed() {
               <button
                 onClick={handleSaveAlert}
                 disabled={createAlertMutation.isPending || !alertForm.token || !alertForm.title}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
               >
                 <Bell className="w-4 h-4" />
                 Create Alert
@@ -604,7 +604,7 @@ export function NewsFeed() {
                     <>
                       <span className="text-xs text-gray-400">•</span>
                       <span className={`px-2 py-1 text-xs font-medium rounded ${
-                        viewingArticle.sentiment === 'positive' ? 'bg-green-100 text-green-700' :
+                        viewingArticle.sentiment === 'positive' ? 'bg-primary-100 text-primary-700' :
                         viewingArticle.sentiment === 'negative' ? 'bg-red-100 text-red-700' :
                         'bg-gray-100 text-gray-700'
                       }`}>
@@ -687,7 +687,7 @@ export function NewsFeed() {
                       setViewingArticle(null)
                       handleCreateAlert(viewingArticle)
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
                   >
                     <Bell className="w-4 h-4" />
                     Create Alert from Article

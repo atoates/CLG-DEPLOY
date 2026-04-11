@@ -4,30 +4,54 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sign up — Crypto Lifeguard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/styles.css" />
-  <style>.auth-card{max-width:520px;margin:24px auto}</style>
+  <style>
+    .auth-card {
+      max-width: 480px;
+      margin: 40px auto;
+      text-align: center;
+    }
+    .auth-card .section-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .auth-card .muted {
+      margin-bottom: 20px;
+    }
+    .auth-card .btn {
+      width: 100%;
+      padding: 12px 20px;
+      font-size: 15px;
+      font-weight: 600;
+    }
+  </style>
   <script defer>
     async function googleLogin(){ window.location.href = '/auth/google'; }
   </script>
   </head>
 <body>
-  <header class="topbar"><div class="topbar-inner">
-    <div class="brand-wrap">
-      <img class="brand-logo" src="/logo.webp" alt="Logo" />
-      <div class="brand-text"><h1 class="brand-title">Crypto Lifeguard</h1><p class="brand-tagline">Create your account</p></div>
+  <header class="topbar" role="banner">
+    <div class="topbar-inner">
+      <a class="brand-wrap" href="/" style="text-decoration:none; color:inherit;">
+        <img class="brand-logo" src="/logo.webp" alt="Crypto Lifeguard Logo" decoding="async" fetchpriority="high" />
+        <div class="brand-text">
+          <h1 class="brand-title">Crypto Lifeguard</h1>
+          <p class="brand-tagline">Protect your crypto assets with personalised alerts.</p>
+        </div>
+      </a>
+      <div class="actions"><a class="menu-btn" href="/">Home</a></div>
     </div>
-    <div class="actions"><a class="menu-btn" href="/">Home</a></div>
-  </div></header>
+  </header>
 
   <main class="container">
     <section class="card auth-card">
-      <h2 class="section-title">Sign up</h2>
-      <p class="muted">Continue with Google to create an account and sync your preferences across devices.</p>
-      <div style="display:flex;gap:10px;margin-top:10px">
-        <button class="btn" onclick="googleLogin()">Continue with Google</button>
-      </div>
+      <h2 class="section-title">Create your account</h2>
+      <p class="muted">Sign in with Google to get personalised alerts and sync your preferences across devices.</p>
+      <button class="btn" onclick="googleLogin()">Continue with Google</button>
     </section>
   </main>
-  <footer class="footer muted"><span>© 2025 Crypto Lifeguard — demo build</span></footer>
+  <footer class="footer muted"><span>© 2026 Crypto Lifeguard</span></footer>
 </body>
 </html>

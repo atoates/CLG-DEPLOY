@@ -2897,7 +2897,7 @@ function generateFallbackSummary(alerts, tokens) {
   
   const upcomingDeadlines = alerts
     .filter(a => new Date(a.deadline) > new Date())
-    .sort((a, b) => new Date(a.deadline) - new Date(a.deadline))
+    .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
     .slice(0, 3);
 
   const tokenSummary = tokens.map(token => {
@@ -3247,7 +3247,7 @@ app.get('/debug/oauth', requireAdmin, (req, res) => {
 app.get('/healthz', (_req,res)=>res.json({ ok:true }));
 
 // Debug endpoint to check environment configuration (no auth required)
-app.get('/api/debug/env-check', (_req, res) => {
+app.get('/api/debug/env-check', requireAdmin, (_req, res) => {
   res.json({
     adminTokenSet: !!process.env.ADMIN_TOKEN,
     adminEmailsSet: !!process.env.ADMIN_EMAILS,
@@ -3259,7 +3259,7 @@ app.get('/api/debug/env-check', (_req, res) => {
 });
 
 // Debug endpoint to check API configuration
-app.get('/api/debug/config', (_req, res) => {
+app.get('/api/debug/config', requireAdmin, (_req, res) => {
   const newsKey = process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY;
   const cdKey = process.env.COINDESK || process.env.COINDESK_API_KEY || null;
   res.json({

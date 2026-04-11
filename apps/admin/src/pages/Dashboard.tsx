@@ -39,29 +39,29 @@ export function Dashboard() {
       name: 'Total Alerts',
       value: adminInfo?.counts?.alerts || 0,
       icon: Bell,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
+      color: 'text-primary-500',
+      bgColor: 'bg-primary-50',
     },
     {
       name: 'Active Users',
       value: adminInfo?.counts?.users || 0,
       icon: Users,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-50',
     },
     {
       name: 'Critical Alerts',
       value: alerts?.filter((a: any) => a.severity === 'critical').length || 0,
       icon: AlertTriangle,
-      color: 'text-red-600',
+      color: 'text-red-500',
       bgColor: 'bg-red-50',
     },
     {
       name: 'News Articles',
       value: newsStats?.totalCached || 0,
       icon: Newspaper,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
+      color: 'text-navy-500',
+      bgColor: 'bg-navy-50',
     },
   ]
 
@@ -152,8 +152,8 @@ export function Dashboard() {
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="bg-purple-50 p-3 rounded-lg">
-              <Newspaper className="w-6 h-6 text-purple-600" />
+            <div className="bg-navy-50 p-3 rounded-lg">
+              <Newspaper className="w-6 h-6 text-navy-500" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">News Cache Statistics</h2>
@@ -188,7 +188,7 @@ export function Dashboard() {
               {newsStats.byToken.slice(0, 10).map((item) => (
                 <span
                   key={item.token}
-                  className="px-3 py-1 bg-primary-100 text-primary-700 text-sm font-medium rounded-full"
+                  className="px-3 py-1 bg-primary-50 text-primary-500 text-sm font-medium rounded-full"
                 >
                   {item.token}: {item.count}
                 </span>
@@ -202,8 +202,8 @@ export function Dashboard() {
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="bg-indigo-50 p-3 rounded-lg">
-              <BarChart3 className="w-6 h-6 text-indigo-600" />
+            <div className="bg-primary-50 p-3 rounded-lg">
+              <BarChart3 className="w-6 h-6 text-primary-500" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">API Call Tracking</h2>
@@ -220,10 +220,10 @@ export function Dashboard() {
                 const serviceStats = apiStats.filter((s) => s.service_name === serviceName)
                 const totalCalls = serviceStats.reduce((sum, s) => sum + s.call_count, 0)
                 return (
-                  <div key={serviceName} className="bg-gradient-to-br from-indigo-50 to-blue-50 p-4 rounded-lg border border-indigo-100">
-                    <p className="text-sm text-indigo-700 font-medium mb-1">{serviceName}</p>
-                    <p className="text-3xl font-bold text-indigo-900">{totalCalls.toLocaleString()}</p>
-                    <p className="text-xs text-indigo-600 mt-1">{serviceStats.length} endpoint{serviceStats.length !== 1 ? 's' : ''}</p>
+                  <div key={serviceName} className="bg-gradient-to-br from-primary-50 to-navy-50 p-4 rounded-lg border border-primary-100">
+                    <p className="text-sm text-navy-500 font-medium mb-1">{serviceName}</p>
+                    <p className="text-3xl font-bold text-navy-800">{totalCalls.toLocaleString()}</p>
+                    <p className="text-xs text-primary-500 mt-1">{serviceStats.length} endpoint{serviceStats.length !== 1 ? 's' : ''}</p>
                   </div>
                 )
               })}
@@ -243,7 +243,7 @@ export function Dashboard() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="calls" fill="#6366f1" name="API Calls" />
+                  <Bar dataKey="calls" fill="#2E7CF6" name="API Calls" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -263,7 +263,7 @@ export function Dashboard() {
                   {apiStats.map((stat, idx) => (
                     <tr key={idx} className="hover:bg-gray-50">
                       <td className="p-3">
-                        <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded">
+                        <span className="px-2 py-1 bg-primary-50 text-primary-500 text-xs font-medium rounded">
                           {stat.service_name}
                         </span>
                       </td>
@@ -292,8 +292,8 @@ export function Dashboard() {
         {/* Database Storage */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="bg-blue-50 p-3 rounded-lg">
-              <Database className="w-6 h-6 text-blue-600" />
+            <div className="bg-primary-50 p-3 rounded-lg">
+              <Database className="w-6 h-6 text-primary-500" />
             </div>
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Database Storage</h3>
@@ -325,8 +325,8 @@ export function Dashboard() {
         {/* Data Directory */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="bg-green-50 p-3 rounded-lg">
-              <HardDrive className="w-6 h-6 text-green-600" />
+            <div className="bg-emerald-50 p-3 rounded-lg">
+              <HardDrive className="w-6 h-6 text-emerald-600" />
             </div>
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Data Directory</h3>
@@ -352,8 +352,8 @@ export function Dashboard() {
         {/* Server Status */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="bg-purple-50 p-3 rounded-lg">
-              <Server className="w-6 h-6 text-purple-600" />
+            <div className="bg-navy-50 p-3 rounded-lg">
+              <Server className="w-6 h-6 text-navy-500" />
             </div>
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Server Status</h3>
@@ -362,18 +362,18 @@ export function Dashboard() {
           </div>
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-green-600" />
-              <span className="text-sm font-medium text-green-600">Online</span>
+              <Activity className="w-4 h-4 text-emerald-500" />
+              <span className="text-sm font-medium text-emerald-500">Online</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Database</span>
-              <span className="font-medium text-green-600">
+              <span className="font-medium text-emerald-500">
                 {adminInfo?.counts ? 'Connected' : 'Not configured'}
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">API Provider</span>
-              <span className="font-medium text-green-600">
+              <span className="font-medium text-emerald-500">
                 {adminInfo?.counts ? 'Active' : 'Inactive'}
               </span>
             </div>

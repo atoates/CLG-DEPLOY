@@ -31,15 +31,15 @@ export function Layout({ children }: LayoutProps) {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#F0F4F8]">
       {/* Sidebar */}
-      <div className="fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200">
+      <div className="fixed inset-y-0 left-0 w-64 bg-navy-800 border-r border-navy-600">
         <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-gray-200">
-            <h1 className="text-2xl font-bold text-primary-600">
-              Crypto Lifeguard
+          <div className="p-6 border-b border-navy-600">
+            <h1 className="text-2xl font-bold text-white">
+              Crypto <span className="text-primary-500">Lifeguard</span>
             </h1>
-            <p className="text-sm text-gray-500 mt-1">Admin Dashboard</p>
+            <p className="text-sm text-primary-200 mt-1">Admin Dashboard</p>
           </div>
 
           <nav className="flex-1 p-4 space-y-1">
@@ -53,8 +53,8 @@ export function Layout({ children }: LayoutProps) {
                   to={item.href}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                     isActive
-                      ? 'bg-primary-50 text-primary-700 font-medium'
-                      : 'text-gray-700 hover:bg-gray-50'
+                      ? 'bg-primary-500 text-white font-medium'
+                      : 'text-gray-300 hover:bg-navy-600 hover:text-white'
                   }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -64,10 +64,10 @@ export function Layout({ children }: LayoutProps) {
             })}
           </nav>
 
-          <div className="p-4 border-t border-gray-200">
+          <div className="p-4 border-t border-navy-600">
             <button
               onClick={logout}
-              className="flex items-center gap-3 w-full px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 text-gray-300 hover:bg-navy-600 hover:text-white rounded-lg transition-colors"
             >
               <LogOut className="w-5 h-5" />
               Logout
