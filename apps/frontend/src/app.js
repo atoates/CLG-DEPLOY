@@ -286,6 +286,11 @@ function switchTab(tab){
   if (name === 'summary') renderSummary();
   if (name === 'news') loadNews();
   if (name === 'market') loadMarket();
+  // Refresh chat context for the Lifeguard AI widget so starter prompts adapt
+  try {
+    const existing = window.CLG_CHAT_CONTEXT || {};
+    window.CLG_CHAT_CONTEXT = { ...existing, page: name };
+  } catch (_) {}
 }
 
 function initTabs(){

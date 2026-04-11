@@ -321,5 +321,8 @@
   <!-- Backend configuration loaded in HEAD -->
   <!-- App.js loaded by Vite bundle -->
   <script type="module" src="/src/app.js"></script>
+  <!-- Lifeguard AI chat widget (context is refreshed by app.js as the user switches tabs) -->
+  <script>window.CLG_CHAT_CONTEXT = { page: 'alerts' };</script>
+  <script type="module" src="/src/chat.js"></script>
 </body>
 </html>

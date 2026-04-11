@@ -2861,7 +2861,7 @@ async function callAnthropic(prompt) {
 
 // xAI API call (Grok)
 async function callXAI(prompt){
-  const model = 'grok-2-latest';
+  const model = 'grok-4-1-fast-reasoning';
   const response = await fetch('https://api.x.ai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -2871,8 +2871,7 @@ async function callXAI(prompt){
     body: JSON.stringify({
       model,
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 2000,
-      temperature: 0.3
+      max_tokens: 2000
     })
   });
 
@@ -3535,6 +3534,442 @@ app.get('/admin/stats', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('[Admin Stats] Error:', error);
     res.status(500).json({ error: 'Failed to fetch admin stats' });
+  }
+});
+
+// ============================================
+// LIFEGUARD AI CHAT (public + logged-in)
+// ============================================
+// Multi-skill crypto assistant. Defaults to Grok (xAI), falls back to OpenAI
+// then Anthropic. Uses OpenAI-compatible tool/function calling so the model
+// can reach into our own alerts, news cache and CMC market data rather than
+// hallucinating. Responses are streamed as Server-Sent Events.
+//
+// Wire format (SSE):
+//   event: chunk   data: { "text": "..." }
+//   event: tool    data: { "name": "get_price", "args": {...}, "result": {...} }
+//   event: done    data: { "model": "xAI grok-4-1-fast-reasoning" }
+//   event: error   data: { "error": "..." }
+
+// ---- Lightweight per-IP rate limiting (memory) -----------------------------
+const chatRateMap = new Map(); // ip -> { tokens, resetAt }
+function chatRateLimit(ip, limit = 20, windowMs = 60_000) {
+  const now = Date.now();
+  const entry = chatRateMap.get(ip) || { tokens: limit, resetAt: now + windowMs };
+  if (now > entry.resetAt) { entry.tokens = limit; entry.resetAt = now + windowMs; }
+  if (entry.tokens <= 0) { chatRateMap.set(ip, entry); return false; }
+  entry.tokens -= 1;
+  chatRateMap.set(ip, entry);
+  return true;
+}
+
+// ---- Tool definitions (OpenAI-compatible JSON schema) ---------------------
+const CHAT_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'get_price',
+      description: 'Get the current market price, 24h change, 7d change, market cap and volume for one or more crypto tokens. Use this whenever the user asks about price, value, market cap, volume, or performance of a coin.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tokens: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of token symbols, e.g. ["BTC","ETH"]. Uppercase.'
+          },
+          currency: { type: 'string', description: 'Fiat currency code, default USD' }
+        },
+        required: ['tokens']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_token_info',
+      description: 'Get descriptive metadata about a crypto token: project name, category, rank and description. Use this when the user asks "what is X" or "tell me about X".',
+      parameters: {
+        type: 'object',
+        properties: { token: { type: 'string', description: 'Token symbol, uppercase' } },
+        required: ['token']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_alerts',
+      description: 'Get Crypto Lifeguard alerts (security, migrations, hacks, unlocks, forks, votes). Filter by token symbol and/or severity. Use this when the user asks about warnings, risks, ongoing incidents, hacks, exploits, migrations or upcoming deadlines.',
+      parameters: {
+        type: 'object',
+        properties: {
+          token: { type: 'string', description: 'Optional token symbol to filter by' },
+          severity: { type: 'string', enum: ['critical', 'warning', 'info'], description: 'Optional severity filter' },
+          limit: { type: 'integer', description: 'Max number of alerts to return (default 10, max 25)' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_news',
+      description: 'Search the Crypto Lifeguard curated news cache for recent headlines and article excerpts. Use this to answer questions about "what\'s happening", latest news, or specific events.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Free-text search query, e.g. "ethereum layer 2"' },
+          token: { type: 'string', description: 'Optional token symbol filter' },
+          limit: { type: 'integer', description: 'Max results (default 6, max 15)' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_watchlist',
+      description: 'Get the current user\'s saved watchlist (only works for logged-in users). Use this when the user asks about "my coins", "my watchlist", "my portfolio".',
+      parameters: { type: 'object', properties: {} }
+    }
+  }
+];
+
+// ---- Local tool executors --------------------------------------------------
+async function chatToolExecutor(name, args, ctx) {
+  try {
+    switch (name) {
+      case 'get_price': {
+        const symbols = (args.tokens || []).map(s => String(s).toUpperCase()).filter(Boolean).slice(0, 10);
+        if (!symbols.length) return { error: 'no symbols provided' };
+        const currency = String(args.currency || ctx.currency || 'USD').toUpperCase();
+        if (!CMC_API_KEY) return { error: 'market data unavailable (no CMC key)' };
+        const idsMap = await getCmcIdsForSymbols(symbols);
+        const ids = symbols.map(s => idsMap[s]).filter(Boolean);
+        if (!ids.length) return { error: 'unknown symbols', symbols };
+        const params = new URLSearchParams({ id: ids.join(','), convert: currency });
+        const url = `https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?${params}`;
+        const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
+        await trackAPICall('CoinMarketCap', '/v1/cryptocurrency/quotes/latest');
+        if (!r.ok) return { error: `CMC ${r.status}` };
+        const j = await r.json();
+        const data = j.data || {};
+        const out = symbols.map(sym => {
+          const id = idsMap[sym];
+          const row = data[id] || {};
+          const q = row.quote?.[currency] || {};
+          return {
+            token: sym,
+            name: row.name || sym,
+            price: q.price ?? null,
+            change_1h_pct: q.percent_change_1h ?? null,
+            change_24h_pct: q.percent_change_24h ?? null,
+            change_7d_pct: q.percent_change_7d ?? null,
+            volume_24h: q.volume_24h ?? null,
+            market_cap: q.market_cap ?? null,
+            rank: row.cmc_rank ?? null,
+            currency
+          };
+        });
+        return { items: out };
+      }
+
+      case 'get_token_info': {
+        const token = String(args.token || '').toUpperCase();
+        if (!token) return { error: 'token required' };
+        if (!CMC_API_KEY) return { error: 'token info unavailable (no CMC key)' };
+        const idsMap = await getCmcIdsForSymbols([token]);
+        const id = idsMap[token];
+        if (!id) return { error: 'unknown token', token };
+        const url = `https://pro-api.coinmarketcap.com/v2/cryptocurrency/info?id=${id}`;
+        const r = await fetch(url, { headers: { 'X-CMC_PRO_API_KEY': CMC_API_KEY } });
+        await trackAPICall('CoinMarketCap', '/v2/cryptocurrency/info');
+        if (!r.ok) return { error: `CMC ${r.status}` };
+        const j = await r.json();
+        const info = j.data?.[id] || {};
+        return {
+          token,
+          name: info.name || token,
+          category: info.category || null,
+          description: (info.description || '').slice(0, 600),
+          website: info.urls?.website?.[0] || null,
+          tags: (info.tags || []).slice(0, 8),
+          date_added: info.date_added || null
+        };
+      }
+
+      case 'get_alerts': {
+        const token = args.token ? String(args.token).toUpperCase() : null;
+        const severity = args.severity || null;
+        const limit = Math.min(Math.max(parseInt(args.limit || 10, 10), 1), 25);
+        let filtered = alerts.slice();
+        if (token) filtered = filtered.filter(a => String(a.token).toUpperCase() === token);
+        if (severity) filtered = filtered.filter(a => a.severity === severity);
+        filtered.sort((a, b) => String(b.deadline || '').localeCompare(String(a.deadline || '')));
+        const items = filtered.slice(0, limit).map(a => ({
+          id: a.id,
+          token: a.token,
+          title: a.title,
+          description: (a.description || '').slice(0, 400),
+          severity: a.severity,
+          deadline: a.deadline,
+          tags: a.tags || [],
+          source_url: a.source_url || null
+        }));
+        return { count: filtered.length, items };
+      }
+
+      case 'search_news': {
+        const query = String(args.query || '').trim();
+        const token = args.token ? String(args.token).toUpperCase() : null;
+        const limit = Math.min(Math.max(parseInt(args.limit || 6, 10), 1), 15);
+        try {
+          let sql = 'SELECT article_url, title, text, date, source_name, sentiment, tickers FROM news_cache WHERE expires_at > NOW()';
+          const params = [];
+          if (token) {
+            params.push(token);
+            sql += ` AND tickers_json::jsonb ? $${params.length}`;
+          }
+          if (query) {
+            params.push(`%${query}%`);
+            const idx = params.length;
+            sql += ` AND (title ILIKE $${idx} OR text ILIKE $${idx})`;
+          }
+          sql += ' ORDER BY date DESC LIMIT ' + limit;
+          const result = await pool.query(sql, params);
+          const rows = (result.rows || []).map(r => ({
+            title: r.title,
+            excerpt: (r.text || '').slice(0, 220),
+            source: r.source_name,
+            date: r.date,
+            sentiment: r.sentiment,
+            tickers: Array.isArray(r.tickers) ? r.tickers : (r.tickers_json ? JSON.parse(r.tickers_json) : []),
+            url: r.article_url
+          }));
+          return { items: rows };
+        } catch (err) {
+          // Fallback: try with tickers_json as text column
+          try {
+            let sql = 'SELECT article_url, title, text, date, source_name, sentiment, tickers_json FROM news_cache WHERE expires_at > NOW()';
+            const params = [];
+            if (query) {
+              params.push(`%${query}%`);
+              sql += ` AND (title ILIKE $${params.length} OR text ILIKE $${params.length})`;
+            }
+            sql += ' ORDER BY date DESC LIMIT ' + limit;
+            const result = await pool.query(sql, params);
+            const rows = (result.rows || [])
+              .filter(r => !token || (() => {
+                try { return (JSON.parse(r.tickers_json || '[]')).includes(token); } catch { return false; }
+              })())
+              .slice(0, limit)
+              .map(r => ({
+                title: r.title,
+                excerpt: (r.text || '').slice(0, 220),
+                source: r.source_name,
+                date: r.date,
+                sentiment: r.sentiment,
+                tickers: (() => { try { return JSON.parse(r.tickers_json || '[]'); } catch { return []; } })(),
+                url: r.article_url
+              }));
+            return { items: rows };
+          } catch (e2) {
+            return { error: 'news search failed', detail: e2.message };
+          }
+        }
+      }
+
+      case 'get_watchlist': {
+        if (!ctx.uid) return { error: 'not_logged_in' };
+        const row = await getPrefs(ctx.uid);
+        if (!row) return { watchlist: [] };
+        try { return { watchlist: JSON.parse(row.watchlist_json || '[]') }; }
+        catch { return { watchlist: [] }; }
+      }
+
+      default:
+        return { error: 'unknown tool' };
+    }
+  } catch (err) {
+    console.warn(`[chat tool ${name}] error:`, err.message);
+    return { error: err.message || 'tool_failed' };
+  }
+}
+
+// ---- Model dispatch (Grok -> OpenAI -> Anthropic) -------------------------
+async function chatProviderCall(providerMessages, { stream = false } = {}) {
+  // Try xAI (Grok) first
+  if (XAI_API_KEY) {
+    const body = {
+      model: 'grok-4-1-fast-reasoning',
+      messages: providerMessages,
+      tools: CHAT_TOOLS,
+      tool_choice: 'auto',
+      stream
+    };
+    const r = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${XAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    await trackAPICall('xAI', '/v1/chat/completions');
+    if (r.ok) return { r, provider: 'xAI grok-4-1-fast-reasoning' };
+    console.warn('[chat] xAI failed:', r.status);
+  }
+  // Fallback to OpenAI
+  if (OPENAI_API_KEY) {
+    const body = {
+      model: 'gpt-4o-mini',
+      messages: providerMessages,
+      tools: CHAT_TOOLS,
+      tool_choice: 'auto',
+      temperature: 0.4,
+      stream
+    };
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    await trackAPICall('OpenAI', '/v1/chat/completions');
+    if (r.ok) return { r, provider: 'OpenAI gpt-4o-mini' };
+    console.warn('[chat] OpenAI failed:', r.status);
+  }
+  throw new Error('no chat provider available');
+}
+
+// ---- The agent loop --------------------------------------------------------
+const CHAT_SYSTEM_PROMPT = `You are **Lifeguard AI**, the in-house crypto assistant for Crypto Lifeguard — a platform that keeps users safe and informed about their crypto holdings.
+
+You embody several specialist skills and should route yourself to the right one automatically:
+
+- **Market Analyst** — prices, market cap, volume, 24h/7d changes. Use get_price and get_token_info.
+- **Security Watchdog** — hacks, exploits, migrations, unlocks, scams, upcoming deadlines. Use get_alerts. ALWAYS check get_alerts when the user mentions risk, safety, or asks about what to watch out for.
+- **News Scout** — recent headlines and analysis. Use search_news.
+- **Watchlist Coach** — only for logged-in users. Use get_watchlist when asked about "my coins".
+
+Rules:
+1. Prefer tool calls over guessing. If the user asks about price, ALWAYS call get_price. If they mention "any warnings about X", ALWAYS call get_alerts.
+2. Use British English spelling (e.g. "analyse", "recognised", "organisation").
+3. Never use em dashes. Use commas, semicolons or en dashes if needed.
+4. Keep responses tight: 2–5 short paragraphs, sometimes a short list. Prioritise useful over exhaustive.
+5. Always cite sources when using news or alerts — name the source and link if available.
+6. You are NOT a financial advisor. If asked for buy/sell advice, explain the factors, give balanced perspective, and remind the user to do their own research.
+7. If the user asks about THEIR watchlist but isn't logged in, politely tell them to sign in.
+8. When numbers come back from tools, format prices with appropriate precision and % changes with one decimal place.
+9. If a tool returns an error, gracefully explain what's missing rather than inventing data.
+10. Be conversational and warm. You're the friendly expert in the room, not a search engine.`;
+
+async function runChatAgent({ messages, context, uid, sendEvent }) {
+  // Build provider messages: system + context hint + conversation
+  const systemMessages = [{ role: 'system', content: CHAT_SYSTEM_PROMPT }];
+  if (context && (context.token || context.page || context.watchlist)) {
+    const ctxLines = [];
+    if (context.page) ctxLines.push(`Current page: ${context.page}`);
+    if (context.token) ctxLines.push(`User is currently viewing token: ${context.token}`);
+    if (Array.isArray(context.watchlist) && context.watchlist.length) {
+      ctxLines.push(`User watchlist (first 10): ${context.watchlist.slice(0,10).join(', ')}`);
+    }
+    systemMessages.push({ role: 'system', content: `Context:\n${ctxLines.join('\n')}` });
+  }
+
+  let providerMessages = [...systemMessages, ...messages];
+  const maxIterations = 4;
+  let finalProvider = '';
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    const { r, provider } = await chatProviderCall(providerMessages, { stream: false });
+    finalProvider = provider;
+    if (!r.ok) {
+      const text = await r.text();
+      throw new Error(`provider ${r.status}: ${text.slice(0,200)}`);
+    }
+    const data = await r.json();
+    const choice = data.choices?.[0];
+    if (!choice) throw new Error('no choice returned');
+    const msg = choice.message;
+
+    // If the model requested tools, run them and loop
+    if (choice.finish_reason === 'tool_calls' && Array.isArray(msg.tool_calls) && msg.tool_calls.length) {
+      providerMessages.push({ role: 'assistant', content: msg.content || '', tool_calls: msg.tool_calls });
+      for (const tc of msg.tool_calls) {
+        let parsedArgs = {};
+        try { parsedArgs = JSON.parse(tc.function?.arguments || '{}'); } catch {}
+        sendEvent('tool', { name: tc.function?.name, args: parsedArgs, status: 'running' });
+        const result = await chatToolExecutor(tc.function?.name, parsedArgs, { uid, currency: context?.currency });
+        sendEvent('tool', { name: tc.function?.name, args: parsedArgs, result, status: 'done' });
+        providerMessages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          name: tc.function?.name,
+          content: JSON.stringify(result).slice(0, 8000)
+        });
+      }
+      continue;
+    }
+
+    // Otherwise we have the final text — stream it out word by word for UX
+    const text = msg.content || '';
+    if (text) {
+      // Chunk into ~4-char pieces for a smooth streaming feel
+      const step = 6;
+      for (let i = 0; i < text.length; i += step) {
+        sendEvent('chunk', { text: text.slice(i, i + step) });
+      }
+    }
+    sendEvent('done', { model: finalProvider });
+    return;
+  }
+
+  sendEvent('error', { error: 'chat_agent_loop_exhausted' });
+}
+
+app.post('/api/chat', async (req, res) => {
+  try {
+    const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    if (!chatRateLimit(String(ip))) {
+      return res.status(429).json({ error: 'rate_limited', detail: 'Take a breath, you are sending too many messages.' });
+    }
+
+    const { messages, context } = req.body || {};
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: 'messages array required' });
+    }
+    // Sanitise messages down to role + content (strip any extras)
+    const safeMessages = messages
+      .filter(m => m && typeof m === 'object' && typeof m.content === 'string')
+      .map(m => ({ role: (m.role === 'assistant' ? 'assistant' : 'user'), content: m.content.slice(0, 6000) }))
+      .slice(-12);
+
+    const sess = getSession(req);
+    const uid = sess?.uid || req.uid || null;
+
+    // SSE setup
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    const sendEvent = (event, data) => {
+      try {
+        res.write(`event: ${event}\n`);
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      } catch {}
+    };
+
+    try {
+      await runChatAgent({ messages: safeMessages, context, uid, sendEvent });
+    } catch (err) {
+      console.error('[chat] agent error:', err);
+      sendEvent('error', { error: err.message || 'chat_failed' });
+    }
+    res.end();
+  } catch (err) {
+    console.error('[chat] fatal:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'chat_failed', detail: err.message });
+    else res.end();
   }
 });
 
