@@ -9,7 +9,61 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="/config.js"></script>
   <link rel="stylesheet" href="/src/styles.css" />
+  <script>
+    (function(){
+      try {
+        document.documentElement.classList.add('clg-auth-pending');
+        var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+          ? window.BACKEND_URL
+          : 'https://clg-admin-production.up.railway.app';
+        fetch(backend + '/api/me', { credentials: 'include' })
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(me){
+            if (!me || !me.loggedIn) {
+              try {
+                var back = window.location.pathname + window.location.search + window.location.hash;
+                sessionStorage.setItem('clg_auth_return', back);
+              } catch(_) {}
+              window.location.replace('/signup.html');
+              return;
+            }
+            try { window.__CLG_ME__ = me; } catch(_) {}
+            document.documentElement.classList.remove('clg-auth-pending');
+          })
+          .catch(function(){ window.location.replace('/signup.html'); });
+      } catch(_) {
+        document.documentElement.classList.remove('clg-auth-pending');
+      }
+    })();
+  </script>
   <style>
+    /* ----------------------------------------------------------------
+       Auth-gate splash
+       ---------------------------------------------------------------- */
+    html.clg-auth-pending body > *:not(#clg-auth-splash) { visibility: hidden; }
+    #clg-auth-splash {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      background:
+        radial-gradient(900px 600px at 85% -10%, rgba(20, 184, 166, 0.18), transparent 60%),
+        radial-gradient(900px 600px at 5% 110%, rgba(59, 130, 246, 0.22), transparent 55%),
+        linear-gradient(180deg, #050b1a 0%, #0a1628 50%, #0b1e33 100%);
+      color: #e6edf7; font-family: 'Inter', sans-serif;
+    }
+    #clg-auth-splash .clg-auth-splash-inner {
+      display: flex; flex-direction: column; align-items: center; gap: 18px;
+    }
+    #clg-auth-splash .clg-auth-spinner {
+      width: 44px; height: 44px; border-radius: 50%;
+      border: 3px solid rgba(94, 234, 212, 0.18); border-top-color: #14b8a6;
+      animation: clg-auth-spin 0.9s linear infinite;
+    }
+    #clg-auth-splash .clg-auth-label {
+      font-size: 14px; color: rgba(230, 237, 247, 0.72);
+    }
+    @keyframes clg-auth-spin { to { transform: rotate(360deg); } }
+    html:not(.clg-auth-pending) #clg-auth-splash { display: none; }
+
     /* ----------------------------------------------------------------
        Profile page (dark theme)
        ---------------------------------------------------------------- */
@@ -608,6 +662,13 @@
   <script type="module" src="/src/profile.js"></script>
 </head>
 <body class="clg-theme-dark">
+  <div id="clg-auth-splash" aria-hidden="true">
+    <div class="clg-auth-splash-inner">
+      <div class="clg-auth-spinner"></div>
+      <div class="clg-auth-label">Checking your session…</div>
+    </div>
+  </div>
+
   <a href="/create.html" class="fab" aria-label="New alert" title="New alert">+</a>
 
   <header class="topbar" role="banner">

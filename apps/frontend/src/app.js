@@ -592,9 +592,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load user preferences from server (cookie-based anon ID)
   try{
-    const res = await apiFetch(apiUrl('/api/me'));
-    if (res.ok){
-      const me = await res.json();
+    // Reuse the /api/me response pre-fetched by the auth gate if available
+    let me = (typeof window !== 'undefined' && window.__CLG_ME__) ? window.__CLG_ME__ : null;
+    if (!me) {
+      const res = await apiFetch(apiUrl('/api/me'));
+      if (res.ok) me = await res.json();
+    }
+    // Belt-and-braces: if somehow app.js loaded without auth, bounce
+    if (me && me.loggedIn === false) {
+      window.location.replace('/signup.html');
+      return;
+    }
+    if (me){
       selectedTokens = Array.isArray(me.watchlist) ? me.watchlist : [];
       sevFilter      = Array.isArray(me.severity) ? me.severity : ['critical','warning','info'];
       showAll        = !!me.showAll;

@@ -377,8 +377,33 @@
       }
     }
   </style>
-  <script defer>
-    async function googleLogin(){
+  <script src="/config.js"></script>
+  <script>
+    // If the user is already logged in, bounce them straight into the app
+    // (honouring any return destination stashed by the auth gate).
+    (function(){
+      try {
+        var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+          ? window.BACKEND_URL
+          : 'https://clg-admin-production.up.railway.app';
+        fetch(backend + '/api/me', { credentials: 'include' })
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(me){
+            if (me && me.loggedIn) {
+              var back = '/';
+              try {
+                var stashed = sessionStorage.getItem('clg_auth_return');
+                if (stashed && !stashed.startsWith('/signup')) back = stashed;
+                sessionStorage.removeItem('clg_auth_return');
+              } catch(_) {}
+              window.location.replace(back);
+            }
+          })
+          .catch(function(){});
+      } catch(_) {}
+    })();
+
+    function googleLogin(){
       try {
         var btn = document.getElementById('google-btn');
         if (btn) {
@@ -387,6 +412,8 @@
           btn.querySelector('.btn-label').textContent = 'Redirecting…';
         }
       } catch(_) {}
+      // Hand off to backend OAuth flow. The existing index.html early redirect
+      // will send this to the Railway backend in production.
       window.location.href = '/auth/google';
     }
   </script>

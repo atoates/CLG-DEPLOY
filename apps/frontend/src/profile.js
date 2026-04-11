@@ -210,16 +210,21 @@ function selectToken(symbol){
 
 // --- Load profile -----------------------------------------------------------
 async function loadMe(){
-  try {
-    const r = await apiFetch(apiUrl('/api/me'));
-    if (!r.ok) throw new Error('Failed to load profile');
-    me = await r.json();
-  } catch (e) {
-    toast('Could not load your profile. Please try again.', 'error');
-    return;
+  // Reuse the /api/me response pre-fetched by the auth gate if available
+  if (typeof window !== 'undefined' && window.__CLG_ME__) {
+    me = window.__CLG_ME__;
+  } else {
+    try {
+      const r = await apiFetch(apiUrl('/api/me'));
+      if (!r.ok) throw new Error('Failed to load profile');
+      me = await r.json();
+    } catch (e) {
+      toast('Could not load your profile. Please try again.', 'error');
+      return;
+    }
   }
 
-  if (!me.loggedIn){ window.location.href = '/'; return; }
+  if (!me.loggedIn){ window.location.replace('/signup.html'); return; }
 
   // Header
   nameEl.textContent = (me.profile && me.profile.name) || 'Your profile';
