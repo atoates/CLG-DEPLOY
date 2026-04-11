@@ -2399,11 +2399,33 @@ body.clg-theme-dark .user-avatar {
   background: linear-gradient(135deg, #334155, #1e293b);
   border: 1px solid rgba(148, 163, 184, 0.35);
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: #f1f5f9;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+body.clg-theme-dark .user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
 }
 
 body.clg-theme-dark .user-avatar--filled {
   background: linear-gradient(135deg, #0d9488, #155e75);
   border-color: rgba(45, 212, 191, 0.4);
+  color: #ecfeff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 body.clg-theme-dark .user-name {
@@ -3543,18 +3565,25 @@ body.clg-theme-dark .news-header {
 }
 
 body.clg-theme-dark .news-token-filter {
-  background: rgba(15, 23, 42, 0.85) !important;
+  background-color: rgba(15, 23, 42, 0.85) !important;
   color: #e2e8f0 !important;
   border: 1px solid rgba(148, 163, 184, 0.2) !important;
   border-radius: 10px !important;
   padding: 8px 36px 8px 14px !important;
   font-size: 13px !important;
   font-weight: 500;
-  appearance: none;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'><path d='M3 5l3 3 3-3' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>") !important;
-  background-repeat: no-repeat;
-  background-position: right 12px center;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'><path d='M3 5l3 3 3-3' stroke='%235eead4' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+  background-size: 12px 12px !important;
   min-width: 160px;
+}
+
+body.clg-theme-dark .news-token-filter option {
+  background: #0f172a;
+  color: #e2e8f0;
 }
 
 body.clg-theme-dark .news-token-filter:hover {
