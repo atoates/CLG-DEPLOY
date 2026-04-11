@@ -2970,6 +2970,9 @@ body.clg-theme-dark .token-selector-chevron {
 }
 
 body.clg-theme-dark .token-selector-content {
+  position: relative;
+  z-index: 1;
+  overflow: visible;
   background: rgba(15, 23, 42, 0.85);
   border: 1px solid rgba(148, 163, 184, 0.15);
   border-radius: 14px;
@@ -2994,20 +2997,29 @@ body.clg-theme-dark .btn:hover {
   box-shadow: 0 6px 18px rgba(13, 148, 136, 0.4);
 }
 
-/* ---------- Autocomplete dropdown (dark) ---------- */
-body.clg-theme-dark .autocomplete-list {
+/* ---------- Token autocomplete (dark) — JS uses .token-autocomplete, not .autocomplete-list ---------- */
+body.clg-theme-dark .token-selector-dropdown[open] {
+  position: relative;
+  z-index: 40;
+  overflow: visible;
+}
+
+body.clg-theme-dark .token-autocomplete {
   background: #1e293b;
-  border-color: rgba(148, 163, 184, 0.2);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  z-index: 10000;
 }
 
 body.clg-theme-dark .autocomplete-item {
   color: #e2e8f0;
+  border-bottom-color: rgba(148, 163, 184, 0.12);
 }
 
 body.clg-theme-dark .autocomplete-item:hover,
 body.clg-theme-dark .autocomplete-item.selected {
-  background: rgba(45, 212, 191, 0.12);
+  background: rgba(45, 212, 191, 0.14);
 }
 
 body.clg-theme-dark .autocomplete-item strong {
@@ -3015,9 +3027,15 @@ body.clg-theme-dark .autocomplete-item strong {
 }
 
 body.clg-theme-dark .autocomplete-item.autocomplete-request {
-  background-color: rgba(30, 41, 59, 0.9);
-  border-top-color: rgba(148, 163, 184, 0.15);
+  background-color: rgba(30, 41, 59, 0.95);
+  border-top: 2px solid rgba(45, 212, 191, 0.25);
+  border-bottom: none;
   color: #cbd5e1;
+}
+
+body.clg-theme-dark .autocomplete-item.autocomplete-request:hover,
+body.clg-theme-dark .autocomplete-item.autocomplete-request.selected {
+  background: rgba(45, 212, 191, 0.12);
 }
 
 /* ---------- Account / user menu pill (dark) ---------- */
