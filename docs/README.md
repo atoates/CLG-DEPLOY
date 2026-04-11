@@ -1,639 +1,101 @@
-# Crypto Lifeguard 🏊‍♂️# Crypto Lifeguard 🏊‍♂️# Crypto Lifeguard — In-Browser Demo
+# Crypto Lifeguard
 
+Crypto Lifeguard is a web platform that helps users protect their crypto assets through personalised alerts, real-time market monitoring, AI-powered weekly summaries, and aggregated news. It tracks token prices via CoinMarketCap and CoinGecko, generates insights using OpenAI/Anthropic/xAI models, and delivers severity-graded alerts with countdown timers.
 
+## Architecture
 
-A web application for tracking cryptocurrency token alerts with severity levels, deadlines, and AI-powered news aggregation.
+This is an npm-workspaces monorepo with two apps:
 
+- **`apps/admin/`** -- Express API server and React admin dashboard. Handles all backend logic (alerts, news aggregation, AI summaries, market data) and exposes an admin UI for managing content.
+- **`apps/frontend/`** -- Public-facing single-page app built with vanilla JavaScript and Vite. Provides the end-user experience: token watchlists, alerts, news, and AI summaries.
 
+## Tech Stack
 
-## 🏗️ ArchitectureMonorepo for Crypto Lifeguard platform - Admin Dashboard and Backend APIA zero-dependency web prototype you can open in any modern browser. It lets users:
+| Layer | Technologies |
+|-------|-------------|
+| Backend | Node.js, Express, PostgreSQL |
+| Admin UI | React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, Zustand, Recharts |
+| Frontend | Vanilla ES modules, Vite |
+| External APIs | CoinMarketCap, CoinGecko, Google OAuth, OpenAI, Anthropic, xAI |
 
+## Getting Started
 
+### Prerequisites
 
-### Project Structure
+- Node.js >= 20
+- PostgreSQL (local or hosted)
 
+### Installation
+
+```bash
+npm install
 ```
 
-CLG-DEPLOY/## 📁 Structure- Search and **select tokens** to watch
+This installs dependencies for all workspaces.
 
+### Environment
+
+```bash
+cp apps/admin/.env.example apps/admin/.env
+```
+
+Fill in the required values: `DATABASE_URL`, `ADMIN_TOKEN`, API keys for CoinMarketCap, CoinGecko, and your chosen AI provider.
+
+### Development
+
+```bash
+npm run dev:admin      # Admin API + dashboard on http://localhost:5173
+npm run dev:frontend   # Frontend app on http://localhost:5174
+```
+
+### Database Migrations
+
+```bash
+cd apps/admin && npm run migrate
+```
+
+Migrations run automatically on production startup.
+
+## Project Structure
+
+```
+CLG-DEPLOY/
 ├── apps/
-
-│   ├── admin/              # React admin dashboard (TypeScript)- See **dummy alerts** with severity icons (🚨 / ⚠️ / 🛟) and **live countdowns**
-
-│   │   ├── server.js       # Express API server + admin backend
-
-│   │   ├── src/            # React admin UI components```- Read a **mock AI weekly summary** tailored to selected tokens
-
-│   │   ├── migrations/     # PostgreSQL database migrations
-
-│   │   └── package.jsoncrypto-lifeguard/
-
-│   └── frontend/           # Main user-facing SPA (vanilla JS)
-
-│       ├── src/            # Frontend app code├── apps/## How to run
-
-│       ├── public/         # Static assets
-
-│       ├── serve-spa.js    # Production server│   ├── admin/          # React admin panel
-
-│       └── package.json
-
-├── docs/                   # Documentation│   └── backend/        # Node.js API server1. Download the three files in this folder:
-
-├── scripts/                # Utility scripts
-
-└── package.json            # Root workspace config├── packages/   - `index.html`
-
+│   ├── admin/            # Express API + React admin dashboard
+│   │   ├── server.js     # API server entry point
+│   │   ├── migrate.js    # Database migration runner
+│   │   ├── migrations/   # PostgreSQL migrations
+│   │   └── src/          # React admin UI (TypeScript)
+│   └── frontend/         # Public-facing SPA
+│       ├── src/          # Vanilla JS application code
+│       ├── public/       # Static assets
+│       └── serve-spa.js  # Production server
+├── docs/                 # Project documentation
+├── scripts/              # Utility and verification scripts
+└── package.json          # Root workspace config
 ```
 
-│   └── shared/         # Shared TypeScript types   - `styles.css`
+## Deployment
 
-### Technology Stack
+| Service | Platform | Directory |
+|---------|----------|-----------|
+| Backend + Admin UI | Railway | `apps/admin/` |
+| Frontend | Vercel | `apps/frontend/` |
 
-└── package.json        # Root workspace config   - `app.js`
+Production URLs:
 
-**Backend (apps/admin/server.js):**
+- API / Admin: `https://clg-admin-production.up.railway.app`
+- Frontend: `https://app.crypto-lifeguard.com`
 
-- Node.js + Express.js```2. Open `index.html` directly in your browser (double-click it). No build or server needed.
+## Documentation
 
-- PostgreSQL (Railway hosted)
+- [DEPLOYMENT.md](./DEPLOYMENT.md) -- Deployment checklist
+- [DEVELOPMENT.md](./DEVELOPMENT.md) -- Development guidelines
+- [TESTING_GUIDE.md](./TESTING_GUIDE.md) -- Testing procedures
+- [TOKEN_REQUEST_SYSTEM.md](./TOKEN_REQUEST_SYSTEM.md) -- Token request feature
+- [AI_ALERT_GENERATOR.md](./AI_ALERT_GENERATOR.md) -- AI alert generation
+- [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) -- Quick command reference
 
-- RESTful API
+## License
 
-- Environment-based logging system
-
-## 🚀 Quick Start## Notes
-
-**Admin Dashboard (apps/admin/src):**
-
-- React 18 + TypeScript
-
-- Vite build system
-
-- TanStack Query (data fetching)### Install Dependencies- This is a front-end only demo. All data is hardcoded and stored in memory (with localStorage for selected tokens).
-
-- TailwindCSS + shadcn/ui
-
-- Recharts (data visualization)- Colours follow the brand palette (Ocean Blue, Lifeguard Yellow, Coral Red, Sandy Beige).
-
-
-
-**Frontend App (apps/frontend):**```bash- You can type any token symbol (e.g., `BTC`, `ETH`, `MATIC`). Unknown symbols that look valid (A–Z/0–9) are allowed for demo.
-
-- Vanilla JavaScript
-
-- Vite for build/dev servernpm install- The weekly summary is mocked; in a full app this would be generated by an LLM from real data.
-
-- Responsive CSS
-
-- LocalStorage for user preferences```
-
-
-
-## 🎯 Key Features### Auth (optional)
-
-
-
-### 1. Alert ManagementThis will install dependencies for all workspaces.- Set environment variables to enable Google SSO (demo implementation):
-
-- **Severity Levels:** Critical 🚨, Warning ⚠️, Info 🛟
-
-- **Token-based filtering:** Users select tokens to track   - `BASE_URL` (e.g., `http://localhost:3000` for local)
-
-- **Countdown timers:** Visual deadline tracking
-
-- **Tagging system:** Categorize alerts (hack, exploit, migration, etc.)### Development   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-
-- **Admin creation:** Secure alert creation via admin dashboard
-
-- Visit `/signup` to start; `/profile` shows current user and prefs.
-
-### 2. News Aggregation
-
-- **CoinDesk RSS integration:** Primary news source (free, no API key)```bash// Trigger deployment Thu Oct  2 12:53:35 BST 2025
-
-- **CryptoNews API fallback:** Secondary source with API key
-
-- **PostgreSQL caching:** 120-day article retention# Run both admin and backend in development mode
-
-- **Scheduled fetching:** Auto-refresh every 5 minutes
-
-- **Sentiment analysis:** Track market sentiment per articlenpm run dev
-
-- **Token filtering:** Show news relevant to user's watchlist
-
-
-
-### 3. AI Features# Or run individually:
-
-- **Weekly summaries:** GPT-4o/Claude/Grok generate personalized summariesnpm run dev:admin    # Admin panel on http://localhost:5173
-
-- **Alert generation:** AI creates alerts from news articlesnpm run dev:backend  # Backend API on http://localhost:3000
-
-- **Model selection:** Support for OpenAI, Anthropic, xAI```
-
-- **Token tracking:** Monitor AI API usage and costs
-
-### Build
-
-### 4. Market Data
-
-- **CoinMarketCap integration:** Real-time prices and market caps```bash
-
-- **Token logos:** CoinGecko/LogoKit with PostgreSQL caching# Build admin panel
-
-- **Multi-currency:** USD, EUR, GBP supportnpm run build
-
-- **Percentage changes:** 24h price movements
-
-# Or specifically:
-
-### 5. User Managementnpm run build:admin
-
-- **Anonymous auth:** Cookie-based user identification```
-
-- **Watchlists:** Save preferred tokens
-
-- **Preferences:** Severity filters, dismissed alerts, currency## 📦 Workspaces
-
-- **Profile management:** View and edit user settings
-
-### apps/admin
-
-### 6. Admin Dashboard
-
-- **News management:** Edit, delete, bulk operationsReact + TypeScript + Vite admin dashboard for managing alerts, news, and tokens.
-
-- **Alert creation:** Manual and AI-assisted
-
-- **API tracking:** Monitor external API usage**Tech Stack:**
-
-- **Feed management:** Add/remove RSS news feeds- React 18
-
-- **User insights:** View user summaries and preferences- TypeScript
-
-- Vite
-
-## 🗄️ Database Schema (PostgreSQL)- TanStack Query
-
-- TailwindCSS
-
-### Core Tables
-
-- **alerts:** Token alerts with severity, tags, deadlines**Key Features:**
-
-- **users:** User identities and metadata- Alert management
-
-- **user_prefs:** Watchlists, filters, dismissed items- News feed management
-
-- **user_summaries:** AI-generated weekly summaries- AI-powered alert generation
-
-- **news_cache:** Cached news articles (120-day retention)- Token request management
-
-- **news_feeds:** Configurable RSS feed sources
-
-- **api_call_tracking:** External API usage monitoring**Scripts:**
-
-- **logo_cache:** Persistent token logo storage (BYTEA)```bash
-
-cd apps/admin
-
-### Key Featuresnpm run dev      # Start dev server
-
-- **Migrations:** Automated schema versioning (001-014)npm run build    # Build for production
-
-- **Indexes:** Optimized for common queriesnpm run preview  # Preview production build
-
-- **JSON columns:** Flexible data storage for arrays```
-
-- **Timestamps:** Track creation and updates
-
-- **Constraints:** Data integrity and validation### apps/backend
-
-
-
-## 🚀 DevelopmentNode.js + Express API server with PostgreSQL database.
-
-
-
-### Prerequisites**Tech Stack:**
-
-```bash- Node.js
-
-# Node.js 18+- Express
-
-node --version- PostgreSQL
-
-- News APIs (CoinDesk, CryptoNews, etc.)
-
-# PostgreSQL (local or Railway)
-
-# Railway account for deployment**Key Features:**
-
-```- RESTful API endpoints
-
-- Database migrations
-
-### Local Setup- News aggregation
-
-- Alert management
-
-1. **Install dependencies:**- Admin authentication
-
-```bash
-
-npm install**Scripts:**
-
-``````bash
-
-cd apps/backend
-
-2. **Configure environment variables:**npm start           # Start server
-
-```bashnpm run migrate     # Run database migrations
-
-# apps/admin/.env```
-
-DATABASE_URL=postgresql://localhost/crypto_lifeguard
-
-ADMIN_TOKEN=your-secret-token### packages/shared
-
-CMC_API_KEY=your-coinmarketcap-key
-
-COINGECKO_API_KEY=your-coingecko-keyShared TypeScript types and utilities used across admin and backend.
-
-OPENAI_API_KEY=sk-...
-
-ANTHROPIC_API_KEY=sk-ant-...## 🗄️ Database
-
-XAI_API_KEY=xai-...
-
-LOG_LEVEL=debugPostgreSQL database hosted on Railway.
-
-
-
-# apps/frontend/.env**Migrations:**
-
-VITE_BACKEND_URL=http://localhost:3000```bash
-
-```npm run migrate --workspace=apps/backend
-
-```
-
-3. **Run database migrations:**
-
-```bash## 🌐 Deployment
-
-cd apps/admin
-
-npm run migrate### Railway Configuration
-
-```
-
-Both apps deploy from this monorepo but as separate services:
-
-4. **Start development servers:**
-
-```bash**Backend Service (CLG-DEPLOY):**
-
-# Terminal 1: Backend + Admin- Root Directory: `apps/backend`
-
-cd apps/admin- Build Command: `cd apps/backend && npm install`
-
-npm run dev- Start Command: `cd apps/backend && npm start`
-
-- Environment Variables: See `apps/backend/.env.example`
-
-# Terminal 2: Frontend
-
-cd apps/frontend**Admin Service (CLG-ADMIN):**
-
-npm run dev- Root Directory: `apps/admin`
-
-```- Build Command: `cd apps/admin && npm install && npm run build`
-
-- Start Command: `cd apps/admin && npm run preview`
-
-**Access:**- Environment Variables: See `apps/admin/.env.example`
-
-- Frontend: http://localhost:5173
-
-- Admin Dashboard: http://localhost:5174### URLs
-
-- API: http://localhost:3000
-
-- **Production API:** https://app.crypto-lifeguard.com
-
-### Development Commands- **Admin Panel:** https://clg-admin-production.up.railway.app
-
-- **Staging API:** https://clg-staging.up.railway.app
-
-```bash
-
-# Backend## 🔧 Development Workflow
-
-cd apps/admin
-
-npm run dev          # Start dev server### Adding a New Feature
-
-npm run build        # Build admin dashboard
-
-npm run migrate      # Run database migrations1. **Create shared types** (if needed):
-
-npm run start        # Production mode   ```bash
-
-   # Edit packages/shared/types.ts
-
-# Frontend   ```
-
-cd apps/frontend
-
-npm run dev          # Start dev server2. **Backend changes**:
-
-npm run build        # Build for production   ```bash
-
-npm run preview      # Preview production build   cd apps/backend
-
-```   # Add API endpoints, database migrations, etc.
-
-   ```
-
-## 🌐 Deployment (Railway)
-
-3. **Frontend changes**:
-
-### Architecture   ```bash
-
-- **2 Railway services** from single monorepo   cd apps/admin
-
-- **Shared PostgreSQL database**   # Add UI components, API calls, etc.
-
-- **Environment-based configuration**   ```
-
-
-
-### Service 1: Admin Backend + Dashboard4. **Test locally**:
-
-- **Path:** `apps/admin/`   ```bash
-
-- **Build:** `npm install && npm run build`   npm run dev  # From root
-
-- **Start:** `npm run start`   ```
-
-- **Migrations:** Auto-run on startup
-
-- **URL:** https://clg-admin-production.up.railway.app5. **Commit and push**:
-
-   ```bash
-
-### Service 2: Frontend App   git add .
-
-- **Path:** `apps/frontend/`   git commit -m "feat: your feature description"
-
-- **Build:** `npm install && npm run build`   git push origin main
-
-- **Start:** `node serve-spa.js`   ```
-
-- **URL:** https://app.crypto-lifeguard.com
-
-Railway will automatically deploy both services.
-
-### Environment Variables (Railway)
-
-## 📝 Environment Variables
-
-**Admin Service:**
-
-```env### Backend (`apps/backend/.env`)
-
-DATABASE_URL=(auto from Railway PostgreSQL)
-
-ADMIN_TOKEN=your-secret-token```env
-
-LOG_LEVEL=errorDATABASE_URL=postgresql://...
-
-CMC_API_KEY=...ADMIN_TOKEN=your-admin-token
-
-COINGECKO_API_KEY=...ADMIN_DASHBOARD_URL=https://clg-admin-production.up.railway.app
-
-OPENAI_API_KEY=...OPENAI_API_KEY=sk-...
-
-ANTHROPIC_API_KEY=...# See apps/backend/.env.example for full list
-
-XAI_API_KEY=...```
-
-FRONTEND_URL=https://app.crypto-lifeguard.com
-
-```### Admin (`apps/admin/.env`)
-
-
-
-**Frontend Service:**```env
-
-```envVITE_API_URL=https://app.crypto-lifeguard.com
-
-BACKEND_URL=https://clg-admin-production.up.railway.appVITE_OPENAI_API_KEY=sk-...
-
-``````
-
-
-
-### Deployment Workflow## 🧪 Testing
-
-
-
-**⚠️ CRITICAL: Always deploy to staging first!**```bash
-
-# Backend tests
-
-```bashcd apps/backend
-
-# 1. Deploy to stagingnpm test
-
-git checkout develop
-
-git add .# Admin tests
-
-git commit -m "feat: description"cd apps/admin
-
-git push origin developnpm test
-
-```
-
-# 2. Test staging
-
-# Visit: https://clg-staging.up.railway.app## 📚 Documentation
-
-# Verify all features work
-
-- [Backend API Documentation](./apps/backend/README.md)
-
-# 3. Deploy to production- [Admin Panel Guide](./apps/admin/README.md)
-
-git checkout main- [Token Request System](./TOKEN_REQUEST_SYSTEM.md)
-
-git merge develop- [Architecture Refactor Proposal](./ARCHITECTURE_REFACTOR_PROPOSAL.md)
-
-git push origin main
-
-## 🤝 Contributing
-
-# 4. Verify production
-
-# Visit: https://app.crypto-lifeguard.com1. Create a feature branch
-
-# Check health: curl https://clg-admin-production.up.railway.app/healthz2. Make your changes
-
-```3. Test locally
-
-4. Submit a pull request
-
-## 📊 API Endpoints
-
-## 📄 License
-
-### Public API (User-facing)
-
-Private - All Rights Reserved
-
-```
-
-GET  /api/alerts              # Get filtered alerts---
-
-GET  /api/news                # Get news articles
-
-POST /api/summary             # Generate AI summary**Built with ❤️ for the crypto community**
-
-GET  /api/ticker-prices       # Get market data
-GET  /api/logo/:symbol        # Get token logo
-GET  /api/me                  # Get user preferences
-PUT  /api/me                  # Update user preferences
-```
-
-### Admin API (Protected)
-
-```
-POST   /admin/alerts          # Create alert
-GET    /admin/news/cache      # Get cached news
-PUT    /admin/news/cache/:url # Update article
-DELETE /admin/news/cache/:url # Delete article
-POST   /admin/news/refresh    # Force refresh
-GET    /admin/news/stats      # News statistics
-GET    /admin/api-stats       # API usage tracking
-GET    /admin/news/feeds      # Get news feeds
-POST   /admin/news/feeds      # Add news feed
-PUT    /admin/news/feeds/:id  # Update feed
-DELETE /admin/news/feeds/:id  # Delete feed
-```
-
-## 🧪 Testing
-
-### Manual Testing
-```bash
-# Health check
-curl https://clg-admin-production.up.railway.app/healthz
-
-# Logo verification
-./scripts/verify-logo-migration.sh
-
-# Staging tests
-./test-staging-news.sh
-./test-staging-coindesk.sh
-```
-
-### Deployment Verification
-```bash
-# After deployment
-curl https://clg-admin-production.up.railway.app/healthz
-# Visit app and check browser console
-# Test: add token, view alerts, generate summary
-```
-
-## 🔒 Security
-
-### Authentication
-- **Admin API:** Bearer token (`ADMIN_TOKEN` env var)
-- **User API:** Cookie-based anonymous users
-- **CORS:** Scoped to `/api`, `/auth`, `/admin` only
-
-### Environment-Based Logging
-```javascript
-// Production: LOG_LEVEL=error (errors only)
-// Development: LOG_LEVEL=debug (full logging)
-log.error(...)  // Always logged
-log.warn(...)   // Logged in warn/info/debug modes
-log.info(...)   // Logged in info/debug modes
-log.debug(...)  // Only in debug mode
-```
-
-## 📈 Performance Optimizations
-
-### Caching Strategy
-1. **In-memory cache:** LRU cache for API responses
-2. **PostgreSQL cache:** Persistent storage (news, logos)
-3. **Browser cache:** Public assets, logos (86400s)
-
-### Logo Caching
-- **PostgreSQL storage:** Logos persist across deployments
-- **Three-tier lookup:** Memory → Database → External API
-- **Background refresh:** Update old logos (>30 days) async
-- **Binary storage:** BYTEA column for PNG/SVG data
-
-### News Caching
-- **120-day retention:** Auto-expire old articles
-- **Scheduled refresh:** Fetch new articles every 5 minutes
-- **Deduplication:** Prevent duplicate articles by URL
-- **Token indexing:** Fast filtering by ticker symbols
-
-## 📚 Documentation
-
-- [DEPLOYMENT.md](./DEPLOYMENT.md) - Deployment checklist and procedures
-- [DEVELOPMENT.md](./DEVELOPMENT.md) - Development guidelines
-- [TESTING_GUIDE.md](./TESTING_GUIDE.md) - Testing procedures
-- [TOKEN_REQUEST_SYSTEM.md](./TOKEN_REQUEST_SYSTEM.md) - Token request feature
-- [AI_ALERT_GENERATOR.md](./AI_ALERT_GENERATOR.md) - AI alert creation
-- [LOGO_CACHE_POSTGRESQL_MIGRATION.md](./LOGO_CACHE_POSTGRESQL_MIGRATION.md) - Logo caching architecture
-- [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) - Quick command reference
-- [CODE_REVIEW.md](../CODE_REVIEW.md) - Logging cleanup status
-
-## 🛠️ Troubleshooting
-
-### Common Issues
-
-**CORS Errors:**
-- Check CORS is NOT applied globally (`app.use(cors())`)
-- Ensure CORS only on `/api`, `/auth`, `/admin`
-- Verify `FRONTEND_URL` in environment variables
-
-**Database Connection:**
-- Check `DATABASE_URL` is set correctly
-- Verify SSL settings for Railway PostgreSQL
-- Run migrations: `npm run migrate`
-
-**Missing Logos:**
-- Check `COINGECKO_API_KEY` is set
-- Verify `logo_cache` table exists (migration 014)
-- Check PostgreSQL BYTEA storage permissions
-
-**News Not Loading:**
-- Check CoinDesk RSS is accessible
-- Verify `news_cache` table exists (migration 006)
-- Check scheduled fetch logs
-
-## 🤝 Contributing
-
-1. Create feature branch from `develop`
-2. Make changes and test locally
-3. Deploy to staging and verify
-4. Create PR to `develop`
-5. After staging approval, merge to `main`
-
-## 📄 License
-
-Private - All Rights Reserved
-
----
-
-**Built with ❤️ for the crypto community**
-
-Last Updated: October 30, 2025
+Private -- All Rights Reserved

@@ -14,25 +14,25 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20'
           
       - name: Install dependencies
         run: npm ci
         
       - name: Run syntax check
-        run: node -c server.js
+        run: node -c apps/admin/server.js
         
       - name: Build frontend
-        run: npm run build
+        run: npm run build --workspace=apps/admin
         
       - name: Check build output
         run: |
-          if [ ! -d "dist" ]; then
-            echo "Build failed - dist directory not created"
+          if [ ! -d "apps/admin/dist" ]; then
+            echo "Build failed - apps/admin/dist directory not created"
             exit 1
           fi
-          if [ ! -f "dist/index.html" ]; then
-            echo "Build failed - index.html not created"
+          if [ ! -f "apps/admin/dist/index.html" ]; then
+            echo "Build failed - apps/admin/dist/index.html not created"
             exit 1
           fi
           

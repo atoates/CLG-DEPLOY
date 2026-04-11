@@ -31,4 +31,3 @@ data/
 *.njsproj
 *.sln
 *.sw?
-# Force redeploy to pick up CMC_API_KEY Fri Oct  3 12:17:06 BST 2025

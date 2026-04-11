@@ -178,7 +178,6 @@ form.addEventListener('submit', async (e) => {
     msg.textContent = 'Alert created ✔ Redirecting…';
     setTimeout(() => { window.location.href = '/'; }, 700);
   }catch(err){
-    console.error(err);
     msg.textContent = 'Failed to save alert. Please try again.';
     submitBtn.disabled = false;
     submitBtn.textContent = 'Create alert';

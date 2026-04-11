@@ -1,23 +1,18 @@
 {
   "name": "crypto-lifeguard",
   "version": "1.0.0",
-  "description": "Crypto Lifeguard - Main App",
+  "description": "Crypto Lifeguard — Protect your crypto assets with personalised alerts",
   "private": true,
   "workspaces": [
+    "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "install:all": "npm install",
+    "dev:admin": "npm run dev --workspace=apps/admin",
+    "dev:frontend": "npm run dev --workspace=apps/frontend",
+    "build:admin": "npm run build --workspace=apps/admin",
+    "build:frontend": "npm run build --workspace=apps/frontend",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules"
-  },
-  "dependencies": {
-    "serve": "^14.2.5"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2",
-    "vite": "^5.4.20"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -34,7 +34,6 @@ const BASE_TOKENS = [
   'POL','OMNI','UXLINK','ENA','DAI'
 ];
 const ALL_TOKENS = [...BASE_TOKENS];
-const tagFilterCard   = document.getElementById('filter-tags-card');
 const showAllToggle   = document.getElementById('toggle-show-all');
 
 const sevButtons      = document.querySelectorAll('.sev-btn');
@@ -112,7 +111,6 @@ const ALERT_SOURCE_TYPES = {
 
 // --- Additional state -------------------------------------------------------
 let tagFilter = [];
-let tagPillsExpanded = false;
 
 // Market state
 let marketItems = [];
@@ -329,7 +327,7 @@ async function checkEnvironment() {
       }
     }
   } catch (error) {
-    console.log('Could not fetch environment info');
+    /* silently ignore */
   }
 }
 
@@ -376,7 +374,6 @@ async function fetchTickerPrices() {
     }
     
     if (tokens.length === 0) {
-      console.log('No tokens selected for ticker');
       return [];
     }
 
@@ -389,8 +386,6 @@ async function fetchTickerPrices() {
     }
 
     const data = await response.json();
-    console.log('Fetched ticker data:', data);
-    
     return data.prices || [];
   } catch (error) {
     console.error('Error fetching ticker prices:', error);
@@ -411,12 +406,10 @@ function renderTicker(pricesData) {
   const tickerDuplicate = tickerEl?.querySelector('.ticker-duplicate');
   
   if (!tickerEl || !tickerContent || !tickerDuplicate) {
-    console.log('Ticker elements not found');
     return;
   }
 
   if (!pricesData || pricesData.length === 0) {
-    console.log('No price data to display in ticker');
     tickerEl.hidden = true;
     return;
   }
@@ -442,19 +435,14 @@ function renderTicker(pricesData) {
   
   // Show ticker
   tickerEl.hidden = false;
-  
-  console.log(`Ticker rendered with ${pricesData.length} tokens`);
 }
 
 async function updateTicker() {
-  console.log('Updating price ticker...');
   const pricesData = await fetchTickerPrices();
   renderTicker(pricesData);
 }
 
 function startTicker() {
-  console.log('Starting price ticker...');
-  
   // Initial update
   updateTicker();
   
@@ -463,18 +451,6 @@ function startTicker() {
     clearInterval(tickerUpdateInterval);
   }
   tickerUpdateInterval = setInterval(updateTicker, 300000);
-}
-
-function stopTicker() {
-  if (tickerUpdateInterval) {
-    clearInterval(tickerUpdateInterval);
-    tickerUpdateInterval = null;
-  }
-  
-  const tickerEl = document.getElementById('price-ticker');
-  if (tickerEl) {
-    tickerEl.hidden = true;
-  }
 }
 
 // --- User menu dropdown ------------------------------------------------------
@@ -654,7 +630,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     }
-  }catch(e){ console.warn('prefs load failed', e); }
+  }catch(e){}
 
   // Sync UI controls to prefs
   if (showAllToggle) showAllToggle.checked = showAll;
@@ -721,10 +697,8 @@ async function fetchTokenMetadata() {
     if (r.ok) {
       const data = await r.json();
       tokenMetadata = data.tokens || [];
-      console.log(`Loaded ${tokenMetadata.length} tokens from ${data.provider || 'unknown'}`);
     }
   } catch (e) {
-    console.error('Failed to fetch token metadata:', e);
     // Fallback to existing ALL_TOKENS
     tokenMetadata = ALL_TOKENS.map(symbol => ({ symbol, name: symbol }));
   }
@@ -951,7 +925,6 @@ async function submitTokenRequest(e) {
       throw new Error(data.error || 'Failed to submit request');
     }
   } catch (err) {
-    console.error('Token request error:', err);
     alert(`❌ Failed to submit token request: ${err.message}`);
   } finally {
     submitBtn.disabled = false;
@@ -1072,8 +1045,6 @@ async function loadAlertsFromServer(){
   try{
     const res = await apiFetch(apiUrl('/api/alerts'));
     serverAlerts = await res.json();
-    console.log('DEBUG: Loaded', serverAlerts.length, 'alerts from server');
-    console.log('DEBUG: First few alerts:', serverAlerts.slice(0, 3));
   }catch(e){
     console.error('Failed to fetch /api/alerts', e);
     serverAlerts = [];
@@ -1236,26 +1207,6 @@ function updateTagButtonStates() {
   });
 }
 
-function toggleOption(option) {
-  const checkbox = option.querySelector('.option-checkbox');
-  const value = option.dataset.value;
-  
-  if (tagFilter.includes(value)) {
-    // Remove from selection
-    tagFilter = tagFilter.filter(tag => tag !== value);
-    option.classList.remove('selected');
-    checkbox.classList.remove('checked');
-  } else {
-    // Add to selection
-    tagFilter.push(value);
-    option.classList.add('selected');
-    checkbox.classList.add('checked');
-  }
-  
-  updateDropdownText();
-  renderAlerts();
-}
-
 function updateDropdownText() {
   const dropdownText = document.querySelector('.dropdown-text');
   
@@ -1272,27 +1223,8 @@ function updateDropdownText() {
 
 
 
-function removeTagFilter(tagToRemove) {
-  // Remove from tagFilter array
-  tagFilter = tagFilter.filter(tag => tag !== tagToRemove);
-  if (tagFilter.length <= 4) tagPillsExpanded = false; // collapse when small
-  
-  // Update dropdown option visual state
-  const dropdownOptions = document.getElementById('tag-dropdown-options');
-  const option = dropdownOptions.querySelector(`[data-value="${tagToRemove}"]`);
-  if (option) {
-    option.classList.remove('selected');
-    option.querySelector('.option-checkbox').classList.remove('checked');
-  }
-  
-  updateDropdownText();
-  renderAlerts();
-}
-
 function resetTagFilters() {
-  // Clear all selections
   tagFilter = [];
-  tagPillsExpanded = false;
   
   // Update tag button states in popup
   updateTagButtonStates();
@@ -1769,7 +1701,7 @@ async function generateNewSummary(){
       const recent = await fetchRecentSummaries(10);
       updateSummaryHistoryNav(recent, 0); // Set to index 0 (newest)
     } catch (histErr) {
-      console.warn('Failed to refresh summary history:', histErr);
+      /* silently ignore */
     }
 
   } catch (error) {
@@ -2077,28 +2009,18 @@ function clearNewsTab() {
 
 // --- News loading -----------------------------------------------------------
 async function loadNews() {
-  console.log('[News Debug] loadNews() called');
   const newsContent = document.getElementById('news-content');
-  if (!newsContent) {
-    console.error('[News Debug] newsContent element not found!');
-    return;
-  }
-
-  console.log('[News Debug] selectedTokens:', selectedTokens);
-  console.log('[News Debug] showAllTokens:', showAllTokens);
+  if (!newsContent) return;
 
   if (!selectedTokens.length && !showAllTokens) {
-    console.log('[News Debug] No tokens selected, clearing news tab');
     clearNewsTab();
     return;
   }
 
-  // Show loading state
   newsContent.innerHTML = '<div class="news-placeholder">📰 Loading recent news...</div>';
 
   try {
     const tokens = showAllTokens ? getUniqueTokensFromAlerts([...serverAlerts, ...autoAlerts]) : selectedTokens;
-    console.log('[News Debug] Fetching news for tokens:', tokens);
     
     const response = await apiFetch(apiUrl('/api/news'), {
       method: 'POST',
@@ -2108,25 +2030,18 @@ async function loadNews() {
       body: JSON.stringify({ tokens })
     });
 
-    console.log('[News Debug] Response status:', response.status);
-    
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('[News Debug] Received data:', data);
-    console.log('[News Debug] News count:', data.news ? data.news.length : 0);
     
     if (data.news && data.news.length > 0) {
-      console.log('[News Debug] Calling updateNewsTab with', data.news.length, 'articles');
       updateNewsTab(data.news);
     } else {
-      console.log('[News Debug] No news data, showing placeholder');
       newsContent.innerHTML = '<div class="news-placeholder">No recent news available for your selected tokens.</div>';
     }
   } catch (error) {
-    console.error('[News Debug] Error loading news:', error);
     newsContent.innerHTML = '<div class="news-placeholder">Failed to load news. Please try again later.</div>';
   }
 }

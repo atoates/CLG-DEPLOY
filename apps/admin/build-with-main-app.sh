@@ -20,8 +20,8 @@ echo "   Root:  $ROOT_DIR"
 echo "   Admin: $ADMIN_DIR"
 echo ""
 
-# Step 1: Build the main app (CLG-DEPLOY root)
-echo "1️⃣  Building main app (CLG-DEPLOY)..."
+# Step 1: Build the main app (apps/frontend)
+echo "1️⃣  Building main app (apps/frontend)..."
 cd "$ROOT_DIR"
 
 if [ ! -d "node_modules" ]; then
@@ -29,10 +29,10 @@ if [ ! -d "node_modules" ]; then
   npm install
 fi
 
-npm run build
+npm run build --workspace=apps/frontend
 
-if [ ! -d "dist" ]; then
-  echo "❌ Error: Main app build failed - dist/ not found"
+if [ ! -d "apps/frontend/dist" ]; then
+  echo "❌ Error: Main app build failed - apps/frontend/dist/ not found"
   exit 1
 fi
 
@@ -66,7 +66,7 @@ mkdir -p "$ADMIN_DIR/main-app-dist"
 
 # Copy main app build to main-app-dist
 echo "   Copying main app files..."
-cp -R "$ROOT_DIR/dist/"* "$ADMIN_DIR/main-app-dist/"
+cp -R "$ROOT_DIR/apps/frontend/dist/"* "$ADMIN_DIR/main-app-dist/"
 
 echo "✅ Main app files copied to backend"
 echo ""
