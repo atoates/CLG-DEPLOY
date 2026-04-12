@@ -1,0 +1,15 @@
+# Admin + main app image. Railway: leave Root Directory blank (repo root).
+
+[phases.setup]
+nixPkgs = ['nodejs_22']
+
+[phases.install]
+cmds = ['npm ci', 'cd apps/frontend && npm install']
+
+[phases.build]
+cmds = [
+  'cd apps/frontend && npx vite build && cd ../admin && rm -rf main-app-dist && cp -r ../frontend/dist main-app-dist && echo "window.BACKEND_URL = \"\";" > main-app-dist/config.js && npm run build',
+]
+
+[start]
+cmd = 'cd apps/admin && npm start'

@@ -11,6 +11,8 @@
     "dev:frontend": "npm run dev --workspace=apps/frontend",
     "build:admin": "npm run build --workspace=apps/admin",
     "build:frontend": "npm run build --workspace=apps/frontend",
+    "build": "cd apps/frontend && npx vite build && cd ../admin && rm -rf main-app-dist && cp -r ../frontend/dist main-app-dist && echo 'window.BACKEND_URL = \"\";' > main-app-dist/config.js && npm run build",
+    "start": "cd apps/admin && npm start",
     "clean": "rm -rf node_modules apps/*/node_modules"
   },
   "engines": {
