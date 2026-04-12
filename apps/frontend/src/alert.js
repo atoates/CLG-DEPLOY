@@ -903,8 +903,14 @@ async function boot() {
     window.CLG_CHAT_CONTEXT = { ...(window.CLG_CHAT_CONTEXT || {}), page: 'alert-detail', token, alertId: alert.id };
   } catch {}
 
-  // Kick off all downstream loads in parallel.
-  const marketPromise = fetchMarketSnapshot(token).then(async (snapshot) => {
+  // Kick off market snapshot and price history fetches in parallel, but
+  // render the chart AFTER the market card has been replaced so the new
+  // chart-wrap element is in the DOM (avoids a race where the market card
+  // replacement wipes out an already-rendered sparkline).
+  const marketDataPromise = fetchMarketSnapshot(token);
+  const historyDataPromise = fetchPriceHistory(token, 7);
+
+  const marketPromise = marketDataPromise.then(async (snapshot) => {
     if (!snapshot) return null;
     // Replace the market card with a populated one
     const oldMarket = document.querySelector('.clg-alert-market');
@@ -915,7 +921,8 @@ async function boot() {
     return snapshot;
   });
 
-  const historyPromise = fetchPriceHistory(token, 7).then((hist) => {
+  // Wait for market card to settle, then render the chart into the final wrap.
+  const historyPromise = Promise.all([marketPromise, historyDataPromise]).then(([, hist]) => {
     const wrap = document.getElementById('clg-alert-chart-wrap');
     if (!wrap) return;
     wrap.innerHTML = '';
