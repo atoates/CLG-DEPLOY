@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="clg-theme-dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -90,6 +90,15 @@
       </div>
     </div>
   </header>
+
+  <!-- Price Ticker Banner (same markup/class set as index.html so the shared
+       CSS in styles.css applies identically) -->
+  <div id="price-ticker" class="price-ticker" hidden>
+    <div class="ticker-track" id="ticker-track">
+      <div class="ticker-content" id="ticker-content"></div>
+      <div class="ticker-content ticker-duplicate" id="ticker-duplicate"></div>
+    </div>
+  </div>
 
   <main class="container clg-alert-detail">
     <!-- Alert.js renders into this root. Skeleton loader shown first. -->

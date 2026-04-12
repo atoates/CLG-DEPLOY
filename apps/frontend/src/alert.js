@@ -148,12 +148,20 @@ async function fetchAlert(id) {
   if (!r.ok) throw new Error(`Alert load failed (${r.status})`);
   return r.json();
 }
-async function fetchRelatedAlerts(token) {
+// Cache the full alerts list so related + nav arrows share one request.
+let _allAlertsCache = null;
+async function fetchAllAlerts() {
+  if (_allAlertsCache) return _allAlertsCache;
   const r = await fetch(apiUrl('/api/alerts'), { credentials: 'include' });
-  if (!r.ok) return [];
+  if (!r.ok) { _allAlertsCache = []; return _allAlertsCache; }
   const all = await r.json();
+  _allAlertsCache = Array.isArray(all) ? all : [];
+  return _allAlertsCache;
+}
+async function fetchRelatedAlerts(token) {
+  const all = await fetchAllAlerts();
   const upper = String(token || '').toUpperCase();
-  return (Array.isArray(all) ? all : []).filter(a => String(a.token || '').toUpperCase() === upper);
+  return all.filter(a => String(a.token || '').toUpperCase() === upper);
 }
 async function fetchMarketSnapshot(token, currency = 'USD') {
   try {
@@ -705,6 +713,150 @@ function renderError(message) {
   ]));
 }
 
+// ---- Prev/next navigation -------------------------------------------------
+//
+// Sorts the full alerts list the same way the index page does (newest first
+// by id — alert ids are `a_<timestamp>_<rand>` so lexical sort is reverse-
+// chronological) and renders a pair of arrow buttons above the alert grid
+// that jump to the previous or next alert in that ordering. Wrap-around is
+// disabled: on the first alert the left arrow is disabled, on the last the
+// right arrow is disabled.
+
+function sortAlertsForNav(all) {
+  // Reverse chronological by id (matches the main feed's default order).
+  return [...all].sort((a, b) => String(b.id || '').localeCompare(String(a.id || '')));
+}
+
+function renderNavArrows(currentId, allAlerts) {
+  const sorted = sortAlertsForNav(allAlerts);
+  const idx = sorted.findIndex(a => a.id === currentId);
+  const prev = idx > 0 ? sorted[idx - 1] : null;          // newer alert
+  const next = idx >= 0 && idx < sorted.length - 1 ? sorted[idx + 1] : null; // older alert
+  const total = sorted.length;
+
+  const prevBtn = el('a', {
+    class: `clg-alert-nav__btn clg-alert-nav__btn--prev${prev ? '' : ' is-disabled'}`,
+    href: prev ? `/alert.html?id=${encodeURIComponent(prev.id)}` : '#',
+    'aria-label': prev ? `Previous alert: ${prev.title || prev.token}` : 'No newer alert',
+    title: prev ? `${prev.token || ''} — ${prev.title || ''}` : 'No newer alert'
+  }, [
+    el('span', { class: 'clg-alert-nav__arrow', 'aria-hidden': 'true' }, ['←']),
+    el('span', { class: 'clg-alert-nav__label' }, ['Newer'])
+  ]);
+
+  const nextBtn = el('a', {
+    class: `clg-alert-nav__btn clg-alert-nav__btn--next${next ? '' : ' is-disabled'}`,
+    href: next ? `/alert.html?id=${encodeURIComponent(next.id)}` : '#',
+    'aria-label': next ? `Next alert: ${next.title || next.token}` : 'No older alert',
+    title: next ? `${next.token || ''} — ${next.title || ''}` : 'No older alert'
+  }, [
+    el('span', { class: 'clg-alert-nav__label' }, ['Older']),
+    el('span', { class: 'clg-alert-nav__arrow', 'aria-hidden': 'true' }, ['→'])
+  ]);
+
+  const counter = total > 0 && idx >= 0
+    ? el('span', { class: 'clg-alert-nav__counter' }, [`${idx + 1} of ${total}`])
+    : el('span', { class: 'clg-alert-nav__counter' }, ['']);
+
+  // Prevent clicks on disabled arrows from navigating.
+  [prevBtn, nextBtn].forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      if (btn.classList.contains('is-disabled')) e.preventDefault();
+    });
+  });
+
+  return el('nav', { class: 'clg-alert-nav', 'aria-label': 'Alert navigation' }, [
+    prevBtn, counter, nextBtn
+  ]);
+}
+
+function installKeyboardNav(currentId, allAlerts) {
+  const sorted = sortAlertsForNav(allAlerts);
+  const idx = sorted.findIndex(a => a.id === currentId);
+  const prev = idx > 0 ? sorted[idx - 1] : null;
+  const next = idx >= 0 && idx < sorted.length - 1 ? sorted[idx + 1] : null;
+  document.addEventListener('keydown', (e) => {
+    // Don't hijack arrow keys while the user is typing in an input/textarea
+    // (chat box, search, etc.)
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'ArrowLeft' && prev) {
+      window.location.href = `/alert.html?id=${encodeURIComponent(prev.id)}`;
+    } else if (e.key === 'ArrowRight' && next) {
+      window.location.href = `/alert.html?id=${encodeURIComponent(next.id)}`;
+    }
+  });
+}
+
+// ---- Price ticker (standalone on the alert page) --------------------------
+//
+// The index.html ticker lives in app.js and depends on the user's selected
+// tokens. On the alert detail page we keep it simple: always show a fixed
+// set of top tokens plus the current alert's own token. Same DOM contract
+// as index.html so the shared CSS just works.
+
+const TICKER_TOP_TOKENS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA'];
+let _tickerInterval = null;
+
+function formatTickerPriceUsd(price) {
+  if (price == null || !isFinite(price)) return '—';
+  if (price >= 1000) return `$${Math.round(price).toLocaleString()}`;
+  if (price >= 1) return `$${price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  if (price >= 0.01) return `$${price.toLocaleString(undefined, { maximumFractionDigits: 4 })}`;
+  return `$${price.toLocaleString(undefined, { maximumFractionDigits: 6 })}`;
+}
+
+async function fetchTickerPricesForAlert(extraToken) {
+  const tokens = Array.from(new Set([...(extraToken ? [extraToken.toUpperCase()] : []), ...TICKER_TOP_TOKENS]));
+  try {
+    const r = await fetch(apiUrl(`/api/market/prices?symbols=${tokens.join(',')}&currency=USD`), {
+      credentials: 'include'
+    });
+    if (!r.ok) return [];
+    const data = await r.json();
+    return Array.isArray(data.prices) ? data.prices : [];
+  } catch {
+    return [];
+  }
+}
+
+function renderTickerRows(pricesData) {
+  const tickerEl = document.getElementById('price-ticker');
+  const content = document.getElementById('ticker-content');
+  const dup = document.getElementById('ticker-duplicate');
+  if (!tickerEl || !content || !dup) return;
+  if (!pricesData || !pricesData.length) {
+    tickerEl.hidden = true;
+    return;
+  }
+  const html = pricesData.map(t => {
+    const change = Number(t.change24h) || 0;
+    const changeClass = change > 0 ? 'positive' : change < 0 ? 'negative' : 'neutral';
+    const arrow = change > 0 ? '▲' : change < 0 ? '▼' : '•';
+    return `
+      <div class="ticker-item">
+        <span class="ticker-symbol">${escapeHtml(t.symbol || '')}</span>
+        <span class="ticker-price">${formatTickerPriceUsd(t.price)}</span>
+        <span class="ticker-change ${changeClass}">${arrow} ${Math.abs(change).toFixed(2)}%</span>
+      </div>
+    `;
+  }).join('');
+  content.innerHTML = html;
+  dup.innerHTML = html;
+  tickerEl.hidden = false;
+}
+
+async function startAlertPageTicker(token) {
+  const update = async () => {
+    const data = await fetchTickerPricesForAlert(token);
+    renderTickerRows(data);
+  };
+  await update();
+  if (_tickerInterval) clearInterval(_tickerInterval);
+  _tickerInterval = setInterval(update, 5 * 60 * 1000);
+}
+
 // ---- Main boot -------------------------------------------------------------
 async function boot() {
   const params = new URLSearchParams(window.location.search);
@@ -731,6 +883,11 @@ async function boot() {
   // in with cards that populate as their data arrives.
   root.innerHTML = '';
 
+  // Nav arrows go in first with a placeholder; they get replaced once the
+  // full alerts list has loaded (cached after that).
+  const navPlaceholder = el('div', { class: 'clg-alert-nav clg-alert-nav--loading' }, []);
+  root.appendChild(navPlaceholder);
+
   const grid = el('div', { class: 'clg-alert-grid' }, [
     el('div', { class: 'clg-alert-grid__main' }, [
       renderHeroCard(alert),
@@ -743,6 +900,9 @@ async function boot() {
     ])
   ]);
   root.appendChild(grid);
+
+  // Kick off the standalone ticker (it doesn't block anything below).
+  startAlertPageTicker(token);
 
   // Expose token to the chat widget so follow-up questions carry context.
   try {
@@ -772,10 +932,18 @@ async function boot() {
     wrap.appendChild(buildSparkline(hist.points, { currency: hist.currency || 'USD' }));
   });
 
-  const relatedPromise = fetchRelatedAlerts(token).then((all) => {
+  const relatedPromise = fetchAllAlerts().then((allAlerts) => {
+    // Render nav arrows once we have the full list.
+    const navHost = document.querySelector('.clg-alert-nav--loading');
+    if (navHost) navHost.replaceWith(renderNavArrows(alert.id, allAlerts));
+    installKeyboardNav(alert.id, allAlerts);
+
+    // Related alerts sidebar card.
+    const upper = String(token || '').toUpperCase();
+    const related = allAlerts.filter(a => String(a.token || '').toUpperCase() === upper);
     const old = document.querySelector('.clg-alert-grid__side .clg-alert-card:nth-child(2)');
-    const next = renderRelatedAlertsCard(alert.id, all);
-    if (old) old.replaceWith(next);
+    const nextCard = renderRelatedAlertsCard(alert.id, related);
+    if (old) old.replaceWith(nextCard);
   });
 
   const newsPromise = fetchNews(token).then((items) => {
