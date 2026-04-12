@@ -53,6 +53,12 @@ const LOGOKIT_API_KEY = process.env.LOGOKIT_API_KEY || 'pk_fr3b615a522b603695a02
 const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || '').trim();
 const ANTHROPIC_API_KEY = (process.env.ANTHROPIC_API_KEY || '').trim();
 const XAI_API_KEY = (process.env.XAI_API_KEY || process.env.XAI_APIKEY || process.env.XAI_TOKEN || '').trim();
+// Boot-time visibility so we can confirm keys loaded at startup
+console.log('[boot] AI keys detected:', {
+  xai: XAI_API_KEY ? `set (${XAI_API_KEY.slice(0, 6)}…, len ${XAI_API_KEY.length})` : 'MISSING',
+  openai: OPENAI_API_KEY ? `set (len ${OPENAI_API_KEY.length})` : 'MISSING',
+  anthropic: ANTHROPIC_API_KEY ? `set (len ${ANTHROPIC_API_KEY.length})` : 'MISSING',
+});
 const MARKET_CURRENCY = (process.env.MARKET_CURRENCY || 'GBP').toUpperCase();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
@@ -3790,14 +3796,25 @@ async function chatProviderCall(providerMessages, { stream = false } = {}) {
       tool_choice: 'auto',
       stream
     };
-    const r = await fetch('https://api.x.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${XAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    await trackAPICall('xAI', '/v1/chat/completions');
-    if (r.ok) return { r, provider: 'xAI grok-4-1-fast-reasoning' };
-    console.warn('[chat] xAI failed:', r.status);
+    try {
+      const r = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${XAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      await trackAPICall('xAI', '/v1/chat/completions');
+      if (r.ok) {
+        console.log('[chat] xAI grok-4-1-fast-reasoning OK');
+        return { r, provider: 'xAI grok-4-1-fast-reasoning' };
+      }
+      // Log full body so we can see the real reason xAI is rejecting us
+      const errBody = await r.text().catch(() => '');
+      console.error('[chat] xAI failed:', r.status, r.statusText, '-', errBody.slice(0, 800));
+    } catch (err) {
+      console.error('[chat] xAI network error:', err && err.message ? err.message : err);
+    }
+  } else {
+    console.warn('[chat] XAI_API_KEY not set, skipping xAI');
   }
   // Fallback to OpenAI
   if (OPENAI_API_KEY) {
