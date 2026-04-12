@@ -471,11 +471,55 @@ function buildController(root) {
   let backdropEl = null;
   let activeStream = null;
 
+  const isMobile = () => window.innerWidth <= 640;
+
+  // Lock body scroll when chat is full-screen on mobile
+  function lockBodyScroll() {
+    if (isMobile()) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.top = `-${window.scrollY}px`;
+    }
+  }
+  function unlockBodyScroll() {
+    const scrollY = document.body.style.top;
+    document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
+    document.body.style.top = '';
+    if (scrollY) window.scrollTo(0, parseInt(scrollY || '0', 10) * -1);
+  }
+
+  // Handle mobile virtual keyboard: resize panel to visible viewport
+  let vvCleanup = null;
+  function attachViewportHandler() {
+    if (!isMobile() || !window.visualViewport) return;
+    const handler = () => {
+      if (!panelEl) return;
+      const vv = window.visualViewport;
+      panelEl.style.height = `${vv.height}px`;
+      panelEl.style.top = `${vv.offsetTop}px`;
+    };
+    window.visualViewport.addEventListener('resize', handler);
+    window.visualViewport.addEventListener('scroll', handler);
+    vvCleanup = () => {
+      window.visualViewport.removeEventListener('resize', handler);
+      window.visualViewport.removeEventListener('scroll', handler);
+    };
+  }
+  function detachViewportHandler() {
+    if (vvCleanup) { vvCleanup(); vvCleanup = null; }
+    if (panelEl) { panelEl.style.height = ''; panelEl.style.top = ''; }
+  }
+
   function openChat() {
     if (state.isOpen) return;
     state.isOpen = true;
     try { sessionStorage.setItem(OPEN_KEY, '1'); } catch {}
     renderAll();
+    lockBodyScroll();
+    attachViewportHandler();
     requestAnimationFrame(() => {
       panelEl?.classList.add('is-open');
       backdropEl?.classList.add('is-open');
@@ -487,6 +531,8 @@ function buildController(root) {
     try { sessionStorage.removeItem(OPEN_KEY); } catch {}
     panelEl?.classList.remove('is-open');
     backdropEl?.classList.remove('is-open');
+    detachViewportHandler();
+    unlockBodyScroll();
     setTimeout(() => {
       if (!state.isOpen) {
         panelEl?.remove(); panelEl = null;

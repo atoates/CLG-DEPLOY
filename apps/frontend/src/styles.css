@@ -5171,18 +5171,47 @@ body.clg-theme-dark .footer {
   .clg-chat-launcher { padding: 0; width: 52px; justify-content: center; }
   .clg-chat-launcher__icon svg { width: 22px; height: 22px; }
   .clg-chat-backdrop { display: block; }
+  /* Full-screen chat on mobile */
   .clg-chat-panel {
-    right: 10px;
-    left: 10px;
-    bottom: 10px;
-    top: 10px;
-    width: auto;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    top: 0;
+    width: 100%;
     max-width: none;
-    height: auto;
-    border-radius: 18px;
+    height: 100%;
+    height: 100dvh;
+    border-radius: 0;
+    border: none;
+  }
+  .clg-chat-panel::after {
+    /* Remove top rim highlight on mobile (no rounded corners) */
+    display: none;
+  }
+  /* Prevent iOS zoom on textarea focus: font-size must be >= 16px */
+  .clg-chat-textarea {
+    font-size: 16px;
+  }
+  /* Slightly larger touch targets */
+  .clg-chat-send {
+    width: 38px;
+    height: 38px;
+  }
+  /* Composer safe area padding for devices with home bar */
+  .clg-chat-composer {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0));
   }
   .clg-chat-skills { grid-template-columns: 1fr; }
   .clg-chat-bubble { max-width: 88%; font-size: 14px; }
+  /* Suggestion chips: smaller on mobile, allow wrapping */
+  .clg-chat-suggestions {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .clg-chat-suggestion {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
 }
 
 /* ---- Reduced motion ------------------------------------------------------ */
