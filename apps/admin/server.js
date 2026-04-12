@@ -1171,6 +1171,260 @@ app.get('/api/alerts/:id', (req, res) => {
   res.json(item);
 });
 
+// ---------------------------------------------------------------------------
+// Alert AI summary cache
+//
+// Summaries are generated once per alert and reused for every viewer. The
+// `alert_summaries` table stores a full history (one row per refresh, tagged
+// with the model that produced it). GET returns the most recent row regardless
+// of model; POST refresh runs the AI again and inserts a new row. The cache is
+// keyed on a source_hash of the alert fields so an edit to the alert forces a
+// fresh generation on next view.
+// ---------------------------------------------------------------------------
+
+const ALERT_SUMMARY_PROMPT_VERSION = 1;
+
+function buildAlertSourceHash(alert) {
+  const payload = JSON.stringify({
+    v: ALERT_SUMMARY_PROMPT_VERSION,
+    token: alert.token || '',
+    title: alert.title || '',
+    description: alert.description || '',
+    further_info: alert.further_info || '',
+    severity: alert.severity || '',
+    tags: Array.isArray(alert.tags) ? alert.tags.slice().sort() : [],
+    deadline: alert.deadline || ''
+  });
+  return crypto.createHash('sha256').update(payload).digest('hex').slice(0, 32);
+}
+
+function buildAlertSummaryPrompt(alert) {
+  const token = alert.token || 'the token';
+  const lines = [
+    `I'm reading an alert on Crypto Lifeguard about ${token}. Here are the details:`,
+    '',
+    `Title: ${alert.title || ''}`,
+    `Severity: ${alert.severity || 'info'}`,
+    alert.description ? `Summary: ${alert.description}` : '',
+    alert.further_info ? `Background: ${alert.further_info}` : '',
+    alert.deadline ? `Deadline: ${new Date(alert.deadline).toISOString()}` : '',
+    Array.isArray(alert.tags) && alert.tags.length ? `Tags: ${alert.tags.join(', ')}` : '',
+    '',
+    `Give me a tight analysis of this alert in 3 short paragraphs:`,
+    `1. What is happening, in plain English, and why it matters right now.`,
+    `2. Who is affected and what concrete actions (if any) a holder should consider.`,
+    `3. Any wider context from recent news or market moves.`,
+    '',
+    `Keep it calm, concrete, and avoid financial advice. Use UK English spelling.`
+  ].filter(Boolean);
+  return lines.join('\n');
+}
+
+async function callOpenAISummary(prompt) {
+  if (!OPENAI_API_KEY) throw new Error('no-openai');
+  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'You are Lifeguard AI, a calm crypto-security analyst. Write clear, concrete analysis in plain English. Never give financial advice. Use UK English spelling.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.4,
+      max_tokens: 700
+    })
+  });
+  try { await trackAPICall('OpenAI', '/v1/chat/completions'); } catch (_) {}
+  if (!r.ok) throw new Error(`openai ${r.status}`);
+  const d = await r.json();
+  const content = d.choices?.[0]?.message?.content || '';
+  return { content, model: 'openai:gpt-4o-mini' };
+}
+
+async function callAnthropicSummary(prompt) {
+  if (!ANTHROPIC_API_KEY) throw new Error('no-anthropic');
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': ANTHROPIC_API_KEY,
+      'Content-Type': 'application/json',
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 700,
+      system: 'You are Lifeguard AI, a calm crypto-security analyst. Write clear, concrete analysis in plain English. Never give financial advice. Use UK English spelling.',
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  try { await trackAPICall('Anthropic', '/v1/messages'); } catch (_) {}
+  if (!r.ok) throw new Error(`anthropic ${r.status}`);
+  const d = await r.json();
+  const content = (d.content && d.content[0] && d.content[0].text) || '';
+  return { content, model: 'anthropic:claude-3-5-sonnet' };
+}
+
+async function generateAlertSummaryContent(alert) {
+  const prompt = buildAlertSummaryPrompt(alert);
+  const attempts = [callOpenAISummary, callAnthropicSummary];
+  let lastErr = null;
+  for (const fn of attempts) {
+    try {
+      const out = await fn(prompt);
+      if (out && out.content && out.content.trim().length > 20) {
+        return out;
+      }
+    } catch (e) {
+      lastErr = e;
+      console.warn('[alert-summary] provider failed:', e && e.message);
+    }
+  }
+  throw new Error(lastErr ? (lastErr.message || 'ai_unavailable') : 'ai_unavailable');
+}
+
+async function fetchLatestAlertSummary(alertId) {
+  const { rows } = await pool.query(
+    `SELECT id, alert_id, content, model, prompt_version, source_hash, generated_at, generated_by_uid
+       FROM alert_summaries
+      WHERE alert_id = $1
+      ORDER BY generated_at DESC
+      LIMIT 1`,
+    [alertId]
+  );
+  return rows[0] || null;
+}
+
+async function insertAlertSummary({ alertId, content, model, sourceHash, uid }) {
+  const id = `as_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const { rows } = await pool.query(
+    `INSERT INTO alert_summaries (id, alert_id, content, model, prompt_version, source_hash, generated_by_uid)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id, alert_id, content, model, prompt_version, source_hash, generated_at, generated_by_uid`,
+    [id, alertId, content, model || null, ALERT_SUMMARY_PROMPT_VERSION, sourceHash || null, uid || null]
+  );
+  return rows[0];
+}
+
+// In-memory lock so two simultaneous refresh requests for the same alert don't
+// both hit the AI provider. Whoever arrives second waits for the first.
+const alertSummaryInflight = new Map();
+
+function serialiseSummaryRow(row) {
+  if (!row) return null;
+  const generatedAt = Number(row.generated_at) || 0;
+  return {
+    id: row.id,
+    alert_id: row.alert_id,
+    content: row.content,
+    model: row.model || '',
+    prompt_version: row.prompt_version,
+    source_hash: row.source_hash || '',
+    generated_at: generatedAt,
+    generated_at_iso: generatedAt ? new Date(generatedAt * 1000).toISOString() : null
+  };
+}
+
+// Rate limit refresh: one per alert per uid per 30 seconds.
+const alertSummaryRefreshCooldown = new Map();
+const SUMMARY_REFRESH_COOLDOWN_MS = 30 * 1000;
+
+// GET the latest cached summary for an alert (public).
+app.get('/api/alerts/:id/summary', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const alert = alerts.find(a => a.id === id);
+    if (!alert) return res.status(404).json({ error: 'alert_not_found' });
+
+    const latest = await fetchLatestAlertSummary(id);
+    if (!latest) {
+      return res.json({ summary: null, stale: false });
+    }
+    const currentHash = buildAlertSourceHash(alert);
+    const stale = latest.source_hash && latest.source_hash !== currentHash;
+    res.json({ summary: serialiseSummaryRow(latest), stale: !!stale });
+  } catch (error) {
+    console.error('[alert-summary GET] error:', error);
+    res.status(500).json({ error: 'summary_fetch_failed', details: error && error.message });
+  }
+});
+
+// POST refresh: generates a fresh AI summary, inserts it as a new row, returns it.
+// Public: any signed-in (or anon) viewer can refresh, but we cooldown per uid+alert.
+app.post('/api/alerts/:id/summary/refresh', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const alert = alerts.find(a => a.id === id);
+    if (!alert) return res.status(404).json({ error: 'alert_not_found' });
+
+    const uid = req.uid || 'anon';
+    const cooldownKey = `${uid}:${id}`;
+    const lastAt = alertSummaryRefreshCooldown.get(cooldownKey) || 0;
+    const now = Date.now();
+    if (now - lastAt < SUMMARY_REFRESH_COOLDOWN_MS) {
+      const waitMs = SUMMARY_REFRESH_COOLDOWN_MS - (now - lastAt);
+      return res.status(429).json({
+        error: 'rate_limited',
+        retry_after_ms: waitMs,
+        message: `Please wait ${Math.ceil(waitMs / 1000)}s before refreshing again.`
+      });
+    }
+    alertSummaryRefreshCooldown.set(cooldownKey, now);
+
+    // Coalesce concurrent refresh requests for the same alert.
+    let promise = alertSummaryInflight.get(id);
+    if (!promise) {
+      promise = (async () => {
+        const out = await generateAlertSummaryContent(alert);
+        const content = String(out.content || '').trim();
+        if (!content) throw new Error('empty_ai_response');
+        const row = await insertAlertSummary({
+          alertId: id,
+          content,
+          model: out.model,
+          sourceHash: buildAlertSourceHash(alert),
+          uid
+        });
+        return row;
+      })();
+      alertSummaryInflight.set(id, promise);
+      promise.finally(() => alertSummaryInflight.delete(id));
+    }
+
+    const row = await promise;
+    res.json({ summary: serialiseSummaryRow(row), refreshed: true });
+  } catch (error) {
+    console.error('[alert-summary refresh] error:', error);
+    res.status(500).json({
+      error: 'summary_generate_failed',
+      details: error && error.message
+    });
+  }
+});
+
+// Optional history view (admin-visible per-model log).
+app.get('/api/alerts/:id/summary/history', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const { rows } = await pool.query(
+      `SELECT id, alert_id, content, model, prompt_version, source_hash, generated_at, generated_by_uid
+         FROM alert_summaries
+        WHERE alert_id = $1
+        ORDER BY generated_at DESC
+        LIMIT $2`,
+      [id, limit]
+    );
+    res.json({ history: rows.map(serialiseSummaryRow) });
+  } catch (error) {
+    console.error('[alert-summary history] error:', error);
+    res.status(500).json({ error: 'history_fetch_failed', details: error && error.message });
+  }
+});
+
 // Update an alert (admin only)
 app.put('/api/alerts/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;

@@ -396,7 +396,7 @@ function renderAiCard() {
         el('span', { class: 'clg-alert-ai__sparkle' }, ['✨']),
         'Lifeguard AI analysis'
       ]),
-      el('span', { class: 'clg-alert-card__badge clg-alert-card__badge--ai' }, ['Generating…'])
+      el('span', { class: 'clg-alert-card__badge clg-alert-card__badge--ai', id: 'clg-alert-ai-badge' }, ['Loading…'])
     ]),
     el('div', { class: 'clg-alert-ai__body', id: 'clg-alert-ai-body' }, [
       el('div', { class: 'clg-alert-ai__typing' }, [
@@ -404,8 +404,22 @@ function renderAiCard() {
       ])
     ]),
     el('div', { class: 'clg-alert-ai__footer' }, [
-      el('span', { class: 'clg-alert-ai__disclaimer' }, ['AI-generated. Not financial advice.']),
-      el('span', { class: 'clg-alert-ai__model', id: 'clg-alert-ai-model' }, [''])
+      el('div', { class: 'clg-alert-ai__meta' }, [
+        el('span', { class: 'clg-alert-ai__disclaimer' }, ['AI-generated. Not financial advice.']),
+        el('span', { class: 'clg-alert-ai__timestamp', id: 'clg-alert-ai-timestamp' }, [''])
+      ]),
+      el('div', { class: 'clg-alert-ai__controls' }, [
+        el('span', { class: 'clg-alert-ai__model', id: 'clg-alert-ai-model' }, ['']),
+        el('button', {
+          type: 'button',
+          class: 'clg-alert-ai__refresh',
+          id: 'clg-alert-ai-refresh',
+          title: 'Regenerate this analysis'
+        }, [
+          el('span', { class: 'clg-alert-ai__refresh-icon', 'aria-hidden': 'true' }, ['↻']),
+          el('span', { class: 'clg-alert-ai__refresh-label' }, ['Refresh'])
+        ])
+      ])
     ])
   ]);
 }
@@ -483,89 +497,198 @@ function renderNewsList(items) {
   });
 }
 
-// ---- Lifeguard AI analysis streamer ---------------------------------------
-async function streamAiAnalysis(alert, snapshot) {
-  const bodyEl = document.getElementById('clg-alert-ai-body');
+// ---- Lifeguard AI analysis loader (cache-first) ---------------------------
+//
+// The AI analysis for each alert is cached server-side in the alert_summaries
+// table. We fetch the most recent row on page load, type-animate it into the
+// card, and show the real generation timestamp. A Refresh button lets any
+// viewer ask the server to regenerate, which inserts a new row (history is
+// preserved per model in the database).
+
+// Module-level state for the current alert's summary controls.
+let currentAlertForSummary = null;
+let summaryAnimationToken = 0;
+
+function fmtGeneratedAt(epochSeconds) {
+  if (!epochSeconds || !isFinite(epochSeconds)) return '';
+  const d = new Date(Number(epochSeconds) * 1000);
+  if (isNaN(d.getTime())) return '';
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  try {
+    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return d.toDateString();
+  }
+}
+
+function fmtModelLabel(model) {
+  if (!model) return '';
+  const s = String(model);
+  // Turn "openai:gpt-4o-mini" into "OpenAI gpt-4o-mini"
+  if (s.includes(':')) {
+    const [provider, ...rest] = s.split(':');
+    const providerPretty = provider === 'openai' ? 'OpenAI'
+      : provider === 'anthropic' ? 'Anthropic'
+      : provider === 'xai' ? 'xAI'
+      : provider;
+    return `${providerPretty} ${rest.join(':')}`.trim();
+  }
+  return s;
+}
+
+// Type-animate markdown-rendered content into an element. Returns a promise
+// that resolves when the animation completes or is cancelled (cancellation
+// happens when a new animation starts on the same element).
+function typeAnimateMarkdown(targetEl, fullText, { charsPerTick = 4, tickMs = 14 } = {}) {
+  if (!targetEl) return Promise.resolve();
+  const myToken = ++summaryAnimationToken;
+  const text = String(fullText || '');
+  return new Promise((resolve) => {
+    let i = 0;
+    targetEl.innerHTML = '';
+    function tick() {
+      if (myToken !== summaryAnimationToken) { resolve(); return; }
+      i = Math.min(text.length, i + charsPerTick);
+      targetEl.innerHTML = renderMarkdown(text.slice(0, i));
+      if (i >= text.length) { resolve(); return; }
+      setTimeout(tick, tickMs);
+    }
+    tick();
+  });
+}
+
+function setAiBadge(text, state) {
+  const badge = document.getElementById('clg-alert-ai-badge');
+  if (!badge) return;
+  badge.textContent = text;
+  badge.classList.remove('is-done', 'is-error', 'is-loading');
+  if (state) badge.classList.add(`is-${state}`);
+}
+
+function setAiFooter({ model, generatedAt }) {
   const modelEl = document.getElementById('clg-alert-ai-model');
-  const badgeEl = document.querySelector('.clg-alert-ai .clg-alert-card__badge--ai');
+  const tsEl = document.getElementById('clg-alert-ai-timestamp');
+  if (modelEl) modelEl.textContent = fmtModelLabel(model);
+  if (tsEl) {
+    if (generatedAt) {
+      const iso = new Date(Number(generatedAt) * 1000).toISOString();
+      tsEl.textContent = `Generated ${fmtGeneratedAt(generatedAt)}`;
+      tsEl.setAttribute('title', iso);
+    } else {
+      tsEl.textContent = '';
+      tsEl.removeAttribute('title');
+    }
+  }
+}
+
+function setRefreshBusy(busy) {
+  const btn = document.getElementById('clg-alert-ai-refresh');
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.classList.toggle('is-busy', !!busy);
+  const label = btn.querySelector('.clg-alert-ai__refresh-label');
+  if (label) label.textContent = busy ? 'Refreshing…' : 'Refresh';
+}
+
+async function displaySummary(summary, { animate }) {
+  const bodyEl = document.getElementById('clg-alert-ai-body');
+  if (!bodyEl || !summary) return;
+  const text = String(summary.content || '');
+  setAiFooter({ model: summary.model, generatedAt: summary.generated_at });
+  setAiBadge('Ready', 'done');
+  if (animate) {
+    await typeAnimateMarkdown(bodyEl, text);
+  } else {
+    summaryAnimationToken++;
+    bodyEl.innerHTML = renderMarkdown(text);
+  }
+}
+
+async function refreshSummary() {
+  if (!currentAlertForSummary) return;
+  const alert = currentAlertForSummary;
+  const bodyEl = document.getElementById('clg-alert-ai-body');
   if (!bodyEl) return;
 
-  const token = alert.token || 'the token';
-  const priceLine = snapshot?.lastPrice != null
-    ? `Current ${token} price: ${fmtPrice(snapshot.lastPrice, 'USD')} (${fmtPct(snapshot.dayChangePct)} 24h).`
-    : '';
+  setRefreshBusy(true);
+  setAiBadge('Generating…', 'loading');
 
-  const userPrompt = [
-    `I'm reading an alert on Crypto Lifeguard about ${token}. Here are the details:`,
-    '',
-    `Title: ${alert.title || ''}`,
-    `Severity: ${alert.severity || 'info'}`,
-    alert.description ? `Summary: ${alert.description}` : '',
-    alert.further_info ? `Background: ${alert.further_info}` : '',
-    alert.deadline ? `Deadline: ${new Date(alert.deadline).toISOString()}` : '',
-    Array.isArray(alert.tags) && alert.tags.length ? `Tags: ${alert.tags.join(', ')}` : '',
-    priceLine,
-    '',
-    `Give me a tight analysis of this alert in 3 short paragraphs:`,
-    `1. What is happening, in plain English, and why it matters right now.`,
-    `2. Who is affected and what concrete actions (if any) a holder should consider.`,
-    `3. Any wider context from recent news or market moves. Feel free to call get_alerts, search_news, or get_price if it would help, but don't over-reach.`,
-    '',
-    `Keep it calm, concrete, and avoid financial advice.`
-  ].filter(Boolean).join('\n');
-
-  const context = {
-    page: 'alert-detail',
-    token,
-    alertId: alert.id
-  };
-
-  // Clear the typing dots before the first chunk
-  let firstChunk = true;
-  let accText = '';
+  // Show the typing dots while we wait for the server to regenerate.
+  summaryAnimationToken++;
+  bodyEl.innerHTML = '';
+  const typing = el('div', { class: 'clg-alert-ai__typing' }, [
+    el('span', {}, []), el('span', {}, []), el('span', {}, [])
+  ]);
+  bodyEl.appendChild(typing);
 
   try {
-    await streamChat({
-      messages: [{ role: 'user', content: userPrompt }],
-      context,
-      onEvent: (event, data) => {
-        if (event === 'chunk') {
-          if (firstChunk) {
-            firstChunk = false;
-            bodyEl.innerHTML = '';
-          }
-          accText += data.text || '';
-          bodyEl.innerHTML = renderMarkdown(accText);
-        } else if (event === 'tool') {
-          // Show a subtle running-tool hint above the body
-          let hint = bodyEl.querySelector('.clg-alert-ai__tool-hint');
-          if (!hint) {
-            hint = el('div', { class: 'clg-alert-ai__tool-hint' }, []);
-            if (firstChunk) { bodyEl.innerHTML = ''; firstChunk = false; }
-            bodyEl.insertBefore(hint, bodyEl.firstChild);
-          }
-          if (data.status === 'running') {
-            hint.textContent = `Running ${data.name}…`;
-          } else if (data.status === 'done') {
-            hint.textContent = `✓ ${data.name} finished`;
-            setTimeout(() => { hint?.remove(); }, 1500);
-          }
-        } else if (event === 'done') {
-          if (badgeEl) { badgeEl.textContent = 'Done'; badgeEl.classList.add('is-done'); }
-          if (modelEl && data?.model) modelEl.textContent = data.model;
-          if (firstChunk) {
-            // No content ever arrived
-            bodyEl.innerHTML = '<p><em>No analysis produced. You can still ask Lifeguard AI directly using the chat button.</em></p>';
-          }
-        } else if (event === 'error') {
-          if (badgeEl) { badgeEl.textContent = 'Error'; badgeEl.classList.add('is-error'); }
-          bodyEl.innerHTML = `<p class="clg-alert-ai__error">⚠️ ${escapeHtml(data?.error || 'AI analysis failed')}</p>`;
-        }
-      }
+    const r = await fetch(apiUrl(`/api/alerts/${encodeURIComponent(alert.id)}/summary/refresh`), {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }
     });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 429 && data.retry_after_ms) {
+        const secs = Math.ceil(data.retry_after_ms / 1000);
+        throw new Error(`Please wait ${secs}s before refreshing again.`);
+      }
+      throw new Error(data.details || data.error || `Server error ${r.status}`);
+    }
+    const data = await r.json();
+    if (!data.summary) throw new Error('No summary returned');
+    await displaySummary(data.summary, { animate: true });
   } catch (err) {
-    if (badgeEl) { badgeEl.textContent = 'Error'; badgeEl.classList.add('is-error'); }
-    bodyEl.innerHTML = `<p class="clg-alert-ai__error">⚠️ ${escapeHtml(err?.message || 'AI analysis failed')}</p>`;
+    setAiBadge('Error', 'error');
+    bodyEl.innerHTML = `<p class="clg-alert-ai__error">⚠️ ${escapeHtml(err?.message || 'Refresh failed')}</p>`;
+  } finally {
+    setRefreshBusy(false);
+  }
+}
+
+async function loadAiAnalysis(alert) {
+  currentAlertForSummary = alert;
+  const bodyEl = document.getElementById('clg-alert-ai-body');
+  if (!bodyEl) return;
+
+  // Wire up the refresh button once the card is in the DOM.
+  const refreshBtn = document.getElementById('clg-alert-ai-refresh');
+  if (refreshBtn && !refreshBtn.dataset.bound) {
+    refreshBtn.dataset.bound = '1';
+    refreshBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      refreshSummary();
+    });
+  }
+
+  setAiBadge('Loading…', 'loading');
+
+  try {
+    const r = await fetch(apiUrl(`/api/alerts/${encodeURIComponent(alert.id)}/summary`), {
+      credentials: 'include'
+    });
+    if (!r.ok) throw new Error(`Server error ${r.status}`);
+    const data = await r.json();
+
+    if (data && data.summary) {
+      // Cached hit: type-animate it as if it were being generated live, but
+      // the footer shows the real generation timestamp so it's honest.
+      await displaySummary(data.summary, { animate: true });
+      return;
+    }
+
+    // Cache miss: generate the very first summary for this alert.
+    await refreshSummary();
+  } catch (err) {
+    setAiBadge('Error', 'error');
+    bodyEl.innerHTML = `<p class="clg-alert-ai__error">⚠️ ${escapeHtml(err?.message || 'AI analysis failed to load')}</p>`;
   }
 }
 
@@ -659,13 +782,13 @@ async function boot() {
     renderNewsList(items);
   });
 
-  // Wait for the market snapshot (only) before starting AI analysis so
-  // the prompt can include a live price. Everything else loads independently.
-  const snapshot = await marketPromise.catch(() => null);
-  streamAiAnalysis(alert, snapshot);
+  // AI analysis uses the cache-first loader and does not depend on the live
+  // market snapshot — price context is no longer part of the cached prompt
+  // (so the cached summary stays valid across viewers and over time).
+  loadAiAnalysis(alert);
 
   // Fire-and-forget the rest
-  Promise.allSettled([historyPromise, relatedPromise, newsPromise]);
+  Promise.allSettled([marketPromise, historyPromise, relatedPromise, newsPromise]);
 }
 
 if (document.readyState === 'loading') {
