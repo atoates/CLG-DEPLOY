@@ -599,11 +599,27 @@ function buildController(root) {
             scrollBottom(bodyEl);
           } else if (event === 'chunk') {
             bubble.setTyping(false);
+            const prevLen = assistantText.length;
             assistantText += data.text || '';
-            bubble.contentEl.innerHTML = renderMarkdown(assistantText);
+            // Add streaming class for cursor + animation
+            if (!bubble.contentEl.classList.contains('clg-streaming')) {
+              bubble.contentEl.classList.add('clg-streaming');
+            }
+            // Render full markdown, then wrap new characters in a fade-in span
+            const fullHtml = renderMarkdown(assistantText);
+            bubble.contentEl.innerHTML = fullHtml;
+            // Animate: find text nodes and mark the newly added portion
+            if (prevLen === 0) {
+              // First chunk - animate entire content
+              bubble.contentEl.querySelectorAll('p, li, code, strong, em, a').forEach(node => {
+                node.classList.add('clg-stream-in');
+              });
+            }
             scrollBottom(bodyEl);
           } else if (event === 'done') {
             bubble.setTyping(false);
+            // Remove streaming cursor
+            bubble.contentEl.classList.remove('clg-streaming');
             if (!assistantText) {
               bubble.contentEl.innerHTML = '<p><em>No response. Try asking again.</em></p>';
             }

@@ -4970,6 +4970,42 @@ body.clg-theme-dark .footer {
 .clg-chat-content strong { color: #ffffff; font-weight: 600; }
 .clg-chat-content em { color: rgba(226, 232, 240, 0.85); }
 
+/* Streaming typewriter animation */
+.clg-streaming {
+  position: relative;
+}
+.clg-streaming::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: rgba(94, 234, 212, 0.9);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: clg-cursor-blink 0.6s steps(2) infinite;
+}
+@keyframes clg-cursor-blink {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+/* New content fades in smoothly */
+.clg-streaming p,
+.clg-streaming li,
+.clg-streaming ul,
+.clg-streaming code,
+.clg-streaming strong,
+.clg-streaming em,
+.clg-streaming a {
+  animation: clg-stream-fade 0.35s ease-out both;
+}
+.clg-stream-in {
+  animation: clg-stream-fade 0.4s ease-out both;
+}
+@keyframes clg-stream-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* Typing indicator (three bouncing dots) */
 .clg-chat-typing {
   display: inline-flex;
