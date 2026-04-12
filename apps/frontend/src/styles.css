@@ -114,9 +114,13 @@ p, li, label, input, button {
   letter-spacing: .6px;
 }
 
+/* NOTE: the slide-up (translateY) was removed deliberately.  Any transform
+   on <body> — even translateY(0) held by animation-fill-mode — creates a
+   new containing block, which breaks position:fixed for every descendant
+   (chat launcher, fixed background layers, etc.).  Opacity-only is safe. */
 @keyframes pageFadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ----------------------------------------------------------------
