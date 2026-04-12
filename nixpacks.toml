@@ -5,6 +5,7 @@ cmds = ['npm ci', 'cd apps/frontend && npm install']
 
 [phases.build]
 cmds = [
+  'npm install -g n && n 22.14.0',
   'cd apps/frontend && npx vite build && cd ../admin && rm -rf main-app-dist && cp -r ../frontend/dist main-app-dist && echo "window.BACKEND_URL = \"\";" > main-app-dist/config.js && npm run build',
 ]
 
