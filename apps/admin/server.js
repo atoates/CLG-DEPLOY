@@ -4303,6 +4303,144 @@ const ONBOARDING_QUESTIONS = [
   }
 ];
 
+// ---- Suggested follow-up responses ------------------------------------------
+// Generates 2-3 contextual follow-up chips after each AI response. These serve
+// two purposes: (1) guide the conversation naturally, and (2) fill profile gaps
+// by surfacing questions that help us learn about the user.
+function generateSuggestions({ assistantText, userMessage, context, profile }) {
+  const suggestions = [];
+  const ast = (assistantText || '').toLowerCase();
+  const usr = (userMessage || '').toLowerCase();
+  const token = context?.token || null;
+
+  // --- Profile gap detection: what don't we know yet? -----------------------
+  const gaps = [];
+  if (!profile || profile.experience === 'unknown') gaps.push('experience');
+  if (!profile || profile.risk_tolerance === 'unknown') gaps.push('risk');
+  const holdings = profile ? (typeof profile.holdings === 'string'
+    ? JSON.parse(profile.holdings || '[]') : (profile.holdings || [])) : [];
+  if (holdings.length === 0) gaps.push('holdings');
+  const interests = profile ? (typeof profile.interests === 'string'
+    ? JSON.parse(profile.interests || '[]') : (profile.interests || [])) : [];
+  if (interests.length === 0) gaps.push('interests');
+  const exchanges = profile ? (typeof profile.exchanges === 'string'
+    ? JSON.parse(profile.exchanges || '[]') : (profile.exchanges || [])) : [];
+  if (exchanges.length === 0) gaps.push('exchanges');
+  const wallets = profile ? (typeof profile.wallets === 'string'
+    ? JSON.parse(profile.wallets || '[]') : (profile.wallets || [])) : [];
+  if (wallets.length === 0) gaps.push('wallets');
+  if (!profile || !profile.goals) gaps.push('goals');
+  if (!profile || !profile.concerns) gaps.push('concerns');
+
+  // --- Topic-based suggestions (always first priority) ----------------------
+
+  // If we just talked about a specific token, offer deeper dives
+  const mentionedTokens = (assistantText || '').match(/\b(BTC|ETH|SOL|XRP|ADA|BNB|DOGE|AVAX|DOT|MATIC|LINK|UNI|ATOM|LTC|SHIB|SUI|PEPE)\b/gi) || [];
+  const uniqueTokens = [...new Set(mentionedTokens.map(t => t.toUpperCase()))];
+
+  if (uniqueTokens.length > 0) {
+    const t = uniqueTokens[0];
+    // Context-aware follow-ups based on what we discussed
+    if (ast.includes('alert') || ast.includes('warning') || ast.includes('hack') || ast.includes('exploit')) {
+      suggestions.push({ icon: '🔍', text: `What should I do to protect my ${t}?` });
+    } else if (ast.includes('price') || ast.includes('market') || ast.includes('volume')) {
+      suggestions.push({ icon: '📊', text: `How has ${t} performed over the last month?` });
+      if (holdings.length && !holdings.find(h => h.token === t)) {
+        suggestions.push({ icon: '⭐', text: `Add ${t} to my watchlist` });
+      }
+    } else if (ast.includes('news') || ast.includes('headline')) {
+      suggestions.push({ icon: '🛡️', text: `Any security concerns for ${t}?` });
+    } else {
+      suggestions.push({ icon: '📈', text: `What's the price of ${t} right now?` });
+    }
+
+    // If we know about other holdings, suggest comparison
+    if (holdings.length > 0 && uniqueTokens.length === 1) {
+      const other = holdings.find(h => h.token !== uniqueTokens[0]);
+      if (other) {
+        suggestions.push({ icon: '⚖️', text: `Compare ${uniqueTokens[0]} vs ${other.token}` });
+      }
+    }
+  }
+
+  // If the response was about the watchlist, offer actions
+  if (ast.includes('watchlist') || usr.includes('watchlist') || usr.includes('my coins')) {
+    if (holdings.length > 0) {
+      suggestions.push({ icon: '🛡️', text: 'Any alerts for my holdings?' });
+      suggestions.push({ icon: '📰', text: 'Latest news for my portfolio' });
+    }
+  }
+
+  // If we talked about security/alerts
+  if (ast.includes('phishing') || ast.includes('scam') || ast.includes('hack')) {
+    suggestions.push({ icon: '🔒', text: 'How do I keep my crypto safe?' });
+  }
+
+  // --- Profile-building suggestions (weaved in naturally) -------------------
+  // Only add one profile question per response, and only if we have < 3
+  // topic suggestions already
+  if (suggestions.length < 3 && gaps.length > 0) {
+    // Pick the most natural gap to fill based on conversation context
+    const gapSuggestions = {
+      holdings: { icon: '💰', text: 'Which tokens do you think I should watch?' },
+      experience: { icon: '🎓', text: "I'm new to crypto, can you explain the basics?" },
+      risk: { icon: '⚡', text: 'What are the riskiest tokens right now?' },
+      interests: { icon: '🌐', text: "What's happening in DeFi today?" },
+      exchanges: { icon: '🏦', text: 'Which exchange is best for beginners?' },
+      wallets: { icon: '👛', text: 'Do I need a hardware wallet?' },
+      goals: { icon: '🎯', text: 'Help me build a crypto investment strategy' },
+      concerns: { icon: '⚠️', text: "What are the biggest risks in crypto right now?" }
+    };
+
+    // Rotate through gaps, picking one that's contextually relevant
+    let chosenGap = null;
+    if ((ast.includes('price') || ast.includes('market')) && gaps.includes('holdings')) {
+      chosenGap = 'holdings';
+    } else if ((ast.includes('security') || ast.includes('safe')) && gaps.includes('concerns')) {
+      chosenGap = 'concerns';
+    } else if ((ast.includes('defi') || ast.includes('nft') || ast.includes('staking')) && gaps.includes('interests')) {
+      chosenGap = 'interests';
+    } else if (ast.includes('exchange') && gaps.includes('exchanges')) {
+      chosenGap = 'exchanges';
+    } else {
+      // Pick a random gap we haven't filled
+      chosenGap = gaps[Math.floor(Math.random() * gaps.length)];
+    }
+
+    if (chosenGap && gapSuggestions[chosenGap]) {
+      suggestions.push(gapSuggestions[chosenGap]);
+    }
+  }
+
+  // --- Fallback suggestions if we have nothing yet --------------------------
+  if (suggestions.length === 0) {
+    // Generic but useful follow-ups
+    const fallbacks = [
+      { icon: '🔥', text: "What's trending in crypto today?" },
+      { icon: '🛡️', text: 'Any critical alerts right now?' },
+      { icon: '📈', text: 'Show me the top movers today' },
+      { icon: '⭐', text: 'How is my watchlist doing?' },
+      { icon: '📰', text: 'Latest crypto news' }
+    ];
+    // Pick 2-3 random fallbacks
+    const shuffled = fallbacks.sort(() => Math.random() - 0.5);
+    suggestions.push(...shuffled.slice(0, 2));
+  }
+
+  // Deduplicate by text and limit to 3
+  const seen = new Set();
+  const unique = [];
+  for (const s of suggestions) {
+    const key = s.text.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(s);
+    }
+    if (unique.length >= 3) break;
+  }
+  return unique;
+}
+
 // ---- Lightweight per-IP rate limiting (memory) -----------------------------
 const chatRateMap = new Map(); // ip -> { tokens, resetAt }
 function chatRateLimit(ip, limit = 20, windowMs = 60_000) {
@@ -4811,6 +4949,22 @@ async function runChatAgent({ messages, context, uid, loggedIn = false, sendEven
       }
     }
     sendEvent('done', { model: finalProvider });
+
+    // Generate follow-up suggestions (async, non-blocking)
+    try {
+      const refreshedProfile = uid ? await getUserProfile(uid) : null;
+      const suggestions = generateSuggestions({
+        assistantText: text,
+        userMessage: messages.filter(m => m.role === 'user').pop()?.content || '',
+        context,
+        profile: refreshedProfile
+      });
+      if (suggestions.length) {
+        sendEvent('suggestions', { items: suggestions });
+      }
+    } catch (e) {
+      console.warn('[chat] suggestion generation error:', e.message);
+    }
     return;
   }
 

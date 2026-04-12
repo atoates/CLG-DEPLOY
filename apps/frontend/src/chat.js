@@ -165,6 +165,9 @@ function describeTool(name, args) {
     }
     case 'get_watchlist':
       return 'Reading your watchlist';
+    case 'update_user_profile':
+    case 'get_user_profile':
+      return null; // Silent -- don't show pill for profile operations
     default:
       return `Running ${name}`;
   }
@@ -297,6 +300,32 @@ function renderWelcome(bodyEl, onStarter) {
       ])
     ))
   ]);
+  bodyEl.appendChild(wrap);
+}
+
+// ---- Suggested response chips (after each AI message) ---------------------
+function renderSuggestionChips(bodyEl, items, onSelect) {
+  if (!bodyEl || !items || !items.length) return;
+  // Remove any previous suggestion chips
+  const old = bodyEl.querySelectorAll('.clg-chat-suggestions');
+  old.forEach(el => el.remove());
+
+  const wrap = el('div', { class: 'clg-chat-suggestions' },
+    items.map(s =>
+      el('button', {
+        class: 'clg-chat-suggestion',
+        type: 'button',
+        onclick: () => {
+          // Remove chips on selection
+          wrap.remove();
+          onSelect(s.text);
+        }
+      }, [
+        el('span', { class: 'clg-chat-suggestion__icon' }, [s.icon || '💬']),
+        el('span', { class: 'clg-chat-suggestion__text' }, [s.text])
+      ])
+    )
+  );
   bodyEl.appendChild(wrap);
 }
 
@@ -508,13 +537,20 @@ function buildController(root) {
         onEvent: (event, data) => {
           if (event === 'tool') {
             if (data.status === 'running') {
-              bubble.setTyping(false);
-              const pill = bubble.addTool(describeTool(data.name, data.args));
-              activeTools.set(`${data.name}:${JSON.stringify(data.args)}`, pill);
+              const desc = describeTool(data.name, data.args);
+              if (desc) { // null means silent tool (e.g. profile ops)
+                bubble.setTyping(false);
+                const pill = bubble.addTool(desc);
+                activeTools.set(`${data.name}:${JSON.stringify(data.args)}`, pill);
+              }
             } else if (data.status === 'done') {
               const pill = activeTools.get(`${data.name}:${JSON.stringify(data.args)}`);
               if (pill) bubble.completeTool(pill);
             }
+          } else if (event === 'suggestions') {
+            // Render follow-up suggestion chips below the assistant message
+            renderSuggestionChips(bodyEl, data.items || [], sendMessage);
+            scrollBottom(bodyEl);
           } else if (event === 'chunk') {
             bubble.setTyping(false);
             assistantText += data.text || '';
