@@ -826,12 +826,17 @@ function setSession(res, data){
   const sid = crypto.randomBytes(16).toString('hex');
   sessions.set(sid, { ...data, t: Date.now() });
   // Use sameSite: 'none' for cross-domain cookies (frontend on different domain than backend)
-  res.cookie('sid', sid, { 
-    httpOnly: true, 
+  res.cookie('sid', sid, {
+    httpOnly: true,
     sameSite: 'none',  // Required for cross-domain
     secure: true,      // Required when sameSite: 'none'
-    maxAge: 365*24*3600*1000 
+    maxAge: 365*24*3600*1000
   });
+  try {
+    if (typeof diagLog === 'function') {
+      diagLog('server', 'setSession', { sidPrefix: sid.slice(0, 8), uid: data && data.uid, totalSessions: sessions.size });
+    }
+  } catch(_) {}
 }
 function getSession(req){
   const sid = req.cookies.sid; if (!sid) return null;
@@ -841,23 +846,164 @@ function getSession(req){
 // create anon user if missing cookie
 app.use(async (req, res, next) => {
   let uid = req.cookies.uid;
+  const hadUid = !!uid;
   if (!uid) {
     uid = `usr_${Math.random().toString(36).slice(2,10)}`;
     // Use sameSite: 'none' for cross-domain cookies
-    res.cookie('uid', uid, { 
-      httpOnly: true, 
+    res.cookie('uid', uid, {
+      httpOnly: true,
       sameSite: 'none',  // Required for cross-domain
       secure: true,      // Required when sameSite: 'none'
-      maxAge: 365*24*3600*1000 
+      maxAge: 365*24*3600*1000
     });
   }
   req.uid = uid;
+  // Only log for auth/api routes to avoid flooding on static assets
+  try {
+    if (typeof diagLog === 'function' && (req.path.startsWith('/api/') || req.path.startsWith('/auth/'))) {
+      diagLog('server', 'anon-uid-middleware', {
+        path: req.path,
+        method: req.method,
+        hadUid,
+        newUid: hadUid ? null : uid,
+        cookieNames: Object.keys(req.cookies || {}),
+        hasSid: !!req.cookies.sid,
+      });
+    }
+  } catch(_) {}
   try {
     await upsertUser(uid);
   } catch (err) {
     console.error('Error upserting user:', err);
   }
   next();
+});
+
+/* ---------------- Login diagnostic logging ----------------
+ * A shared ring buffer the frontend can post into so we can follow a
+ * mobile login attempt from both sides. Every event is also written
+ * to the normal server log so Railway captures it.
+ *
+ * Safe to leave enabled in production: capped at 500 entries, no PII
+ * beyond what the caller chooses to send, and /api/debug-log/recent is
+ * read-only and rate-limited by its small buffer.
+ */
+const LOGIN_DIAG_BUFFER = [];
+const LOGIN_DIAG_MAX = 500;
+function pushLoginDiag(entry) {
+  LOGIN_DIAG_BUFFER.push(entry);
+  if (LOGIN_DIAG_BUFFER.length > LOGIN_DIAG_MAX) {
+    LOGIN_DIAG_BUFFER.splice(0, LOGIN_DIAG_BUFFER.length - LOGIN_DIAG_MAX);
+  }
+}
+function safeJson(obj) {
+  try { return JSON.stringify(obj); } catch (_) { return '[unserialisable]'; }
+}
+function diagLog(source, stage, data) {
+  const entry = {
+    ts: Date.now(),
+    iso: new Date().toISOString(),
+    source,   // 'client' or 'server'
+    stage,
+    data: data || {},
+  };
+  pushLoginDiag(entry);
+  // Single-line prefix so Railway logs are easy to grep
+  console.log(`[LOGIN-DIAG][${source}] ${stage} ${safeJson(data || {})}`);
+}
+
+// Accept log events from the frontend (no auth needed, this is a diagnostic aid).
+app.post('/api/debug-log', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    const { stage, data } = req.body || {};
+    if (!stage || typeof stage !== 'string') {
+      return res.status(400).json({ ok: false, error: 'missing_stage' });
+    }
+    const enriched = {
+      ...(data && typeof data === 'object' ? data : {}),
+      _ua: req.get('user-agent') || '',
+      _origin: req.get('origin') || '',
+      _referer: req.get('referer') || '',
+      _cookieNames: Object.keys(req.cookies || {}),
+      _ip: (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim(),
+    };
+    diagLog('client', stage, enriched);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+
+// Read the buffer so the user can check it from their phone.
+app.get('/api/debug-log/recent', (req, res) => {
+  const limit = Math.max(1, Math.min(500, parseInt(req.query.limit, 10) || 200));
+  const entries = LOGIN_DIAG_BUFFER.slice(-limit).reverse();
+  res.json({ ok: true, count: entries.length, entries });
+});
+
+// Clear the buffer between test runs.
+app.post('/api/debug-log/clear', (req, res) => {
+  LOGIN_DIAG_BUFFER.length = 0;
+  diagLog('server', 'diag-buffer-cleared', { by: req.get('user-agent') || '' });
+  res.json({ ok: true });
+});
+
+// A tiny HTML viewer we can open on the phone to see the log in-place.
+app.get('/debug/login', (_req, res) => {
+  res.type('html').send(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Login diagnostics — Crypto Lifeguard</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background:#0a1628; color:#e6edf7; }
+  header { position: sticky; top: 0; background:#0a1628; padding:14px 16px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; gap:10px; align-items:center; }
+  header h1 { margin:0; font-size:15px; font-weight:600; }
+  button { background:#14b8a6; color:#04141a; border:0; border-radius:8px; padding:8px 12px; font-weight:600; font-size:13px; }
+  button.ghost { background:transparent; color:#e6edf7; border:1px solid rgba(255,255,255,.18); }
+  main { padding: 12px 14px 80px; }
+  .entry { border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:10px 12px; margin-bottom:10px; background:rgba(255,255,255,.03); }
+  .stage { font-weight:700; color:#5eead4; font-size:13px; margin-bottom:2px; word-break:break-word; }
+  .meta { font-size:11px; color:rgba(230,237,247,.55); margin-bottom:6px; }
+  .data { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11px; color:#c7d2fe; white-space:pre-wrap; word-break:break-word; }
+  .src-client { border-left: 3px solid #14b8a6; }
+  .src-server { border-left: 3px solid #60a5fa; }
+  .empty { color:rgba(230,237,247,.55); text-align:center; padding:40px 0; }
+</style></head>
+<body>
+<header>
+  <h1>Login diagnostics</h1>
+  <button onclick="refresh()">Refresh</button>
+  <button class="ghost" onclick="clearBuffer()">Clear</button>
+</header>
+<main id="main"><div class="empty">Loading…</div></main>
+<script>
+async function refresh() {
+  try {
+    const r = await fetch('/api/debug-log/recent?limit=200', { credentials: 'include' });
+    const j = await r.json();
+    const main = document.getElementById('main');
+    if (!j.entries || !j.entries.length) { main.innerHTML = '<div class="empty">No events yet. Try logging in, then tap Refresh.</div>'; return; }
+    main.innerHTML = j.entries.map(function(e){
+      var cls = 'entry src-' + (e.source === 'server' ? 'server' : 'client');
+      var time = new Date(e.ts).toISOString().replace('T',' ').replace(/\\..+/, '');
+      return '<div class="'+cls+'">' +
+        '<div class="stage">'+e.stage+'</div>' +
+        '<div class="meta">'+e.source+' - '+time+'</div>' +
+        '<div class="data">'+escapeHtml(JSON.stringify(e.data||{}, null, 2))+'</div>' +
+      '</div>';
+    }).join('');
+  } catch (err) {
+    document.getElementById('main').innerHTML = '<div class="empty">Failed to load: '+String(err && err.message || err)+'</div>';
+  }
+}
+async function clearBuffer() {
+  try { await fetch('/api/debug-log/clear', { method:'POST' }); refresh(); } catch(_) {}
+}
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+refresh();
+</script>
+</body></html>`);
 });
 
 /* ---------------- Alerts store (file-backed) ---------------- */
@@ -979,6 +1125,18 @@ app.get('/api/me', async (req, res) => {
   // If Google session exists, prefer that user id
   const sess = getSession(req);
   const effectiveUid = sess?.uid || req.uid;
+  try {
+    diagLog('server', '/api/me', {
+      hasSess: !!sess,
+      loggedIn: !!sess,
+      effectiveUid,
+      sidPrefix: req.cookies.sid ? String(req.cookies.sid).slice(0, 8) : null,
+      uidCookie: req.cookies.uid || null,
+      cookieNames: Object.keys(req.cookies || {}),
+      origin: req.get('origin') || '',
+      referer: req.get('referer') || '',
+    });
+  } catch(_) {}
   const urow = await getUser(effectiveUid);
   const emailLower = (urow && urow.email ? String(urow.email).toLowerCase() : '');
   const isAdmin = !!(emailLower && ADMIN_EMAILS.includes(emailLower));
@@ -5148,8 +5306,23 @@ function assertAuthConfig(){
 }
 
 app.get('/auth/google', (req, res) => {
-  try{ assertAuthConfig(); } catch(e){ return res.status(500).send(String(e.message||e)); }
+  try{ assertAuthConfig(); } catch(e){
+    try { diagLog('server', '/auth/google.configError', { err: String(e.message||e) }); } catch(_){}
+    return res.status(500).send(String(e.message||e));
+  }
   const state = crypto.randomBytes(16).toString('hex');
+  try {
+    diagLog('server', '/auth/google.enter', {
+      host: req.get('host') || '',
+      protocol: req.protocol,
+      xForwardedProto: req.get('x-forwarded-proto') || '',
+      xForwardedHost: req.get('x-forwarded-host') || '',
+      cookieNames: Object.keys(req.cookies || {}),
+      hasSid: !!req.cookies.sid,
+      hasUid: !!req.cookies.uid,
+      statePrefix: state.slice(0, 8),
+    });
+  } catch(_) {}
   
   // Store state server-side instead of relying on cookies
   oauthStates.set(state, { timestamp: Date.now(), used: false });
@@ -5169,6 +5342,9 @@ app.get('/auth/google', (req, res) => {
   
   const base = getBaseUrl(req);
   const redirectUri = `${String(base||'').replace(/\/+$/,'')}/auth/google/callback`;
+  try {
+    diagLog('server', '/auth/google.redirect', { base, redirectUri, clientIdSet: !!GOOGLE_CLIENT_ID });
+  } catch(_) {}
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
     redirect_uri: redirectUri,
@@ -5187,14 +5363,24 @@ app.get('/auth/google/callback', async (req, res) => {
   }
   
   const { code, state } = req.query || {};
-  console.log('OAuth callback received:', { 
-    code: code ? `${String(code).slice(0,10)}...` : 'missing', 
-    state: state ? 'present' : 'missing', 
+  console.log('OAuth callback received:', {
+    code: code ? `${String(code).slice(0,10)}...` : 'missing',
+    state: state ? 'present' : 'missing',
     cookieState: req.cookies.oauth_state ? 'present' : 'missing',
     allCookies: Object.keys(req.cookies || {}),
     userAgent: req.get('user-agent'),
     timestamp: new Date().toISOString()
   });
+  try {
+    diagLog('server', '/auth/google/callback.enter', {
+      hasCode: !!code,
+      hasState: !!state,
+      statePrefix: state ? String(state).slice(0, 8) : null,
+      cookieNames: Object.keys(req.cookies || {}),
+      host: req.get('host') || '',
+      referer: req.get('referer') || '',
+    });
+  } catch(_) {}
   
   if (!code || !state) {
     console.error('OAuth callback missing code or state:', { code: !!code, state: !!state });
@@ -5279,13 +5465,22 @@ app.get('/auth/google/callback', async (req, res) => {
     );
     setSession(res, { uid });
     console.log('OAuth success, generating auth token for frontend handoff');
-    
+
     // Generate a one-time token for cross-domain auth handoff
     const authToken = crypto.randomBytes(32).toString('hex');
     sessions.set(`auth_token_${authToken}`, { uid, createdAt: Date.now() });
-    
+
     // Redirect to frontend with token
     const frontendUrl = process.env.FRONTEND_URL || 'https://app.crypto-lifeguard.com';
+    try {
+      diagLog('server', '/auth/google/callback.success', {
+        uid,
+        email,
+        authTokenPrefix: authToken.slice(0, 8),
+        frontendUrl,
+        frontendUrlFromEnv: !!process.env.FRONTEND_URL,
+      });
+    } catch(_) {}
     res.redirect(`${frontendUrl}/profile.html?auth_token=${authToken}`);
   }catch(e){
     console.error('OAuth callback error:', e.message, e.stack);
