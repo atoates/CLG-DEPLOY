@@ -1,8 +1,5 @@
 # Admin + main app image. Railway: leave Root Directory blank (repo root).
 
-[phases.setup]
-nixPkgs = ['nodejs_22']
-
 [phases.install]
 cmds = ['npm ci', 'cd apps/frontend && npm install']
 
