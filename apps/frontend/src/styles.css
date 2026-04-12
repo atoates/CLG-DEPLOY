@@ -1354,12 +1354,57 @@ button#user-menu-btn.menu-btn {
   min-width: 0;
 }
 
+.alert-token-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 2px;
+}
+
+.alert-source-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(46, 124, 246, 0.08);
+  border: 1px solid rgba(46, 124, 246, 0.15);
+  border-radius: 999px;
+  padding: 3px 8px;
+  line-height: 1.2;
+}
+
 .alert-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   font-weight: 700;
   font-size: 15px;
   line-height: 1.3;
   color: var(--primary-dark);
   margin-bottom: 4px;
+}
+
+.alert-ext-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent-blue);
+  opacity: 0.88;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+.alert-ext-link:hover { opacity: 1; }
+
+body.clg-theme-dark .alert-source-badge {
+  color: rgba(230, 237, 247, 0.78);
+  background: rgba(99, 102, 241, 0.14);
+  border-color: rgba(99, 102, 241, 0.28);
+}
+
+body.clg-theme-dark .alert-ext-link {
+  color: #7dd3fc;
 }
 
 .alert-desc {

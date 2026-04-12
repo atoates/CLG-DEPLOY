@@ -1366,13 +1366,44 @@ function renderAlerts(){
     const stack = document.createElement('div');
     stack.className = 'alert-content-stack';
 
-    const tokenName = document.createElement('div');
+    // -- Top meta row: token pill + source badge (inline) ---------------------
+    const tokenRow = document.createElement('div');
+    tokenRow.className = 'alert-token-row';
+
+    const tokenName = document.createElement('span');
     tokenName.className = 'alert-token-name';
     tokenName.textContent = token || 'Token';
+    tokenRow.appendChild(tokenName);
+
+    // Source-type badge (e.g. "Trusted source", "Dev. Team") -- subtle inline
+    if (a.source_type) {
+      const st = ALERT_SOURCE_TYPES[a.source_type] || null;
+      if (st) {
+        const srcBadge = document.createElement('span');
+        srcBadge.className = 'alert-source-badge';
+        srcBadge.textContent = `${st.icon}\u00A0${st.label}`;
+        srcBadge.title = st.label;
+        tokenRow.appendChild(srcBadge);
+      }
+    }
 
     const title = document.createElement('div');
     title.className = 'alert-title';
     title.textContent = a.title;
+    // External source link: small icon tucked beside the title
+    if (a.source_url) {
+      try {
+        const u = new URL(a.source_url);
+        const extLink = document.createElement('a');
+        extLink.className = 'alert-ext-link';
+        extLink.href = u.href;
+        extLink.target = '_blank';
+        extLink.rel = 'noopener noreferrer';
+        extLink.title = u.hostname.replace(/^www\./, '');
+        extLink.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+        title.appendChild(extLink);
+      } catch (_e) {}
+    }
 
     const desc = document.createElement('div');
     desc.className = 'alert-desc';
@@ -1400,78 +1431,6 @@ function renderAlerts(){
       }
     } catch {}
 
-    const actionsRow = document.createElement('div');
-    actionsRow.className = 'alert-actions-row';
-
-    const hasMore = !!(a.further_info && a.further_info.trim()) || !!(a.source_type || a.source_url);
-    let toggle = null;
-    let more = null;
-    if (hasMore) {
-      toggle = document.createElement('button');
-      toggle.type = 'button';
-      toggle.className = 'more-toggle';
-      toggle.setAttribute('aria-expanded', 'false');
-      toggle.innerHTML = 'Read more <span class="more-chevron" aria-hidden="true">↓</span>';
-
-      more = document.createElement('div');
-      more.className = 'more-content';
-      more.hidden = true;
-
-      if (a.further_info && a.further_info.trim()){
-        const moreInfo = document.createElement('div');
-        moreInfo.className = 'more-info';
-        moreInfo.textContent = a.further_info;
-        more.appendChild(moreInfo);
-      }
-
-      if (a.source_type || a.source_url){
-        const sourceRow = document.createElement('div');
-        sourceRow.className = 'source-row';
-        const st = ALERT_SOURCE_TYPES[a.source_type] || null;
-        const chip = document.createElement('span');
-        chip.className = 'source-chip';
-        chip.textContent = `${st ? st.icon : '🔗'} ${st ? st.label : 'Source'}`;
-        sourceRow.appendChild(chip);
-        if (a.source_url){
-          try{
-            const u = new URL(a.source_url);
-            const link = document.createElement('a');
-            link.className = 'source-link';
-            link.href = u.href;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.textContent = 'Open link';
-            sourceRow.appendChild(link);
-          }catch(_e){}
-        }
-        more.appendChild(sourceRow);
-      }
-
-      toggle.addEventListener('click', () => {
-        const nowOpen = more.hidden;
-        more.hidden = !nowOpen;
-        toggle.setAttribute('aria-expanded', String(nowOpen));
-        toggle.innerHTML = nowOpen
-          ? 'Read less <span class="more-chevron" aria-hidden="true">↑</span>'
-          : 'Read more <span class="more-chevron" aria-hidden="true">↓</span>';
-      });
-
-      actionsRow.appendChild(toggle);
-    }
-
-    if (a.source_url) {
-      try {
-        const u = new URL(a.source_url);
-        const srcBtn = document.createElement('a');
-        srcBtn.className = 'alert-source-btn';
-        srcBtn.href = u.href;
-        srcBtn.target = '_blank';
-        srcBtn.rel = 'noopener noreferrer';
-        srcBtn.innerHTML = '<span class="alert-source-btn__icon" aria-hidden="true">🔗</span> Link to Source';
-        actionsRow.appendChild(srcBtn);
-      } catch (_e) {}
-    }
-
     const footer = document.createElement('div');
     footer.className = 'alert-card-footer';
     const tagLabels = getAlertTagsArray(a);
@@ -1495,12 +1454,10 @@ function renderAlerts(){
     aside.appendChild(metaChip);
     aside.appendChild(dismissBtn);
 
-    stack.appendChild(tokenName);
+    stack.appendChild(tokenRow);
     stack.appendChild(title);
     stack.appendChild(desc);
     if (metaWrap.childNodes.length) stack.appendChild(metaWrap);
-    if (actionsRow.childNodes.length) stack.appendChild(actionsRow);
-    if (more) stack.appendChild(more);
     stack.appendChild(footer);
 
     row.appendChild(coinSection);
@@ -1511,8 +1468,8 @@ function renderAlerts(){
     wrap.appendChild(row);
 
     // Make the whole card a clickable surface that opens the detail page,
-    // without hijacking clicks on buttons/links inside it (Read more toggle,
-    // Source link, Dismiss button, etc.).
+    // without hijacking clicks on buttons/links inside it (external link,
+    // Dismiss button, etc.).
     wrap.classList.add('alert-item--clickable');
     wrap.setAttribute('role', 'link');
     wrap.setAttribute('tabindex', '0');
@@ -1520,7 +1477,7 @@ function renderAlerts(){
     const goToDetail = (e) => {
       // Ignore clicks that hit an interactive element inside the card
       const t = e.target;
-      if (t && t.closest && t.closest('button, a, input, textarea, .more-content')) return;
+      if (t && t.closest && t.closest('button, a, input, textarea')) return;
       window.location.href = `/alert.html?id=${encodeURIComponent(a.id)}`;
     };
     wrap.addEventListener('click', goToDetail);
