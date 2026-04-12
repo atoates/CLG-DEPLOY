@@ -1483,7 +1483,7 @@ async function callAnthropicSummary(prompt) {
 
 async function callXAISummary(prompt) {
   if (!XAI_API_KEY) throw new Error('no-xai');
-  const model = 'grok-4-1-fast-reasoning';
+  const model = 'grok-4.20-0309-reasoning';
   const r = await fetch('https://api.x.ai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -3417,7 +3417,7 @@ async function callAnthropic(prompt) {
 
 // xAI API call (Grok)
 async function callXAI(prompt){
-  const model = 'grok-4-1-fast-reasoning';
+  const model = 'grok-4.20-0309-reasoning';
   const response = await fetch('https://api.x.ai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -4104,7 +4104,7 @@ app.get('/admin/stats', requireAdmin, async (req, res) => {
 // Wire format (SSE):
 //   event: chunk   data: { "text": "..." }
 //   event: tool    data: { "name": "get_price", "args": {...}, "result": {...} }
-//   event: done    data: { "model": "xAI grok-4-1-fast-reasoning" }
+//   event: done    data: { "model": "xAI grok-4.20-0309-reasoning" }
 //   event: error   data: { "error": "..." }
 
 // ============================================================================
@@ -4772,7 +4772,7 @@ async function chatProviderCall(providerMessages, { stream = false } = {}) {
   // Try xAI (Grok) first
   if (XAI_API_KEY) {
     const body = {
-      model: 'grok-4-1-fast-reasoning',
+      model: 'grok-4.20-0309-reasoning',
       messages: providerMessages,
       tools: CHAT_TOOLS,
       tool_choice: 'auto',
@@ -4786,8 +4786,8 @@ async function chatProviderCall(providerMessages, { stream = false } = {}) {
       });
       await trackAPICall('xAI', '/v1/chat/completions');
       if (r.ok) {
-        console.log('[chat] xAI grok-4-1-fast-reasoning OK');
-        return { r, provider: 'xAI grok-4-1-fast-reasoning' };
+        console.log('[chat] xAI grok-4.20-0309-reasoning OK');
+        return { r, provider: 'xAI grok-4.20-0309-reasoning' };
       }
       // Log full body so we can see the real reason xAI is rejecting us
       const errBody = await r.text().catch(() => '');
