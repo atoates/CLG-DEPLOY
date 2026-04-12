@@ -5,7 +5,7 @@
     "buildCommand": "curl -fsSL https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz | tar -xJ --strip-components=1 -C /usr/local/ && export PATH=\"/usr/local/bin:$PATH\" && node --version && cd apps/frontend && npm install && npx vite build && cd ../admin && rm -rf main-app-dist && cp -r ../frontend/dist main-app-dist && echo 'window.BACKEND_URL = \"\";' > main-app-dist/config.js && npm run build"
   },
   "deploy": {
-    "startCommand": "cd apps/admin && npm start",
+    "startCommand": "export PATH=\"/usr/local/bin:$PATH\" && cd apps/admin && npm start",
     "healthcheckPath": "/",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3

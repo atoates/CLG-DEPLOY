@@ -9,4 +9,4 @@ cmds = [
 ]
 
 [start]
-cmd = 'cd apps/admin && npm start'
+cmd = 'export PATH="/usr/local/bin:$PATH" && cd apps/admin && npm start'
