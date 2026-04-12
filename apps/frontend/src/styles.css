@@ -41,6 +41,13 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 
+/* Mobile WebKit: stop auto text inflation from blowing flex layouts */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overflow-x: hidden;
+}
+
 button {
   font-family: inherit;
   font-size: inherit;
@@ -2424,6 +2431,24 @@ body.clg-theme-dark::after {
 }
 @media (prefers-reduced-motion: reduce) {
   body.clg-theme-dark::before { animation: none; }
+}
+
+/* Coarse pointers (phones/tablets): iOS Safari often repaints badly with
+   background-attachment: fixed on full-viewport gradients (blank flashes,
+   stuck paint, janky scroll). Scroll attachment keeps the same look while
+   scrolling; fixed pseudo-layers (::before/::after) still carry the aurora. */
+@media (hover: none) and (pointer: coarse) {
+  html.clg-theme-dark,
+  html:has(body.clg-theme-dark) {
+    background-attachment: scroll;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+  }
+  body.clg-theme-dark {
+    background-attachment: scroll;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+  }
 }
 
 body.clg-theme-dark .topbar-inner,

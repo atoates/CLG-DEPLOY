@@ -2,7 +2,7 @@
 <html lang="en" class="clg-theme-dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192" />
   <link rel="apple-touch-icon" href="/favicon-180.png" />
@@ -18,7 +18,9 @@
         var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
           ? window.BACKEND_URL
           : 'https://clg-admin-production.up.railway.app';
-        fetch(backend + '/api/me', { credentials: 'include' })
+        var ac = new AbortController();
+        var authFetchTimer = setTimeout(function(){ try { ac.abort(); } catch(_) {} }, 18000);
+        fetch(backend + '/api/me', { credentials: 'include', signal: ac.signal })
           .then(function(r){ return r.ok ? r.json() : null; })
           .then(function(me){
             if (!me || !me.loggedIn) {
@@ -32,7 +34,10 @@
             try { window.__CLG_ME__ = me; } catch(_) {}
             document.documentElement.classList.remove('clg-auth-pending');
           })
-          .catch(function(){ window.location.replace('/signup.html'); });
+          .catch(function(){ window.location.replace('/signup.html'); })
+          .finally(function(){
+            try { clearTimeout(authFetchTimer); } catch(_) {}
+          });
       } catch(_) {
         document.documentElement.classList.remove('clg-auth-pending');
       }
