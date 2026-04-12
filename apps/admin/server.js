@@ -1253,6 +1253,56 @@ app.post('/api/me/prefs', async (req, res) => {
   res.json({ ok: true });
 });
 
+/* ---------------- User Profile API ----------- */
+app.get('/api/me/profile', async (req, res) => {
+  const sess = getSession(req);
+  const effectiveUid = sess?.uid || req.uid;
+  if (!effectiveUid) return res.json({ profile: null });
+  const profile = await getUserProfile(effectiveUid);
+  if (!profile) return res.json({ profile: null });
+  // Parse JSONB fields
+  const parsed = { ...profile };
+  for (const f of ['holdings', 'interests', 'exchanges', 'wallets', 'notes']) {
+    if (typeof parsed[f] === 'string') {
+      try { parsed[f] = JSON.parse(parsed[f]); } catch { parsed[f] = []; }
+    }
+  }
+  // Strip internal fields
+  delete parsed.user_id;
+  res.json({ profile: parsed });
+});
+
+app.post('/api/me/profile', async (req, res) => {
+  const sess = getSession(req);
+  const effectiveUid = sess?.uid || req.uid;
+  if (!effectiveUid) return res.status(401).json({ error: 'no user identity' });
+  await ensureProfile(effectiveUid);
+  const updates = req.body || {};
+  // Only allow known fields
+  const allowed = ['experience', 'risk_tolerance', 'interests', 'exchanges', 'wallets', 'goals', 'concerns'];
+  const filtered = {};
+  for (const k of allowed) {
+    if (updates[k] !== undefined) filtered[k] = updates[k];
+  }
+  if (Object.keys(filtered).length) {
+    await updateProfile(effectiveUid, filtered);
+  }
+  res.json({ ok: true });
+});
+
+app.delete('/api/me/profile', async (req, res) => {
+  const sess = getSession(req);
+  const effectiveUid = sess?.uid || req.uid;
+  if (!effectiveUid) return res.status(401).json({ error: 'no user identity' });
+  try {
+    await pool.query('DELETE FROM user_profiles WHERE user_id = $1', [effectiveUid]);
+    res.json({ ok: true, note: 'Profile cleared. Lifeguard AI will start fresh next time.' });
+  } catch (err) {
+    if (err.code === '42P01') return res.json({ ok: true });
+    res.status(500).json({ error: 'delete_failed' });
+  }
+});
+
 /* ---------------- Alerts API ---------------- */
 app.get('/api/alerts', (_req, res) => res.json(alerts));
 app.post('/api/alerts', requireAdmin, async (req, res) => {
@@ -4057,6 +4107,202 @@ app.get('/admin/stats', requireAdmin, async (req, res) => {
 //   event: done    data: { "model": "xAI grok-4-1-fast-reasoning" }
 //   event: error   data: { "error": "..." }
 
+// ============================================================================
+// USER PROFILE SYSTEM (Lifeguard AI memory)
+// ============================================================================
+// Builds a persistent profile for each user from chat conversations and
+// onboarding questions. The profile is injected into the system prompt so
+// the AI can personalise responses.
+
+async function getUserProfile(uid) {
+  if (!uid) return null;
+  try {
+    const r = await pool.query('SELECT * FROM user_profiles WHERE user_id = $1', [uid]);
+    return r.rows[0] || null;
+  } catch (err) {
+    // Table may not exist yet (pre-migration) -- fail gracefully
+    if (err.code === '42P01') return null;
+    console.error('[profile] get error:', err.message);
+    return null;
+  }
+}
+
+async function ensureProfile(uid) {
+  if (!uid) return null;
+  try {
+    // Ensure the user row exists first (upsert)
+    await pool.query(
+      `INSERT INTO users (id, created_at) VALUES ($1, EXTRACT(EPOCH FROM NOW()))
+       ON CONFLICT (id) DO NOTHING`,
+      [uid]
+    );
+    const r = await pool.query(
+      `INSERT INTO user_profiles (user_id) VALUES ($1)
+       ON CONFLICT (user_id) DO NOTHING
+       RETURNING *`,
+      [uid]
+    );
+    if (r.rows[0]) return r.rows[0];
+    return getUserProfile(uid);
+  } catch (err) {
+    if (err.code === '42P01') return null;
+    console.error('[profile] ensure error:', err.message);
+    return null;
+  }
+}
+
+async function updateProfile(uid, updates) {
+  if (!uid || !updates || !Object.keys(updates).length) return null;
+  try {
+    const allowed = [
+      'holdings', 'experience', 'risk_tolerance', 'interests',
+      'exchanges', 'wallets', 'goals', 'concerns', 'notes',
+      'onboarded', 'onboard_step'
+    ];
+    const sets = [];
+    const params = [uid];
+    let idx = 2;
+    for (const [k, v] of Object.entries(updates)) {
+      if (!allowed.includes(k)) continue;
+      // JSONB fields need explicit cast
+      const jsonbFields = ['holdings', 'interests', 'exchanges', 'wallets', 'notes'];
+      if (jsonbFields.includes(k)) {
+        sets.push(`${k} = $${idx}::jsonb`);
+        params.push(JSON.stringify(v));
+      } else {
+        sets.push(`${k} = $${idx}`);
+        params.push(v);
+      }
+      idx++;
+    }
+    if (!sets.length) return null;
+    sets.push(`updated_at = EXTRACT(EPOCH FROM NOW())`);
+    const sql = `UPDATE user_profiles SET ${sets.join(', ')} WHERE user_id = $1 RETURNING *`;
+    const r = await pool.query(sql, params);
+    return r.rows[0] || null;
+  } catch (err) {
+    if (err.code === '42P01') return null;
+    console.error('[profile] update error:', err.message);
+    return null;
+  }
+}
+
+// Append a timestamped note to the profile's notes array
+async function appendProfileNote(uid, note) {
+  if (!uid || !note) return;
+  try {
+    await pool.query(
+      `UPDATE user_profiles
+       SET notes = notes || $2::jsonb,
+           updated_at = EXTRACT(EPOCH FROM NOW())
+       WHERE user_id = $1`,
+      [uid, JSON.stringify([{ t: Date.now(), note: String(note).slice(0, 500) }])]
+    );
+  } catch (err) {
+    if (err.code !== '42P01') console.error('[profile] append note error:', err.message);
+  }
+}
+
+// Format a profile into a concise context string for the system prompt
+function formatProfileContext(profile) {
+  if (!profile) return '';
+  const lines = [];
+
+  if (profile.experience && profile.experience !== 'unknown') {
+    lines.push(`Experience level: ${profile.experience}`);
+  }
+  if (profile.risk_tolerance && profile.risk_tolerance !== 'unknown') {
+    lines.push(`Risk tolerance: ${profile.risk_tolerance}`);
+  }
+
+  const holdings = typeof profile.holdings === 'string'
+    ? JSON.parse(profile.holdings || '[]') : (profile.holdings || []);
+  if (holdings.length) {
+    const holdStr = holdings.map(h =>
+      h.note ? `${h.token} (${h.note})` : h.token
+    ).join(', ');
+    lines.push(`Holdings: ${holdStr}`);
+  }
+
+  const interests = typeof profile.interests === 'string'
+    ? JSON.parse(profile.interests || '[]') : (profile.interests || []);
+  if (interests.length) lines.push(`Interests: ${interests.join(', ')}`);
+
+  const exchanges = typeof profile.exchanges === 'string'
+    ? JSON.parse(profile.exchanges || '[]') : (profile.exchanges || []);
+  if (exchanges.length) lines.push(`Exchanges: ${exchanges.join(', ')}`);
+
+  const wallets = typeof profile.wallets === 'string'
+    ? JSON.parse(profile.wallets || '[]') : (profile.wallets || []);
+  if (wallets.length) lines.push(`Wallets: ${wallets.join(', ')}`);
+
+  if (profile.goals) lines.push(`Goals: ${profile.goals}`);
+  if (profile.concerns) lines.push(`Concerns: ${profile.concerns}`);
+
+  // Include last 5 notes for conversational memory
+  const notes = typeof profile.notes === 'string'
+    ? JSON.parse(profile.notes || '[]') : (profile.notes || []);
+  if (notes.length) {
+    const recent = notes.slice(-5).map(n => n.note).join('; ');
+    lines.push(`Recent observations: ${recent}`);
+  }
+
+  return lines.join('\n');
+}
+
+// Onboarding questions sequence
+const ONBOARDING_QUESTIONS = [
+  {
+    step: 1,
+    question: "Welcome to Lifeguard AI! I'd love to get to know you so I can give you better advice. To start -- how would you describe your crypto experience?",
+    options: ['beginner', 'intermediate', 'advanced'],
+    field: 'experience',
+    parse: (answer) => {
+      const a = answer.toLowerCase();
+      if (a.includes('beginner') || a.includes('new') || a.includes('just started')) return 'beginner';
+      if (a.includes('advanced') || a.includes('expert') || a.includes('years')) return 'advanced';
+      if (a.includes('intermediate') || a.includes('some') || a.includes('familiar')) return 'intermediate';
+      return 'intermediate'; // default
+    }
+  },
+  {
+    step: 2,
+    question: "What's your approach to risk? Are you more conservative (stick to blue chips like BTC/ETH), moderate (mix of established and newer projects), or aggressive (willing to explore smaller/newer tokens)?",
+    options: ['conservative', 'moderate', 'aggressive'],
+    field: 'risk_tolerance',
+    parse: (answer) => {
+      const a = answer.toLowerCase();
+      if (a.includes('conservative') || a.includes('safe') || a.includes('careful') || a.includes('blue chip')) return 'conservative';
+      if (a.includes('aggressive') || a.includes('risk') || a.includes('degen') || a.includes('small')) return 'aggressive';
+      return 'moderate';
+    }
+  },
+  {
+    step: 3,
+    question: "Which tokens do you currently hold or are most interested in? (Just list a few, e.g. BTC, ETH, SOL)",
+    field: 'holdings',
+    parse: (answer) => {
+      // Extract token-like symbols from the answer
+      const tokens = answer.toUpperCase().match(/[A-Z]{2,6}/g) || [];
+      // Deduplicate
+      return [...new Set(tokens)].slice(0, 20).map(t => ({ token: t, note: '' }));
+    }
+  },
+  {
+    step: 4,
+    question: "Last one -- what areas of crypto interest you most? For example: DeFi, NFTs, staking, privacy, Layer 2s, memecoins, trading, long-term holding?",
+    field: 'interests',
+    parse: (answer) => {
+      const a = answer.toLowerCase();
+      const all = ['defi','nfts','staking','privacy','layer2','memecoins','trading','long-term holding','gaming','dao','lending','yield farming'];
+      const found = all.filter(i => a.includes(i.replace('-', ' ')) || a.includes(i));
+      // Also grab any mentioned if not in our list
+      if (!found.length) return [answer.trim().slice(0, 80)];
+      return found;
+    }
+  }
+];
+
 // ---- Lightweight per-IP rate limiting (memory) -----------------------------
 const chatRateMap = new Map(); // ip -> { tokens, resetAt }
 function chatRateLimit(ip, limit = 20, windowMs = 60_000) {
@@ -4137,6 +4383,39 @@ const CHAT_TOOLS = [
     function: {
       name: 'get_watchlist',
       description: 'Get the current user\'s saved watchlist (only works for logged-in users). Use this when the user asks about "my coins", "my watchlist", "my portfolio".',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_user_profile',
+      description: 'Update the user\'s profile with information learned from the conversation. Call this whenever you learn something new about the user: tokens they hold, their experience level, risk tolerance, exchanges they use, wallets, interests, goals, or concerns. Also call this to save brief observations (use the "note" field). Always update silently without announcing it unless the user asks about their profile.',
+      parameters: {
+        type: 'object',
+        properties: {
+          experience: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'], description: 'Crypto experience level' },
+          risk_tolerance: { type: 'string', enum: ['conservative', 'moderate', 'aggressive'], description: 'Risk appetite' },
+          holdings: {
+            type: 'array',
+            items: { type: 'object', properties: { token: { type: 'string' }, note: { type: 'string' } } },
+            description: 'Tokens the user holds or is interested in, e.g. [{token:"ETH", note:"main holding"}, {token:"SOL", note:"staking"}]'
+          },
+          interests: { type: 'array', items: { type: 'string' }, description: 'Areas of interest e.g. ["defi","staking","nfts"]' },
+          exchanges: { type: 'array', items: { type: 'string' }, description: 'Exchanges they use e.g. ["coinbase","binance"]' },
+          wallets: { type: 'array', items: { type: 'string' }, description: 'Wallet types e.g. ["metamask","ledger"]' },
+          goals: { type: 'string', description: 'What they want to achieve with crypto' },
+          concerns: { type: 'string', description: 'What worries them about crypto' },
+          note: { type: 'string', description: 'A brief observation about the user to remember for future conversations (max 500 chars)' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_user_profile',
+      description: 'Retrieve the current user\'s saved profile. Use this when you need to recall what you know about the user, or when the user asks "what do you know about me" or "my profile".',
       parameters: { type: 'object', properties: {} }
     }
   }
@@ -4281,6 +4560,66 @@ async function chatToolExecutor(name, args, ctx) {
         return { watchlist, loggedIn: !!ctx.loggedIn };
       }
 
+      case 'update_user_profile': {
+        if (!ctx.uid) return { error: 'no user identity' };
+        await ensureProfile(ctx.uid);
+        // Separate the "note" field from structured updates
+        const { note, ...structuredUpdates } = args;
+        // Merge holdings: if user already has holdings, append new ones (deduplicate)
+        if (structuredUpdates.holdings && structuredUpdates.holdings.length) {
+          const existing = await getUserProfile(ctx.uid);
+          if (existing) {
+            const existingHoldings = typeof existing.holdings === 'string'
+              ? JSON.parse(existing.holdings || '[]') : (existing.holdings || []);
+            const existingTokens = new Set(existingHoldings.map(h => h.token.toUpperCase()));
+            const merged = [...existingHoldings];
+            for (const h of structuredUpdates.holdings) {
+              const upper = h.token.toUpperCase();
+              if (!existingTokens.has(upper)) {
+                merged.push({ token: upper, note: h.note || '' });
+                existingTokens.add(upper);
+              } else if (h.note) {
+                // Update the note for an existing holding
+                const idx = merged.findIndex(x => x.token.toUpperCase() === upper);
+                if (idx >= 0) merged[idx].note = h.note;
+              }
+            }
+            structuredUpdates.holdings = merged;
+          }
+        }
+        // Merge interests: append, deduplicate
+        if (structuredUpdates.interests && structuredUpdates.interests.length) {
+          const existing = await getUserProfile(ctx.uid);
+          if (existing) {
+            const existingInterests = typeof existing.interests === 'string'
+              ? JSON.parse(existing.interests || '[]') : (existing.interests || []);
+            const merged = [...new Set([...existingInterests, ...structuredUpdates.interests])];
+            structuredUpdates.interests = merged;
+          }
+        }
+        if (Object.keys(structuredUpdates).length) {
+          await updateProfile(ctx.uid, structuredUpdates);
+        }
+        if (note) {
+          await appendProfileNote(ctx.uid, note);
+        }
+        return { success: true };
+      }
+
+      case 'get_user_profile': {
+        if (!ctx.uid) return { error: 'no user identity' };
+        const profile = await getUserProfile(ctx.uid);
+        if (!profile) return { profile: null, note: 'No profile yet' };
+        // Parse JSONB fields for the model
+        const parsed = { ...profile };
+        for (const f of ['holdings', 'interests', 'exchanges', 'wallets', 'notes']) {
+          if (typeof parsed[f] === 'string') {
+            try { parsed[f] = JSON.parse(parsed[f]); } catch { parsed[f] = []; }
+          }
+        }
+        return { profile: parsed };
+      }
+
       default:
         return { error: 'unknown tool' };
     }
@@ -4352,6 +4691,7 @@ You embody several specialist skills and should route yourself to the right one 
 - **Security Watchdog** — hacks, exploits, migrations, unlocks, scams, upcoming deadlines. Use get_alerts. ALWAYS check get_alerts when the user mentions risk, safety, or asks about what to watch out for.
 - **News Scout** — recent headlines and analysis. Use search_news.
 - **Watchlist Coach** — use get_watchlist when the user asks about "my coins", "my watchlist", "my portfolio" or similar. Every visitor has a watchlist (kept per-device for anonymous users, synced across devices once they sign in), so get_watchlist works whether or not the user is signed in. Only mention signing in if (a) the user explicitly asks to sync across devices, or (b) get_watchlist returns loggedIn:false AND the user is asking about something that needs an account.
+- **Memory Keeper** — you remember things about users across conversations. When you learn something about the user (tokens they hold, their experience, exchanges they use, what they care about), call update_user_profile silently in the background. Do NOT announce that you are saving their info unless they ask. If they ask "what do you know about me" or "my profile", use get_user_profile.
 
 Rules:
 1. Prefer tool calls over guessing. If the user asks about price, ALWAYS call get_price. If they mention "any warnings about X", ALWAYS call get_alerts.
@@ -4363,19 +4703,52 @@ Rules:
 7. Do NOT tell users to sign in unless get_watchlist's result actually indicates a problem, or the user explicitly asks about account features like cross-device sync. Anonymous users have a perfectly good per-device watchlist.
 8. When numbers come back from tools, format prices with appropriate precision and % changes with one decimal place.
 9. If a tool returns an error, gracefully explain what's missing rather than inventing data.
-10. Be conversational and warm. You're the friendly expert in the room, not a search engine.`;
+10. Be conversational and warm. You're the friendly expert in the room, not a search engine.
+11. When you learn something new about the user during conversation (e.g. they mention holding ETH, or they say they use Binance, or they are worried about hacks), call update_user_profile with the relevant fields. Do this silently -- never say "I've updated your profile" unless they specifically ask.
+12. If the user's profile has context (provided below), use it to personalise your responses. For example, if you know they hold SOL, proactively mention relevant SOL alerts. If they are a beginner, explain things more simply.`;
 
 async function runChatAgent({ messages, context, uid, loggedIn = false, sendEvent }) {
   // Build provider messages: system + context hint + conversation
   const systemMessages = [{ role: 'system', content: CHAT_SYSTEM_PROMPT }];
-  if (context && (context.token || context.page || context.watchlist)) {
-    const ctxLines = [];
-    if (context.page) ctxLines.push(`Current page: ${context.page}`);
-    if (context.token) ctxLines.push(`User is currently viewing token: ${context.token}`);
-    if (Array.isArray(context.watchlist) && context.watchlist.length) {
-      ctxLines.push(`User watchlist (first 10): ${context.watchlist.slice(0,10).join(', ')}`);
+
+  // Load user profile and inject as context
+  let profile = null;
+  if (uid) {
+    profile = await getUserProfile(uid);
+    if (!profile) {
+      profile = await ensureProfile(uid);
     }
+  }
+  const profileCtx = formatProfileContext(profile);
+
+  // Build context block
+  const ctxLines = [];
+  if (context && context.page) ctxLines.push(`Current page: ${context.page}`);
+  if (context && context.token) ctxLines.push(`User is currently viewing token: ${context.token}`);
+  if (context && Array.isArray(context.watchlist) && context.watchlist.length) {
+    ctxLines.push(`User watchlist (first 10): ${context.watchlist.slice(0,10).join(', ')}`);
+  }
+  if (profileCtx) ctxLines.push(`\nUser profile (from previous conversations):\n${profileCtx}`);
+
+  if (ctxLines.length) {
     systemMessages.push({ role: 'system', content: `Context:\n${ctxLines.join('\n')}` });
+  }
+
+  // Onboarding: if profile exists but user hasn't been onboarded and this is
+  // their first message (only 1 user message in the array), prepend an
+  // onboarding nudge as a system hint
+  if (profile && !profile.onboarded && messages.filter(m => m.role === 'user').length === 1) {
+    const step = profile.onboard_step || 0;
+    if (step < ONBOARDING_QUESTIONS.length) {
+      const q = ONBOARDING_QUESTIONS[step];
+      systemMessages.push({
+        role: 'system',
+        content: `ONBOARDING: This user hasn't completed onboarding yet (step ${step + 1}/${ONBOARDING_QUESTIONS.length}). After answering their question, naturally weave in this question: "${q.question}" Keep it casual and conversational, not like a form. If the user's message already answers one of the onboarding questions (e.g. they mention holding specific tokens), extract that info via update_user_profile and skip ahead.`
+      });
+    } else {
+      // All questions done, mark onboarded
+      await updateProfile(uid, { onboarded: true });
+    }
   }
 
   let providerMessages = [...systemMessages, ...messages];
@@ -4402,13 +4775,28 @@ async function runChatAgent({ messages, context, uid, loggedIn = false, sendEven
         try { parsedArgs = JSON.parse(tc.function?.arguments || '{}'); } catch {}
         sendEvent('tool', { name: tc.function?.name, args: parsedArgs, status: 'running' });
         const result = await chatToolExecutor(tc.function?.name, parsedArgs, { uid, loggedIn, currency: context?.currency });
-        sendEvent('tool', { name: tc.function?.name, args: parsedArgs, result, status: 'done' });
+        // Don't expose profile update tool calls to the user (silent)
+        if (tc.function?.name !== 'update_user_profile') {
+          sendEvent('tool', { name: tc.function?.name, args: parsedArgs, result, status: 'done' });
+        }
         providerMessages.push({
           role: 'tool',
           tool_call_id: tc.id,
           name: tc.function?.name,
           content: JSON.stringify(result).slice(0, 8000)
         });
+        // Advance onboarding step when profile is updated during onboarding
+        if (tc.function?.name === 'update_user_profile' && uid && profile && !profile.onboarded) {
+          const currentStep = profile.onboard_step || 0;
+          const nextStep = currentStep + 1;
+          if (nextStep >= ONBOARDING_QUESTIONS.length) {
+            await updateProfile(uid, { onboard_step: nextStep, onboarded: true });
+          } else {
+            await updateProfile(uid, { onboard_step: nextStep });
+          }
+          // Refresh profile for subsequent iterations
+          profile = await getUserProfile(uid);
+        }
       }
       continue;
     }
