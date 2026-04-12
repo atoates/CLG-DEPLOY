@@ -1163,8 +1163,8 @@ app.post('/api/alerts', requireAdmin, async (req, res) => {
   res.status(201).json(item);
 });
 
-// Get a single alert (admin only for now)
-app.get('/api/alerts/:id', requireAdmin, (req, res) => {
+// Get a single alert (public — same data as /api/alerts list, just one row)
+app.get('/api/alerts/:id', (req, res) => {
   const { id } = req.params;
   const item = alerts.find(a => a.id === id);
   if (!item) return res.status(404).json({ error: 'not_found' });
@@ -1916,6 +1916,63 @@ app.get('/api/market/snapshot', async (req, res) => {
       : `CoinGecko API error: ${e.message}`;
     
     return res.json({ items, note: errorNote, provider: 'coingecko', currency: requestedCurrency });
+  }
+});
+
+// Price history for a single symbol (for mini sparkline charts on the
+// alert detail page). Uses CoinGecko's free market_chart endpoint, which
+// returns [timestamp, price] pairs. Cached for 10 minutes per symbol/range.
+const priceHistoryCache = new Map(); // key: SYMBOL:days:currency -> { t, data }
+const PRICE_HISTORY_TTL_MS = 10 * 60 * 1000;
+app.get('/api/price-history/:symbol', async (req, res) => {
+  try {
+    const symbol = String(req.params.symbol || '').trim().toUpperCase();
+    if (!symbol) return res.status(400).json({ error: 'symbol required' });
+    const days = Math.max(1, Math.min(90, parseInt(req.query.days || '7', 10) || 7));
+    const currency = String(req.query.currency || 'USD').toUpperCase();
+
+    const cacheKey = `${symbol}:${days}:${currency}`;
+    const hit = priceHistoryCache.get(cacheKey);
+    if (hit && Date.now() - hit.t < PRICE_HISTORY_TTL_MS) {
+      return res.json(hit.data);
+    }
+
+    const coinId = await getCoinGeckoId(symbol);
+    if (!coinId) return res.status(404).json({ error: 'unknown_symbol', symbol });
+
+    const vs = currency.toLowerCase();
+    const baseUrl = `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=${vs}&days=${days}`;
+    const url = COINGECKO_API_KEY
+      ? `${baseUrl}&x_cg_demo_api_key=${COINGECKO_API_KEY}`
+      : baseUrl;
+
+    const r = await fetch(url);
+    await trackAPICall('CoinGecko', '/coins/{id}/market_chart');
+    if (!r.ok) {
+      const text = await r.text().catch(() => '');
+      return res.status(502).json({ error: 'coingecko_failed', status: r.status, detail: text.slice(0, 200) });
+    }
+    const j = await r.json();
+    const raw = Array.isArray(j.prices) ? j.prices : [];
+    // Down-sample to ~60 points so the SVG stays crisp
+    const target = 60;
+    const step = raw.length > target ? Math.floor(raw.length / target) : 1;
+    const points = [];
+    for (let i = 0; i < raw.length; i += step) {
+      const p = raw[i];
+      if (Array.isArray(p) && p.length >= 2) points.push({ t: p[0], price: p[1] });
+    }
+    if (raw.length && points[points.length - 1]?.t !== raw[raw.length - 1][0]) {
+      const last = raw[raw.length - 1];
+      points.push({ t: last[0], price: last[1] });
+    }
+
+    const data = { symbol, currency, days, points };
+    priceHistoryCache.set(cacheKey, { t: Date.now(), data });
+    return res.json(data);
+  } catch (err) {
+    log.warn('[price-history] error:', err.message);
+    return res.status(500).json({ error: 'price_history_failed', detail: err.message });
   }
 });
 
@@ -3769,11 +3826,16 @@ async function chatToolExecutor(name, args, ctx) {
       }
 
       case 'get_watchlist': {
-        if (!ctx.uid) return { error: 'not_logged_in' };
+        // Every visitor has a uid (anon cookie or Google session). Return
+        // their watchlist regardless of login state, and flag whether it's
+        // an anonymous (this-device-only) list so the model can mention it.
+        if (!ctx.uid) return { watchlist: [], loggedIn: false, note: 'No user identity on request' };
         const row = await getPrefs(ctx.uid);
-        if (!row) return { watchlist: [] };
-        try { return { watchlist: JSON.parse(row.watchlist_json || '[]') }; }
-        catch { return { watchlist: [] }; }
+        let watchlist = [];
+        if (row) {
+          try { watchlist = JSON.parse(row.watchlist_json || '[]'); } catch {}
+        }
+        return { watchlist, loggedIn: !!ctx.loggedIn };
       }
 
       default:
@@ -3846,7 +3908,7 @@ You embody several specialist skills and should route yourself to the right one 
 - **Market Analyst** — prices, market cap, volume, 24h/7d changes. Use get_price and get_token_info.
 - **Security Watchdog** — hacks, exploits, migrations, unlocks, scams, upcoming deadlines. Use get_alerts. ALWAYS check get_alerts when the user mentions risk, safety, or asks about what to watch out for.
 - **News Scout** — recent headlines and analysis. Use search_news.
-- **Watchlist Coach** — only for logged-in users. Use get_watchlist when asked about "my coins".
+- **Watchlist Coach** — use get_watchlist when the user asks about "my coins", "my watchlist", "my portfolio" or similar. Every visitor has a watchlist (kept per-device for anonymous users, synced across devices once they sign in), so get_watchlist works whether or not the user is signed in. Only mention signing in if (a) the user explicitly asks to sync across devices, or (b) get_watchlist returns loggedIn:false AND the user is asking about something that needs an account.
 
 Rules:
 1. Prefer tool calls over guessing. If the user asks about price, ALWAYS call get_price. If they mention "any warnings about X", ALWAYS call get_alerts.
@@ -3855,12 +3917,12 @@ Rules:
 4. Keep responses tight: 2–5 short paragraphs, sometimes a short list. Prioritise useful over exhaustive.
 5. Always cite sources when using news or alerts — name the source and link if available.
 6. You are NOT a financial advisor. If asked for buy/sell advice, explain the factors, give balanced perspective, and remind the user to do their own research.
-7. If the user asks about THEIR watchlist but isn't logged in, politely tell them to sign in.
+7. Do NOT tell users to sign in unless get_watchlist's result actually indicates a problem, or the user explicitly asks about account features like cross-device sync. Anonymous users have a perfectly good per-device watchlist.
 8. When numbers come back from tools, format prices with appropriate precision and % changes with one decimal place.
 9. If a tool returns an error, gracefully explain what's missing rather than inventing data.
 10. Be conversational and warm. You're the friendly expert in the room, not a search engine.`;
 
-async function runChatAgent({ messages, context, uid, sendEvent }) {
+async function runChatAgent({ messages, context, uid, loggedIn = false, sendEvent }) {
   // Build provider messages: system + context hint + conversation
   const systemMessages = [{ role: 'system', content: CHAT_SYSTEM_PROMPT }];
   if (context && (context.token || context.page || context.watchlist)) {
@@ -3896,7 +3958,7 @@ async function runChatAgent({ messages, context, uid, sendEvent }) {
         let parsedArgs = {};
         try { parsedArgs = JSON.parse(tc.function?.arguments || '{}'); } catch {}
         sendEvent('tool', { name: tc.function?.name, args: parsedArgs, status: 'running' });
-        const result = await chatToolExecutor(tc.function?.name, parsedArgs, { uid, currency: context?.currency });
+        const result = await chatToolExecutor(tc.function?.name, parsedArgs, { uid, loggedIn, currency: context?.currency });
         sendEvent('tool', { name: tc.function?.name, args: parsedArgs, result, status: 'done' });
         providerMessages.push({
           role: 'tool',
@@ -3941,11 +4003,12 @@ app.post('/api/chat', async (req, res) => {
       .map(m => ({ role: (m.role === 'assistant' ? 'assistant' : 'user'), content: m.content.slice(0, 6000) }))
       .slice(-12);
 
-    // Only treat a real session cookie as "logged in". The anon middleware
-    // assigns req.uid to every visitor, so using that would make get_watchlist
-    // think an anon user is signed in.
+    // Match /api/me: the anon `req.uid` cookie IS the persistent user identity
+    // for watchlists and prefs. Google OAuth (`sess.uid`) is layered on top
+    // for cross-device sync, but every visitor has their own anon watchlist.
     const sess = getSession(req);
-    const uid = sess?.uid || null;
+    const uid = sess?.uid || req.uid || null;
+    const loggedIn = !!sess;
 
     // SSE setup
     res.setHeader('Content-Type', 'text/event-stream');
@@ -3962,7 +4025,7 @@ app.post('/api/chat', async (req, res) => {
     };
 
     try {
-      await runChatAgent({ messages: safeMessages, context, uid, sendEvent });
+      await runChatAgent({ messages: safeMessages, context, uid, loggedIn, sendEvent });
     } catch (err) {
       console.error('[chat] agent error:', err);
       sendEvent('error', { error: err.message || 'chat_failed' });

@@ -318,7 +318,8 @@ function renderUserMessage(bodyEl, text) {
     el('div', { class: 'clg-chat-bubble' }, [el('p', {}, [text])])
   ]);
   bodyEl.appendChild(wrap);
-  scrollBottom(bodyEl);
+  // User sending a new message = intent to see the latest. Force pin.
+  scrollBottom(bodyEl, { force: true });
 }
 
 function renderAssistantBubble(bodyEl) {
@@ -337,7 +338,8 @@ function renderAssistantBubble(bodyEl) {
   ]);
   const wrap = el('div', { class: 'clg-chat-msg clg-chat-msg--ai' }, [content]);
   bodyEl.appendChild(wrap);
-  scrollBottom(bodyEl);
+  // New assistant turn after a user send = pin to bottom.
+  scrollBottom(bodyEl, { force: true });
   return {
     wrap,
     tools,
@@ -366,8 +368,31 @@ function renderAssistantBubble(bodyEl) {
   };
 }
 
-function scrollBottom(bodyEl) {
-  requestAnimationFrame(() => { bodyEl.scrollTop = bodyEl.scrollHeight; });
+// Auto-pin-to-bottom helper. Each body element is marked with `.clg-stick`
+// when the user is near the bottom; streaming updates should only yank the
+// viewport down while that flag is set, so readers scrolling up to re-read
+// history aren't bounced back down on every chunk.
+const STICK_THRESHOLD_PX = 60;
+function isNearBottom(bodyEl) {
+  if (!bodyEl) return true;
+  return (bodyEl.scrollHeight - bodyEl.scrollTop - bodyEl.clientHeight) <= STICK_THRESHOLD_PX;
+}
+function attachStickyScroll(bodyEl) {
+  if (!bodyEl || bodyEl.__clgStickyBound) return;
+  bodyEl.__clgStickyBound = true;
+  bodyEl.__clgStick = true;
+  bodyEl.addEventListener('scroll', () => {
+    bodyEl.__clgStick = isNearBottom(bodyEl);
+  }, { passive: true });
+}
+function scrollBottom(bodyEl, { force = false } = {}) {
+  if (!bodyEl) return;
+  if (!force && bodyEl.__clgStick === false) return;
+  // Instant jump - no rAF, no smooth animation. Streaming chunks arrive
+  // faster than a smooth animation can catch up, which is what was making
+  // the panel appear to "break" and leave the latest text below the fold.
+  bodyEl.scrollTop = bodyEl.scrollHeight;
+  bodyEl.__clgStick = true;
 }
 
 // ---- SSE reader -----------------------------------------------------------
@@ -547,6 +572,7 @@ function buildController(root) {
       panelEl = built.panel;
       bodyEl = built.body;
       textareaEl = built.textarea;
+      attachStickyScroll(bodyEl);
       root.appendChild(panelEl);
 
       // Replay any prior conversation

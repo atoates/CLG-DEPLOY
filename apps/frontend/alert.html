@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="/favicon-180.png" />
+  <title>Alert detail — Crypto Lifeguard</title>
+  <meta name="description" content="Crypto Lifeguard alert detail — full context, live price, related alerts, and news." />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="/config.js"></script>
+  <link rel="stylesheet" href="/src/styles.css" />
+  <style>
+    /* Auth-gate splash (matches index.html) */
+    html.clg-auth-pending body > *:not(#clg-auth-splash) { visibility: hidden; }
+    #clg-auth-splash {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      background:
+        radial-gradient(900px 600px at 85% -10%, rgba(20, 184, 166, 0.18), transparent 60%),
+        radial-gradient(900px 600px at 5% 110%, rgba(59, 130, 246, 0.22), transparent 55%),
+        linear-gradient(180deg, #050b1a 0%, #0a1628 50%, #0b1e33 100%);
+      color: #e6edf7;
+      font-family: 'Inter', sans-serif;
+    }
+    #clg-auth-splash .clg-auth-splash-inner { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+    #clg-auth-splash .clg-auth-spinner {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: 3px solid rgba(94, 234, 212, 0.18);
+      border-top-color: #14b8a6;
+      animation: clg-auth-spin 0.9s linear infinite;
+    }
+    #clg-auth-splash .clg-auth-label { font-size: 14px; font-weight: 500; color: rgba(230, 237, 247, 0.72); letter-spacing: 0.02em; }
+    @keyframes clg-auth-spin { to { transform: rotate(360deg); } }
+    html:not(.clg-auth-pending) #clg-auth-splash { display: none; }
+  </style>
+  <script>
+    // Auth gate (matches index.html)
+    (function(){
+      try {
+        document.documentElement.classList.add('clg-auth-pending');
+        var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+          ? window.BACKEND_URL
+          : 'https://clg-admin-production.up.railway.app';
+        fetch(backend + '/api/me', { credentials: 'include' })
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(me){
+            if (!me || !me.loggedIn) {
+              try {
+                var back = window.location.pathname + window.location.search + window.location.hash;
+                sessionStorage.setItem('clg_auth_return', back);
+              } catch(_) {}
+              window.location.replace('/signup.html');
+              return;
+            }
+            try { window.__CLG_ME__ = me; } catch(_) {}
+            document.documentElement.classList.remove('clg-auth-pending');
+          })
+          .catch(function(){ window.location.replace('/signup.html'); });
+      } catch(_) {
+        document.documentElement.classList.remove('clg-auth-pending');
+      }
+    })();
+  </script>
+</head>
+<body class="clg-theme-dark">
+  <div id="clg-auth-splash" aria-hidden="true">
+    <div class="clg-auth-splash-inner">
+      <div class="clg-auth-spinner"></div>
+      <div class="clg-auth-label">Checking your session…</div>
+    </div>
+  </div>
+
+  <header class="topbar" role="banner">
+    <div class="topbar-inner">
+      <a class="brand-wrap" href="/" style="text-decoration:none; color:inherit;">
+        <img class="brand-logo" src="/full@4x.png" alt="Crypto Lifeguard Logo" decoding="async" fetchpriority="high" />
+        <div class="brand-text brand-text--hidden">
+          <h1 class="brand-title">Crypto Lifeguard</h1>
+          <p class="brand-tagline">Protect your crypto assets with personalised alerts.</p>
+        </div>
+      </a>
+      <div class="actions">
+        <a href="/" class="clg-alert-back-btn" aria-label="Back to alerts">
+          <span aria-hidden="true">←</span>
+          <span>Back to alerts</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container clg-alert-detail">
+    <!-- Alert.js renders into this root. Skeleton loader shown first. -->
+    <div id="alert-detail-root">
+      <div class="clg-alert-skeleton" aria-busy="true" aria-live="polite">
+        <div class="clg-alert-skeleton__header">
+          <div class="clg-alert-skeleton__logo"></div>
+          <div class="clg-alert-skeleton__lines">
+            <div class="clg-alert-skeleton__bar clg-alert-skeleton__bar--lg"></div>
+            <div class="clg-alert-skeleton__bar clg-alert-skeleton__bar--md"></div>
+          </div>
+        </div>
+        <div class="clg-alert-skeleton__body">
+          <div class="clg-alert-skeleton__bar"></div>
+          <div class="clg-alert-skeleton__bar"></div>
+          <div class="clg-alert-skeleton__bar clg-alert-skeleton__bar--sm"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="/src/alert.js"></script>
+  <!-- Lifeguard AI chat widget -->
+  <script>window.CLG_CHAT_CONTEXT = { page: 'alert-detail' };</script>
+  <script type="module" src="/src/chat.js"></script>
+</body>
+</html>

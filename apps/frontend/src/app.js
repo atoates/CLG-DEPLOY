@@ -1602,6 +1602,27 @@ function renderAlerts(){
     wrap.appendChild(accentSide);
     wrap.appendChild(row);
 
+    // Make the whole card a clickable surface that opens the detail page,
+    // without hijacking clicks on buttons/links inside it (Read more toggle,
+    // Source link, Dismiss button, etc.).
+    wrap.classList.add('alert-item--clickable');
+    wrap.setAttribute('role', 'link');
+    wrap.setAttribute('tabindex', '0');
+    wrap.setAttribute('aria-label', `Open details for ${a.title}`);
+    const goToDetail = (e) => {
+      // Ignore clicks that hit an interactive element inside the card
+      const t = e.target;
+      if (t && t.closest && t.closest('button, a, input, textarea, .more-content')) return;
+      window.location.href = `/alert.html?id=${encodeURIComponent(a.id)}`;
+    };
+    wrap.addEventListener('click', goToDetail);
+    wrap.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        window.location.href = `/alert.html?id=${encodeURIComponent(a.id)}`;
+      }
+    });
+
     wrap._tick = () => {
       metaChip.textContent = fmtTimeLeft(new Date(a.deadline).getTime() - Date.now());
     };

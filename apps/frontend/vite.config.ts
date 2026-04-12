@@ -23,6 +23,7 @@ export default {
         create: resolve(__dirname, 'create.html'),
         profile: resolve(__dirname, 'profile.html'),
         signup: resolve(__dirname, 'signup.html'),
+        alert: resolve(__dirname, 'alert.html'),
       },
     },
   },
