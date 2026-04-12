@@ -1,38 +1,139 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="clg-theme-dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="/favicon-180.png" />
   <title>Crypto Lifeguard — Protect Your Crypto Assets</title>
   <script>
-    // Early redirect for backend-only routes when user lands directly on /auth/*
+    // --- Login diagnostic helper (available on every page) ------------------
+    // Posts to /api/debug-log so we can follow a login attempt in Railway logs
+    // or at /debug/login. Best-effort, never throws.
     (function(){
       try {
-        var p = window.location && window.location.pathname || '';
-        if (p.startsWith('/auth/')) {
-          var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
-            ? window.BACKEND_URL
-            : 'https://clg-admin-production.up.railway.app';
-          var target = backend + p + (window.location.search || '') + (window.location.hash || '');
-          window.location.replace(target);
-        }
+        window.__clgDiag = function(stage, data){
+          try {
+            var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+              ? window.BACKEND_URL : '';
+            var payload = {
+              stage: String(stage || 'unknown'),
+              data: Object.assign({}, data || {}, {
+                _href: location.href,
+                _path: location.pathname,
+                _hasDocCookie: !!(document.cookie && document.cookie.length),
+                _docCookieLen: (document.cookie || '').length,
+              }),
+            };
+            try { console.log('[LOGIN-DIAG][client]', stage, payload.data); } catch(_) {}
+            fetch(backend + '/api/debug-log', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+              keepalive: true,
+            }).catch(function(){});
+          } catch(_) {}
+        };
       } catch(_) {}
     })();
+    // NOTE: The old early-redirect for /auth/* routes is no longer needed.
+    // Express serves both the frontend and the API on the same origin,
+    // so /auth/google is handled server-side without a client redirect.
   </script>
+  <meta name="description" content="Crypto Lifeguard — Protect your crypto assets with personalised alerts. Real-time monitoring for tokens you care about." />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/main-CQUoGi0h.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/config-D5DNV0UN.js">
-  <link rel="stylesheet" crossorigin href="/assets/main-DjocSoEW.css">
+  <!-- Load config BEFORE Vite bundles to ensure BACKEND_URL is set -->
+  <script src="/config.js"></script>
+  <style>
+    /* Auth-gate splash — shown until /api/me resolves */
+    html.clg-auth-pending body > *:not(#clg-auth-splash) { visibility: hidden; }
+    #clg-auth-splash {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      background:
+        radial-gradient(900px 600px at 85% -10%, rgba(20, 184, 166, 0.18), transparent 60%),
+        radial-gradient(900px 600px at 5% 110%, rgba(59, 130, 246, 0.22), transparent 55%),
+        linear-gradient(180deg, #050b1a 0%, #0a1628 50%, #0b1e33 100%);
+      color: #e6edf7;
+      font-family: 'Inter', sans-serif;
+    }
+    #clg-auth-splash .clg-auth-splash-inner {
+      display: flex; flex-direction: column; align-items: center; gap: 18px;
+    }
+    #clg-auth-splash .clg-auth-spinner {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: 3px solid rgba(94, 234, 212, 0.18);
+      border-top-color: #14b8a6;
+      animation: clg-auth-spin 0.9s linear infinite;
+    }
+    #clg-auth-splash .clg-auth-label {
+      font-size: 14px; font-weight: 500;
+      color: rgba(230, 237, 247, 0.72);
+      letter-spacing: 0.02em;
+    }
+    @keyframes clg-auth-spin {
+      to { transform: rotate(360deg); }
+    }
+    html:not(.clg-auth-pending) #clg-auth-splash { display: none; }
+  </style>
+  <script>
+    // Auth gate: require login before the app renders.
+    (function(){
+      try {
+        document.documentElement.classList.add('clg-auth-pending');
+        var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+          ? window.BACKEND_URL : '';
+        try { window.__clgDiag && window.__clgDiag('index.authGate.start', { backend: backend }); } catch(_){}
+        var ac = new AbortController();
+        var authFetchTimer = setTimeout(function(){ try { ac.abort(); } catch(_) {} }, 18000);
+        fetch(backend + '/api/me', { credentials: 'include', signal: ac.signal })
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(me){
+            try { window.__clgDiag && window.__clgDiag('index.authGate.meParsed', { hasMe: !!me, loggedIn: !!(me && me.loggedIn) }); } catch(_){}
+            if (!me || !me.loggedIn) {
+              try {
+                var back = window.location.pathname + window.location.search + window.location.hash;
+                sessionStorage.setItem('clg_auth_return', back);
+              } catch(_) {}
+              window.location.replace('/signup.html');
+              return;
+            }
+            try { window.__CLG_ME__ = me; } catch(_) {}
+            document.documentElement.classList.remove('clg-auth-pending');
+          })
+          .catch(function(){
+            window.location.replace('/signup.html');
+          })
+          .finally(function(){
+            try { clearTimeout(authFetchTimer); } catch(_) {}
+          });
+      } catch(_) {
+        document.documentElement.classList.remove('clg-auth-pending');
+      }
+    })();
+  </script>
+  <script type="module" crossorigin src="/assets/main-8dxWfgen.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/chat-CKanwsyN.js">
+  <link rel="stylesheet" crossorigin href="/assets/styles-uj4IfH_V.css">
 </head>
-<body>
+<body class="clg-theme-dark">
+  <!-- Auth-gate splash: hidden once /api/me confirms login -->
+  <div id="clg-auth-splash" aria-hidden="true">
+    <div class="clg-auth-splash-inner">
+      <div class="clg-auth-spinner"></div>
+      <div class="clg-auth-label">Checking your session…</div>
+    </div>
+  </div>
+
   <!-- Environment Banner (only shown in test/staging) -->
   <div id="env-banner" class="env-banner" hidden>
     <span class="env-icon">🧪</span>
     <span class="env-text">TEST ENVIRONMENT</span>
     <span class="env-warning">Changes here won't affect production</span>
   </div>
-
-  <a href="./create.html" class="fab" aria-label="New alert" title="New alert">+</a>
 
   <header class="topbar" role="banner">
     <div class="topbar-inner">
@@ -44,7 +145,7 @@
           decoding="async"
           fetchpriority="high"
         />
-        <div class="brand-text">
+        <div class="brand-text brand-text--hidden">
           <h1 class="brand-title">Crypto Lifeguard</h1>
           <p class="brand-tagline">Protect your crypto assets with personalised alerts.</p>
         </div>
@@ -52,8 +153,10 @@
 
       <div class="actions">
         <div class="dropdown">
-          <button id="user-menu-btn" class="menu-btn" aria-haspopup="true" aria-expanded="false">
-            Account ▾
+          <button type="button" id="user-menu-btn" class="user-menu-pill menu-btn" aria-haspopup="true" aria-expanded="false">
+            <span class="user-avatar" id="user-avatar-el" aria-hidden="true"></span>
+            <span class="user-name" id="user-name-el">Account</span>
+            <span class="user-menu-chevron" aria-hidden="true">▾</span>
           </button>
           <div id="user-menu" class="menu" hidden>
             <button class="menu-item" data-action="login">Log in / Sign up</button>
@@ -97,7 +200,10 @@
     
     <!-- Selected tokens visible outside dropdown with inline toggles -->
     <div class="tokens-and-toggles-row">
-      <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
+      <div class="watchlist-row-inner">
+        <span id="watchlist-status" class="watchlist-status">No tokens selected</span>
+        <div id="selected-tokens" class="pill-row" aria-live="polite"></div>
+      </div>
       
       <div class="toggle-group inline-toggles">
         <label class="switch small" id="showall-tokens-wrap" title="Show alerts for all tokens">
@@ -116,7 +222,6 @@
     <div class="tabsbar" role="navigation" aria-label="Main tabs and filters">
       <nav class="tabs" role="tablist" aria-label="Main tabs">
         <button class="tab active" data-tab="alerts" aria-selected="true" role="tab">Alerts</button>
-        <button class="tab" data-tab="summary" aria-selected="false" role="tab">Summary</button>
         <button class="tab" data-tab="news" aria-selected="false" role="tab">News</button>
         <button class="tab" data-tab="market" aria-selected="false" role="tab">Market</button>
       </nav>
@@ -144,30 +249,10 @@
       </div>
     </div>
 
-    <section id="panel-alerts" class="card" role="tabpanel">
+    <section id="panel-alerts" class="card card--alerts-feed" role="tabpanel">
       <div id="alerts-list" class="alerts-list"></div>
+      <nav id="alerts-pagination" class="alerts-pagination" aria-label="Alert pages" hidden></nav>
       <p id="no-alerts" class="muted" hidden>No alerts for your selected filters. Adjust severity or watchlist to see alerts.</p>
-    </section>
-
-    <section id="panel-summary" class="card" hidden role="tabpanel">
-      <div class="summary-toolbar" style="display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;">
-        <div class="summary-history" style="display:flex;align-items:center;gap:8px;">
-          <button id="summary-prev" class="btn" aria-label="Previous summary" title="Previous" disabled>← Prev</button>
-          <div id="summary-stamp" class="muted" style="min-width:220px"></div>
-          <button id="summary-next" class="btn" aria-label="Next summary" title="Next" disabled>Next →</button>
-        </div>
-        <div class="summary-actions" style="display:flex;align-items:center;gap:8px;">
-          <label for="summary-model" style="font-size:12px;color:#475569;">Model:</label>
-          <select id="summary-model" style="padding:6px 8px;border-radius:8px;border:1px solid rgba(2,6,23,0.12);font-size:13px;">
-            <option value="auto">Auto</option>
-            <option value="openai" selected>OpenAI</option>
-            <option value="anthropic">Anthropic</option>
-            <option value="xai">xAI (Grok)</option>
-          </select>
-          <button id="summary-refresh" class="btn" aria-label="Generate new summary" title="Refresh">Refresh</button>
-        </div>
-      </div>
-      <div id="summary-content" class="summary"></div>
     </section>
 
     <section id="panel-news" class="card" hidden role="tabpanel">
@@ -183,7 +268,10 @@
     </section>
   </main>
 
-  <footer class="footer muted"><span>© 2026 Crypto Lifeguard</span></footer>
+  <footer class="footer footer--split">
+    <img class="footer-logo" src="/full@4x.png" alt="" width="120" height="32" decoding="async" />
+    <span class="footer-rights">All rights reserved 2026</span>
+  </footer>
 
   <!-- Token Request Modal -->
   <div id="token-request-modal" class="modal" style="display: none;">
@@ -229,8 +317,9 @@
     </div>
   </div>
 
-  <!-- Backend configuration (must load before app.js) -->
-  
-  <!-- IMPORTANT for Vite build -->
+  <!-- Backend configuration loaded in HEAD -->
+  <!-- App.js loaded by Vite bundle -->
+  <!-- Lifeguard AI chat widget (context is refreshed by app.js as the user switches tabs) -->
+  <script>window.CLG_CHAT_CONTEXT = { page: 'alerts' };</script>
 </body>
 </html>

@@ -5220,6 +5220,16 @@ function isMainAppHost(hostname) {
          hostname.includes('127.0.0.1');
 }
 
+// Override config.js for same-origin: serve empty BACKEND_URL on the main app domain
+app.get('/config.js', (req, res, next) => {
+  const hostname = req.hostname || req.get('host') || '';
+  if (isMainAppHost(hostname)) {
+    res.type('application/javascript');
+    return res.send('window.BACKEND_URL = "";');
+  }
+  next();
+});
+
 // Serve static files based on hostname
 app.use((req, res, next) => {
   const hostname = req.hostname || req.get('host') || '';

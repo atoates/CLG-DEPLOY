@@ -2,33 +2,530 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Sign up — Crypto Lifeguard</title>
-  <style>.auth-card{max-width:520px;margin:24px auto}</style>
-  <script defer>
-    async function googleLogin(){ window.location.href = '/auth/google'; }
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="/favicon-180.png" />
+  <title>Sign in — Crypto Lifeguard</title>
+  <meta name="description" content="Sign in to Crypto Lifeguard to get personalised crypto alerts and sync your watchlist across devices." />
+  <script src="/config.js"></script>
+  <script>
+    // --- Login diagnostic helper (see index.html for the canonical copy) ---
+    (function(){
+      try {
+        window.__clgDiag = function(stage, data){
+          try {
+            var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+              ? window.BACKEND_URL : '';
+            var payload = { stage: String(stage || 'unknown'), data: Object.assign({}, data || {}, {
+              _href: location.href,
+              _path: location.pathname,
+              _hasDocCookie: !!(document.cookie && document.cookie.length),
+              _docCookieLen: (document.cookie || '').length,
+            }) };
+            try { console.log('[LOGIN-DIAG][client]', stage, payload.data); } catch(_) {}
+            fetch(backend + '/api/debug-log', {
+              method: 'POST', credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload), keepalive: true,
+            }).catch(function(){});
+          } catch(_) {}
+        };
+        try { window.__clgDiag('signup.html.load', {}); } catch(_) {}
+      } catch(_) {}
+    })();
   </script>
-    <link rel="stylesheet" crossorigin href="/assets/main-DjocSoEW.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  </head>
-<body>
-  <header class="topbar"><div class="topbar-inner">
-    <div class="brand-wrap">
-      <img class="brand-logo" src="/full@4x.png" alt="Logo" />
-      <div class="brand-text"><h1 class="brand-title">Crypto Lifeguard</h1><p class="brand-tagline">Create your account</p></div>
-    </div>
-    <div class="actions"><a class="menu-btn" href="/">Home</a></div>
-  </div></header>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* Auth page layout — full-bleed hero with animated gradient orbs */
+    .auth-shell {
+      position: relative;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background:
+        radial-gradient(1100px 700px at 85% -10%, rgba(20, 184, 166, 0.18), transparent 60%),
+        radial-gradient(900px 600px at 5% 110%, rgba(59, 130, 246, 0.22), transparent 55%),
+        linear-gradient(180deg, #050b1a 0%, #0a1628 50%, #0b1e33 100%);
+    }
+    .auth-shell::before,
+    .auth-shell::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.55;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .auth-shell::before {
+      width: 520px;
+      height: 520px;
+      top: -140px;
+      right: -120px;
+      background: radial-gradient(circle, rgba(20, 184, 166, 0.45), transparent 70%);
+      animation: authOrbA 18s ease-in-out infinite;
+    }
+    .auth-shell::after {
+      width: 620px;
+      height: 620px;
+      bottom: -180px;
+      left: -160px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.4), transparent 70%);
+      animation: authOrbB 22s ease-in-out infinite;
+    }
+    @keyframes authOrbA {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50%      { transform: translate(-40px, 30px) scale(1.08); }
+    }
+    @keyframes authOrbB {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50%      { transform: translate(50px, -40px) scale(1.12); }
+    }
 
-  <main class="container">
-    <section class="card auth-card">
-      <h2 class="section-title">Sign up</h2>
-      <p class="muted">Continue with Google to create an account and sync your preferences across devices.</p>
-      <div style="display:flex;gap:10px;margin-top:10px">
-        <button class="btn" onclick="googleLogin()">Continue with Google</button>
-      </div>
-    </section>
-  </main>
-  <footer class="footer muted"><span>© 2026 Crypto Lifeguard</span></footer>
+    .auth-topbar {
+      position: relative;
+      z-index: 2;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .auth-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: #e6edf7;
+    }
+    .auth-brand img {
+      height: 40px;
+      width: auto;
+      filter: drop-shadow(0 4px 20px rgba(20, 184, 166, 0.3));
+    }
+    .auth-home-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 16px;
+      border-radius: 999px;
+      color: rgba(230, 237, 247, 0.85);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      font-weight: 500;
+      font-size: 14px;
+      text-decoration: none;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s ease;
+    }
+    .auth-home-link:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(20, 184, 166, 0.45);
+      color: #fff;
+    }
+
+    .auth-main {
+      position: relative;
+      z-index: 2;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 56px;
+      align-items: center;
+      padding: 40px 56px 80px;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .auth-hero h1 {
+      font-family: 'Inter', sans-serif;
+      font-size: clamp(32px, 5vw, 52px);
+      font-weight: 800;
+      line-height: 1.1;
+      color: #f8fafc;
+      margin: 0 0 20px;
+      letter-spacing: -0.02em;
+    }
+    .auth-hero h1 .gradient {
+      background: linear-gradient(135deg, #14b8a6 0%, #3b82f6 60%, #8b5cf6 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: transparent;
+    }
+    .auth-hero p.lede {
+      font-size: 17px;
+      line-height: 1.6;
+      color: rgba(230, 237, 247, 0.72);
+      margin: 0 0 28px;
+      max-width: 500px;
+    }
+    .auth-features {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .auth-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      font-size: 15px;
+      color: rgba(230, 237, 247, 0.88);
+      line-height: 1.5;
+    }
+    .auth-feature-icon {
+      flex: 0 0 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      background: linear-gradient(135deg, rgba(20, 184, 166, 0.25), rgba(59, 130, 246, 0.2));
+      border: 1px solid rgba(20, 184, 166, 0.35);
+      box-shadow: 0 4px 16px rgba(20, 184, 166, 0.15);
+    }
+    .auth-features li strong {
+      color: #f8fafc;
+      font-weight: 600;
+      display: block;
+      margin-bottom: 2px;
+    }
+    .auth-features li span.sub {
+      color: rgba(230, 237, 247, 0.62);
+      font-size: 13px;
+    }
+
+    /* Right-side auth card */
+    .auth-card-wrap {
+      display: flex;
+      justify-content: center;
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 440px;
+      background: linear-gradient(180deg, rgba(15, 30, 51, 0.82), rgba(10, 22, 40, 0.88));
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 24px;
+      padding: 40px 36px;
+      text-align: center;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow:
+        0 24px 60px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(20, 184, 166, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+    .auth-card .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(20, 184, 166, 0.12);
+      border: 1px solid rgba(20, 184, 166, 0.3);
+      color: #14b8a6;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .auth-card h2 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin: 0 0 8px;
+      letter-spacing: -0.01em;
+    }
+    .auth-card .sub {
+      font-size: 14px;
+      color: rgba(230, 237, 247, 0.65);
+      line-height: 1.5;
+      margin: 0 0 28px;
+    }
+
+    .google-btn {
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 14px 20px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #ffffff;
+      color: #1f2937;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+      font-family: 'Inter', sans-serif;
+    }
+    .google-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px rgba(20, 184, 166, 0.25);
+      border-color: rgba(20, 184, 166, 0.6);
+    }
+    .google-btn:active {
+      transform: translateY(0);
+    }
+    .google-btn svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 24px 0 18px;
+      color: rgba(230, 237, 247, 0.45);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .divider::before,
+    .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+    }
+
+    .auth-reassure {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 13px;
+      color: rgba(230, 237, 247, 0.55);
+      margin: 0 0 6px;
+    }
+    .auth-reassure svg {
+      width: 14px;
+      height: 14px;
+      color: #14b8a6;
+    }
+    .auth-legal {
+      font-size: 12px;
+      color: rgba(230, 237, 247, 0.42);
+      line-height: 1.5;
+      margin: 20px 0 0;
+    }
+    .auth-legal a {
+      color: rgba(20, 184, 166, 0.9);
+      text-decoration: none;
+    }
+    .auth-legal a:hover {
+      text-decoration: underline;
+    }
+
+    .auth-footer {
+      position: relative;
+      z-index: 2;
+      padding: 18px 24px 24px;
+      text-align: center;
+      font-size: 12px;
+      color: rgba(230, 237, 247, 0.42);
+    }
+
+    /* Mobile */
+    @media (max-width: 900px) {
+      .auth-main {
+        grid-template-columns: 1fr;
+        gap: 32px;
+        padding: 20px 20px 48px;
+        text-align: center;
+      }
+      .auth-hero {
+        max-width: 560px;
+        margin: 0 auto;
+      }
+      .auth-hero p.lede {
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .auth-features {
+        max-width: 440px;
+        margin: 0 auto;
+        text-align: left;
+      }
+    }
+    @media (max-width: 560px) {
+      .auth-topbar {
+        padding: 16px 18px;
+      }
+      .auth-brand img {
+        height: 32px;
+      }
+      .auth-home-link {
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+      .auth-main {
+        padding: 12px 16px 40px;
+        gap: 24px;
+      }
+      .auth-hero h1 {
+        font-size: 30px;
+      }
+      .auth-hero p.lede {
+        font-size: 15px;
+      }
+      .auth-card {
+        padding: 28px 22px;
+        border-radius: 20px;
+      }
+      .auth-card h2 {
+        font-size: 22px;
+      }
+      .google-btn {
+        padding: 13px 16px;
+        font-size: 14px;
+      }
+    }
+    @media (max-width: 380px) {
+      .auth-features li {
+        font-size: 14px;
+      }
+      .auth-feature-icon {
+        flex-basis: 32px;
+        height: 32px;
+        font-size: 16px;
+      }
+    }
+  </style>
+  <script>
+    // If the user is already logged in, bounce them straight into the app
+    // (honouring any return destination stashed by the auth gate).
+    (function(){
+      try {
+        var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+          ? window.BACKEND_URL : '';
+        fetch(backend + '/api/me', { credentials: 'include' })
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(me){
+            if (me && me.loggedIn) {
+              var back = '/';
+              try {
+                var stashed = sessionStorage.getItem('clg_auth_return');
+                if (stashed && !stashed.startsWith('/signup')) back = stashed;
+                sessionStorage.removeItem('clg_auth_return');
+              } catch(_) {}
+              window.location.replace(back);
+            }
+          })
+          .catch(function(){});
+      } catch(_) {}
+    })();
+
+    function googleLogin(){
+      try {
+        var btn = document.getElementById('google-btn');
+        if (btn) {
+          btn.disabled = true;
+          btn.style.opacity = '0.75';
+          btn.querySelector('.btn-label').textContent = 'Redirecting…';
+        }
+      } catch(_) {}
+      // Same-origin: go straight to /auth/google on this server.
+      window.location.href = '/auth/google';
+    }
+  </script>
+  <link rel="stylesheet" crossorigin href="/assets/styles-uj4IfH_V.css">
+</head>
+<body class="clg-theme-dark">
+  <div class="auth-shell">
+    <header class="auth-topbar">
+      <a class="auth-brand" href="/">
+        <img src="/full@4x.png" alt="Crypto Lifeguard" decoding="async" fetchpriority="high" />
+      </a>
+      <a class="auth-home-link" href="/">
+        <span aria-hidden="true">←</span>
+        <span>Back to app</span>
+      </a>
+    </header>
+
+    <main class="auth-main">
+      <section class="auth-hero">
+        <h1>
+          Protect your crypto with
+          <span class="gradient">personalised alerts.</span>
+        </h1>
+        <p class="lede">
+          Sign in to sync your watchlist across devices, tune alerts to the severity that matters, and get AI summaries of everything happening in your portfolio.
+        </p>
+        <ul class="auth-features">
+          <li>
+            <span class="auth-feature-icon">🛟</span>
+            <div>
+              <strong>Severity you control</strong>
+              <span class="sub">Critical, warning and info tiers so the important stuff never gets lost.</span>
+            </div>
+          </li>
+          <li>
+            <span class="auth-feature-icon">🤖</span>
+            <div>
+              <strong>AI portfolio summaries</strong>
+              <span class="sub">Ask OpenAI, Anthropic or Grok to brief you on what just moved.</span>
+            </div>
+          </li>
+          <li>
+            <span class="auth-feature-icon">📡</span>
+            <div>
+              <strong>Live across devices</strong>
+              <span class="sub">Your watchlist, filters and dismissed alerts follow you everywhere.</span>
+            </div>
+          </li>
+        </ul>
+      </section>
+
+      <section class="auth-card-wrap">
+        <div class="auth-card">
+          <span class="badge">🛟 Crypto Lifeguard</span>
+          <h2>Welcome aboard</h2>
+          <p class="sub">Sign in with Google to continue. No passwords, no fuss.</p>
+
+          <button id="google-btn" type="button" class="google-btn" onclick="googleLogin()">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.56c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.77c-.99.66-2.25 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.07H2.18a11 11 0 0 0 0 9.86l3.66-2.83z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.07l3.66 2.83C6.71 7.3 9.14 5.38 12 5.38z"/>
+            </svg>
+            <span class="btn-label">Continue with Google</span>
+          </button>
+
+          <div class="divider"><span>Secure by default</span></div>
+
+          <p class="auth-reassure">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            We never see your Google password.
+          </p>
+
+          <p class="auth-legal">
+            By continuing you agree to our <a href="/terms.html">Terms</a> and <a href="/privacy.html">Privacy Policy</a>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="auth-footer">
+      © 2026 Crypto Lifeguard. All rights reserved.
+    </footer>
+  </div>
 </body>
 </html>

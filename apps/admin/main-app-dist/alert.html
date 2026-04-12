@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" class="clg-theme-dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="/favicon-180.png" />
+  <title>Alert detail — Crypto Lifeguard</title>
+  <meta name="description" content="Crypto Lifeguard alert detail — full context, live price, related alerts, and news." />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="/config.js"></script>
+  <script>
+    // --- Login diagnostic helper (see index.html for the canonical copy) ---
+    (function(){
+      try {
+        window.__clgDiag = function(stage, data){
+          try {
+            var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+              ? window.BACKEND_URL : '';
+            var payload = { stage: String(stage || 'unknown'), data: Object.assign({}, data || {}, {
+              _href: location.href,
+              _path: location.pathname,
+              _hasDocCookie: !!(document.cookie && document.cookie.length),
+              _docCookieLen: (document.cookie || '').length,
+            }) };
+            try { console.log('[LOGIN-DIAG][client]', stage, payload.data); } catch(_) {}
+            fetch(backend + '/api/debug-log', {
+              method: 'POST', credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload), keepalive: true,
+            }).catch(function(){});
+          } catch(_) {}
+        };
+      } catch(_) {}
+    })();
+  </script>
+  <style>
+    /* Auth-gate splash (matches index.html) */
+    html.clg-auth-pending body > *:not(#clg-auth-splash) { visibility: hidden; }
+    #clg-auth-splash {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      background:
+        radial-gradient(900px 600px at 85% -10%, rgba(20, 184, 166, 0.18), transparent 60%),
+        radial-gradient(900px 600px at 5% 110%, rgba(59, 130, 246, 0.22), transparent 55%),
+        linear-gradient(180deg, #050b1a 0%, #0a1628 50%, #0b1e33 100%);
+      color: #e6edf7;
+      font-family: 'Inter', sans-serif;
+    }
+    #clg-auth-splash .clg-auth-splash-inner { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+    #clg-auth-splash .clg-auth-spinner {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: 3px solid rgba(94, 234, 212, 0.18);
+      border-top-color: #14b8a6;
+      animation: clg-auth-spin 0.9s linear infinite;
+    }
+    #clg-auth-splash .clg-auth-label { font-size: 14px; font-weight: 500; color: rgba(230, 237, 247, 0.72); letter-spacing: 0.02em; }
+    @keyframes clg-auth-spin { to { transform: rotate(360deg); } }
+    html:not(.clg-auth-pending) #clg-auth-splash { display: none; }
+  </style>
+  <script>
+    // Auth gate (matches index.html)
+    (function(){
+      try {
+        document.documentElement.classList.add('clg-auth-pending');
+        var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+          ? window.BACKEND_URL : '';
+        var ac = new AbortController();
+        var authFetchTimer = setTimeout(function(){ try { ac.abort(); } catch(_) {} }, 18000);
+        fetch(backend + '/api/me', { credentials: 'include', signal: ac.signal })
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(me){
+            if (!me || !me.loggedIn) {
+              try {
+                var back = window.location.pathname + window.location.search + window.location.hash;
+                sessionStorage.setItem('clg_auth_return', back);
+              } catch(_) {}
+              window.location.replace('/signup.html');
+              return;
+            }
+            try { window.__CLG_ME__ = me; } catch(_) {}
+            document.documentElement.classList.remove('clg-auth-pending');
+          })
+          .catch(function(){ window.location.replace('/signup.html'); })
+          .finally(function(){
+            try { clearTimeout(authFetchTimer); } catch(_) {}
+          });
+      } catch(_) {
+        document.documentElement.classList.remove('clg-auth-pending');
+      }
+    })();
+  </script>
+  <script type="module" crossorigin src="/assets/alert-CzbAVO_8.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/chat-CKanwsyN.js">
+  <link rel="stylesheet" crossorigin href="/assets/styles-uj4IfH_V.css">
+</head>
+<body class="clg-theme-dark">
+  <div id="clg-auth-splash" aria-hidden="true">
+    <div class="clg-auth-splash-inner">
+      <div class="clg-auth-spinner"></div>
+      <div class="clg-auth-label">Checking your session…</div>
+    </div>
+  </div>
+
+  <header class="topbar" role="banner">
+    <div class="topbar-inner">
+      <a class="brand-wrap" href="/" style="text-decoration:none; color:inherit;">
+        <img class="brand-logo" src="/full@4x.png" alt="Crypto Lifeguard Logo" decoding="async" fetchpriority="high" />
+        <div class="brand-text brand-text--hidden">
+          <h1 class="brand-title">Crypto Lifeguard</h1>
+          <p class="brand-tagline">Protect your crypto assets with personalised alerts.</p>
+        </div>
+      </a>
+      <div class="actions">
+        <a href="/" class="clg-alert-back-btn" aria-label="Back to alerts">
+          <span aria-hidden="true">←</span>
+          <span>Back to alerts</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Price Ticker Banner (same markup/class set as index.html so the shared
+       CSS in styles.css applies identically) -->
+  <div id="price-ticker" class="price-ticker" hidden>
+    <div class="ticker-track" id="ticker-track">
+      <div class="ticker-content" id="ticker-content"></div>
+      <div class="ticker-content ticker-duplicate" id="ticker-duplicate"></div>
+    </div>
+  </div>
+
+  <main class="container clg-alert-detail">
+    <!-- Alert.js renders into this root. Skeleton loader shown first. -->
+    <div id="alert-detail-root">
+      <div class="clg-alert-skeleton" aria-busy="true" aria-live="polite">
+        <div class="clg-alert-skeleton__header">
+          <div class="clg-alert-skeleton__logo"></div>
+          <div class="clg-alert-skeleton__lines">
+            <div class="clg-alert-skeleton__bar clg-alert-skeleton__bar--lg"></div>
+            <div class="clg-alert-skeleton__bar clg-alert-skeleton__bar--md"></div>
+          </div>
+        </div>
+        <div class="clg-alert-skeleton__body">
+          <div class="clg-alert-skeleton__bar"></div>
+          <div class="clg-alert-skeleton__bar"></div>
+          <div class="clg-alert-skeleton__bar clg-alert-skeleton__bar--sm"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Lifeguard AI chat widget -->
+  <script>window.CLG_CHAT_CONTEXT = { page: 'alert-detail' };</script>
+</body>
+</html>

@@ -1,368 +1,908 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="clg-theme-dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="/favicon-180.png" />
   <title>Profile — Crypto Lifeguard</title>
+  <meta name="description" content="Manage your Crypto Lifeguard profile, watchlist, alert preferences and account." />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="/config.js"></script>
+  <script>
+    // --- Login diagnostic helper (see index.html for the canonical copy) ---
+    (function(){
+      try {
+        window.__clgDiag = function(stage, data){
+          try {
+            var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+              ? window.BACKEND_URL : '';
+            var payload = { stage: String(stage || 'unknown'), data: Object.assign({}, data || {}, {
+              _href: location.href,
+              _path: location.pathname,
+              _hasDocCookie: !!(document.cookie && document.cookie.length),
+              _docCookieLen: (document.cookie || '').length,
+            }) };
+            try { console.log('[LOGIN-DIAG][client]', stage, payload.data); } catch(_) {}
+            fetch(backend + '/api/debug-log', {
+              method: 'POST', credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload), keepalive: true,
+            }).catch(function(){});
+          } catch(_) {}
+        };
+        try { window.__clgDiag('profile.html.load', { hasAuthToken: location.search.indexOf('auth_token') !== -1 }); } catch(_) {}
+      } catch(_) {}
+    })();
+  </script>
+  <script>
+    // Auth gate for profile page.
+    // IMPORTANT: When the OAuth callback redirects here, the session cookie
+    // is already set (same-origin). We just need to verify it with /api/me.
+    // If an auth_token is in the URL (legacy cross-origin flow), skip the
+    // gate entirely and let profile.js handle the exchange first.
+    (function(){
+      try {
+        // If auth_token is present, defer auth check to profile.js handleAuthToken()
+        if (window.location.search.indexOf('auth_token=') !== -1) {
+          try { window.__clgDiag && window.__clgDiag('profile.authGate.skipped', { reason: 'auth_token present' }); } catch(_) {}
+          return; // Do NOT gate - let profile.js handle it
+        }
+        document.documentElement.classList.add('clg-auth-pending');
+        var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+          ? window.BACKEND_URL : '';
+        var ac = new AbortController();
+        var authFetchTimer = setTimeout(function(){ try { ac.abort(); } catch(_) {} }, 18000);
+        fetch(backend + '/api/me', { credentials: 'include', signal: ac.signal })
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(me){
+            if (!me || !me.loggedIn) {
+              try {
+                sessionStorage.setItem('clg_auth_return', '/profile.html');
+              } catch(_) {}
+              window.location.replace('/signup.html');
+              return;
+            }
+            try { window.__CLG_ME__ = me; } catch(_) {}
+            document.documentElement.classList.remove('clg-auth-pending');
+          })
+          .catch(function(){ window.location.replace('/signup.html'); })
+          .finally(function(){
+            try { clearTimeout(authFetchTimer); } catch(_) {}
+          });
+      } catch(_) {
+        document.documentElement.classList.remove('clg-auth-pending');
+      }
+    })();
+  </script>
   <style>
-    /* Profile Header */
-    .profile-header { 
-      display: flex; 
-      align-items: center; 
-      gap: 20px; 
-      padding: 0;
+    /* ----------------------------------------------------------------
+       Auth-gate splash
+       ---------------------------------------------------------------- */
+    html.clg-auth-pending body > *:not(#clg-auth-splash) { visibility: hidden; }
+    #clg-auth-splash {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      background:
+        radial-gradient(900px 600px at 85% -10%, rgba(20, 184, 166, 0.18), transparent 60%),
+        radial-gradient(900px 600px at 5% 110%, rgba(59, 130, 246, 0.22), transparent 55%),
+        linear-gradient(180deg, #050b1a 0%, #0a1628 50%, #0b1e33 100%);
+      color: #e6edf7; font-family: 'Inter', sans-serif;
     }
-    .profile-avatar { 
-      width: 64px; 
-      height: 64px; 
-      border-radius: 50%; 
-      object-fit: cover; 
-      border: 3px solid #e2e8f0; 
-      box-shadow: 0 2px 4px rgba(0,0,0,.08); 
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-      display: grid; 
-      place-items: center; 
-      font-weight: 700; 
-      font-size: 24px;
-      color: white;
+    #clg-auth-splash .clg-auth-splash-inner {
+      display: flex; flex-direction: column; align-items: center; gap: 18px;
+    }
+    #clg-auth-splash .clg-auth-spinner {
+      width: 44px; height: 44px; border-radius: 50%;
+      border: 3px solid rgba(94, 234, 212, 0.18); border-top-color: #14b8a6;
+      animation: clg-auth-spin 0.9s linear infinite;
+    }
+    #clg-auth-splash .clg-auth-label {
+      font-size: 14px; color: rgba(230, 237, 247, 0.72);
+    }
+    @keyframes clg-auth-spin { to { transform: rotate(360deg); } }
+    html:not(.clg-auth-pending) #clg-auth-splash { display: none; }
+
+    /* ----------------------------------------------------------------
+       Profile page (dark theme)
+       ---------------------------------------------------------------- */
+
+    main.container { max-width: 1040px; padding: 28px 20px 48px; }
+
+    .profile-hero {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      padding: 26px 28px;
+      border-radius: 20px;
+      background:
+        radial-gradient(120% 140% at 0% 0%, rgba(94, 234, 212, 0.10) 0%, transparent 55%),
+        linear-gradient(180deg, rgba(30, 41, 59, 0.82) 0%, rgba(15, 23, 42, 0.9) 100%);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.04) inset,
+        0 14px 40px rgba(2, 6, 23, 0.35);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .profile-hero::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+      background: linear-gradient(180deg, #5eead4, #0d9488);
+      box-shadow: 0 0 22px rgba(45, 212, 191, 0.4);
+    }
+
+    .profile-hero__avatar {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: linear-gradient(135deg, #0b1929 0%, #1e3a5f 100%);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.08) inset,
+        0 8px 22px rgba(2, 6, 23, 0.5);
+      display: grid;
+      place-items: center;
+      color: #f8fafc;
+      font-weight: 700;
+      font-size: 28px;
       flex-shrink: 0;
     }
-    .profile-info { flex: 1; min-width: 0; }
-    .profile-name { 
-      margin: 0 0 2px; 
-      font-size: 22px; 
-      font-weight: 700; 
-      color: #0f172a;
+
+    .profile-hero__avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .profile-hero__info { flex: 1; min-width: 0; }
+
+    .profile-hero__name {
+      margin: 0 0 4px;
+      font-size: 24px;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -0.3px;
       display: flex;
       align-items: center;
       gap: 10px;
     }
-    .profile-username { 
-      margin: 2px 0; 
-      font-size: 14px; 
-      color: #64748b; 
-      font-weight: 500;
+
+    .profile-hero__username {
+      margin: 0 0 2px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #5eead4;
+      letter-spacing: 0.3px;
     }
-    .profile-email { 
-      margin: 2px 0 0; 
-      font-size: 13px; 
-      color: #94a3b8; 
+
+    .profile-hero__email {
+      margin: 0;
+      font-size: 14px;
+      color: #94a3b8;
     }
-    
-    /* Admin Badge */
+
+    .profile-hero__actions {
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .btn-ghost-dark {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(15, 23, 42, 0.55);
+      color: #e2e8f0;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+    }
+
+    .btn-ghost-dark:hover {
+      background: rgba(30, 41, 59, 0.85);
+      border-color: rgba(148, 163, 184, 0.45);
+      color: #f8fafc;
+    }
+
+    .btn-ghost-dark:active { transform: scale(0.98); }
+
+    .btn-ghost-dark--danger:hover {
+      background: rgba(248, 113, 113, 0.15);
+      border-color: rgba(248, 113, 113, 0.5);
+      color: #fecaca;
+    }
+
+    .btn-ghost-dark .ic {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+
     .admin-badge {
       display: inline-flex;
       align-items: center;
       gap: 4px;
       padding: 3px 10px;
-      background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
-      color: white;
+      background: linear-gradient(135deg, #5eead4 0%, #0d9488 100%);
+      color: #0b1220;
       border-radius: 10px;
       font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      box-shadow: 0 2px 4px rgba(245, 158, 11, 0.25);
-    }
-    
-    /* Two Column Layout for larger screens */
-    .profile-grid { 
-      display: grid; 
-      grid-template-columns: 1fr 1fr; 
-      gap: 16px;
-      margin-top: 16px;
-    }
-    
-    /* Section Headings - More Compact */
-    .profile-section h3 { 
-      margin: 0 0 12px; 
-      font-size: 16px; 
       font-weight: 700;
-      color: #0f172a;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
     }
-    .profile-section h3::before {
+
+    /* Grid */
+    .profile-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    /* Section card */
+    .profile-card {
+      position: relative;
+      padding: 22px 24px;
+      border-radius: 16px;
+      background:
+        radial-gradient(120% 140% at 0% 0%, rgba(94, 234, 212, 0.05) 0%, transparent 55%),
+        linear-gradient(180deg, rgba(30, 41, 59, 0.78) 0%, rgba(15, 23, 42, 0.88) 100%);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.04) inset,
+        0 10px 28px rgba(2, 6, 23, 0.3);
+      overflow: hidden;
+    }
+
+    .profile-card::before {
       content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
       width: 3px;
-      height: 16px;
-      background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-      border-radius: 2px;
+      background: linear-gradient(180deg, #5eead4, #0d9488);
+      opacity: 0.8;
     }
-    
-    /* Buttons */
-    .profile-actions { 
-      display: flex; 
-      gap: 10px; 
-      flex-wrap: wrap; 
+
+    .profile-card__header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
     }
-    .btn.gray { 
-      background: #64748b; 
-      border-color: #64748b;
+
+    .profile-card__title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      color: #f8fafc;
     }
-    .btn.gray:hover {
-      background: #475569;
-      border-color: #475569;
-    }
-    
-    /* Pills */
-    .pill.small { 
-      padding: 5px 10px; 
-      font-size: 12px; 
+
+    .profile-card__hint {
+      font-size: 12px;
+      color: #94a3b8;
       font-weight: 500;
     }
-    .pill .remove { 
-      width: 16px; 
-      height: 16px; 
+
+    /* Inputs */
+    .field {
+      display: flex;
+      gap: 10px;
     }
-    
-    /* Cards - More Compact */
-    .card {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-      padding: 20px;
-      border: 1px solid #e2e8f0;
+
+    .field__input {
+      flex: 1;
+      min-width: 0;
+      padding: 11px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: rgba(15, 23, 42, 0.7);
+      color: #f8fafc;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
-    
-    .card.full-width {
-      grid-column: 1 / -1;
+
+    .field__input::placeholder { color: #64748b; }
+
+    .field__input:focus {
+      outline: none;
+      border-color: rgba(94, 234, 212, 0.6);
+      box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.12);
     }
-    
-    /* Compact preference row */
-    .compact-prefs {
+
+    .field__btn {
+      padding: 11px 20px;
+      border-radius: 10px;
+      border: 1px solid rgba(94, 234, 212, 0.45);
+      background: linear-gradient(180deg, rgba(20, 184, 166, 0.25), rgba(13, 148, 136, 0.2));
+      color: #f0fdfa;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .field__btn:hover {
+      background: linear-gradient(180deg, rgba(20, 184, 166, 0.4), rgba(13, 148, 136, 0.3));
+      border-color: rgba(94, 234, 212, 0.65);
+    }
+
+    .field__btn:active { transform: scale(0.98); }
+
+    .field__btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Watchlist pill row */
+    .watchlist-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 36px;
+      margin-bottom: 14px;
+    }
+
+    .watchlist-empty {
+      display: inline-flex;
+      align-items: center;
+      font-size: 13px;
+      color: #64748b;
+      padding: 4px 0;
+    }
+
+    .watch-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 6px 6px 12px;
+      border-radius: 999px;
+      background: rgba(94, 234, 212, 0.1);
+      border: 1px solid rgba(94, 234, 212, 0.3);
+      color: #ccfbf1;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+    }
+
+    .watch-pill__x {
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      border: none;
+      background: rgba(15, 23, 42, 0.6);
+      color: #94a3b8;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .watch-pill__x:hover {
+      background: rgba(248, 113, 113, 0.3);
+      color: #fecaca;
+    }
+
+    /* Preference rows */
+    .pref-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 0;
+      border-top: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .pref-row:first-of-type { border-top: none; padding-top: 4px; }
+
+    .pref-row__label {
       display: flex;
       align-items: center;
       gap: 12px;
+      min-width: 0;
+    }
+
+    .pref-row__icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: rgba(148, 163, 184, 0.1);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      flex-shrink: 0;
+    }
+
+    .pref-row__icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .pref-row--critical .pref-row__icon {
+      color: #fca5a5;
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(248, 113, 113, 0.35);
+    }
+    .pref-row--warning .pref-row__icon {
+      color: #fcd34d;
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(251, 191, 36, 0.35);
+    }
+    .pref-row--info .pref-row__icon {
+      color: #5eead4;
+      background: rgba(20, 184, 166, 0.12);
+      border-color: rgba(94, 234, 212, 0.35);
+    }
+    .pref-row--closed .pref-row__icon {
+      color: #94a3b8;
+    }
+
+    .pref-row__text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .pref-row__title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .pref-row__sub {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    /* Toggle (reuses base .switch but restyles for this context) */
+    .toggle {
+      position: relative;
+      display: inline-block;
+      width: 42px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .toggle input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+    }
+
+    .toggle__slider {
+      position: absolute;
+      inset: 0;
+      cursor: pointer;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .toggle__slider::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 3px;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #cbd5e1;
+      transition: transform 0.2s ease, background 0.2s ease;
+      box-shadow: 0 2px 6px rgba(2, 6, 23, 0.4);
+    }
+
+    .toggle input:checked + .toggle__slider {
+      background: linear-gradient(180deg, #14b8a6, #0d9488);
+      border-color: rgba(94, 234, 212, 0.6);
+    }
+
+    .toggle input:checked + .toggle__slider::before {
+      transform: translate(18px, -50%);
+      background: #f0fdfa;
+    }
+
+    .toggle input:focus-visible + .toggle__slider {
+      box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.18);
+    }
+
+    /* Currency select */
+    .currency-select-wrap {
+      position: relative;
+    }
+
+    .currency-select {
+      width: 100%;
+      appearance: none;
+      -webkit-appearance: none;
+      padding: 12px 44px 12px 16px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: rgba(15, 23, 42, 0.7);
+      color: #f8fafc;
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .currency-select:focus {
+      outline: none;
+      border-color: rgba(94, 234, 212, 0.6);
+      box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.12);
+    }
+
+    .currency-select-wrap::after {
+      content: '';
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      width: 8px;
+      height: 8px;
+      margin-top: -6px;
+      border-right: 2px solid #94a3b8;
+      border-bottom: 2px solid #94a3b8;
+      transform: rotate(45deg);
+      pointer-events: none;
+    }
+
+    .currency-select option {
+      background: #0f172a;
+      color: #f8fafc;
+    }
+
+    /* Avatar picker */
+    .avatar-grid {
+      display: flex;
       flex-wrap: wrap;
+      gap: 12px;
     }
-    
-    .compact-prefs .sev-btn {
-      padding: 6px 12px;
+
+    .avatar-option {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 2px solid rgba(148, 163, 184, 0.22);
+      background: rgba(15, 23, 42, 0.6);
+      padding: 0;
+      cursor: pointer;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .avatar-option img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .avatar-option:hover {
+      transform: translateY(-2px);
+      border-color: rgba(94, 234, 212, 0.4);
+    }
+
+    .avatar-option.is-selected {
+      border-color: #5eead4;
+      box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.25);
+    }
+
+    /* Inline message */
+    .inline-msg {
+      margin-top: 12px;
       font-size: 13px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      display: none;
+    }
+
+    .inline-msg.is-visible { display: block; }
+
+    .inline-msg.is-success {
+      background: rgba(20, 184, 166, 0.12);
+      border: 1px solid rgba(94, 234, 212, 0.3);
+      color: #ccfbf1;
+    }
+
+    .inline-msg.is-error {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(248, 113, 113, 0.35);
+      color: #fecaca;
+    }
+
+    /* Autocomplete override to match dark palette */
+    .autocomplete-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin-top: 6px;
+      background: rgba(15, 23, 42, 0.98);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 12px;
+      box-shadow: 0 18px 40px rgba(2, 6, 23, 0.55);
+      max-height: 260px;
+      overflow-y: auto;
+      z-index: 40;
+      padding: 6px;
+    }
+
+    .autocomplete-item {
+      padding: 10px 12px;
       border-radius: 8px;
-      transition: all 0.2s;
+      color: #e2e8f0;
+      font-size: 13.5px;
+      cursor: pointer;
+      transition: background 0.12s ease;
     }
-    
-    /* Input Styling */
-    .token-select-row {
-      display: flex;
-      gap: 8px;
+
+    .autocomplete-item:hover,
+    .autocomplete-item.selected {
+      background: rgba(94, 234, 212, 0.12);
+      color: #f8fafc;
     }
-    
-    .token-select-row .input {
-      border-radius: 8px;
-      border: 1px solid #cbd5e1;
-      padding: 9px 12px;
-      font-size: 14px;
-      flex: 1;
+
+    .autocomplete-item strong {
+      color: #5eead4;
+      font-weight: 700;
     }
-    .token-select-row .input:focus {
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-      outline: none;
-    }
-    
-    .input, select {
-      border-radius: 8px;
-      border: 1px solid #cbd5e1;
-      padding: 9px 12px;
-      font-size: 14px;
-    }
-    
-    .input:focus, select:focus {
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-      outline: none;
-    }
-    
-    /* Message Styling */
-    #prof-msg, #submission-msg {
-      font-size: 13px;
-      padding: 8px 12px;
-      border-radius: 6px;
-      margin-top: 10px;
-    }
-    #prof-msg.success, #submission-msg.success {
-      background: #d1fae5;
-      color: #065f46;
-      border: 1px solid #6ee7b7;
-    }
-    #prof-msg.error, #submission-msg.error {
-      background: #fee2e2;
-      color: #991b1b;
-      border: 1px solid #fca5a5;
-    }
-    
-    /* Label helpers */
-    .label-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 8px;
-    }
-    
-    .label-row .muted {
-      font-size: 13px;
-    }
-    
+
     /* Responsive */
-    @media (max-width: 900px) { 
-      .profile-grid { 
-        grid-template-columns: 1fr; 
-      }
+    @media (max-width: 900px) {
+      .profile-grid { grid-template-columns: 1fr; }
+      .profile-hero { flex-direction: column; align-items: flex-start; gap: 16px; padding: 22px; }
+      .profile-hero__actions { width: 100%; }
+      .btn-ghost-dark { flex: 1; }
     }
-    
-    @media (max-width: 640px) { 
-      .profile-header {
-        gap: 12px;
-      }
-      .profile-avatar {
-        width: 56px;
-        height: 56px;
-        font-size: 20px;
-      }
-      .profile-name {
-        font-size: 20px;
-        flex-wrap: wrap;
-      }
-      .card {
-        padding: 16px;
-      }
-      .token-select-row {
-        flex-direction: column;
-      }
-      .token-select-row .input {
-        width: 100%;
-      }
+
+    @media (max-width: 560px) {
+      main.container { padding: 20px 14px 40px; }
+      .profile-card { padding: 18px 18px; }
+      .profile-hero__avatar { width: 72px; height: 72px; font-size: 24px; }
+      .profile-hero__name { font-size: 20px; }
+      .field { flex-direction: column; }
+      .field__btn { width: 100%; }
     }
   </style>
-  <!-- Backend configuration (must load before page script) -->
-  <script type="module" crossorigin src="/assets/profile-DV44qNiL.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/config-D5DNV0UN.js">
-  <link rel="stylesheet" crossorigin href="/assets/main-DjocSoEW.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/assets/profile-1IsRHGN7.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/chat-CKanwsyN.js">
+  <link rel="stylesheet" crossorigin href="/assets/styles-uj4IfH_V.css">
 </head>
-<body>
-  <a href="/create.html" class="fab" aria-label="New alert" title="New alert">+</a>
+<body class="clg-theme-dark">
+  <div id="clg-auth-splash" aria-hidden="true">
+    <div class="clg-auth-splash-inner">
+      <div class="clg-auth-spinner"></div>
+      <div class="clg-auth-label">Checking your session…</div>
+    </div>
+  </div>
 
   <header class="topbar" role="banner">
     <div class="topbar-inner">
       <a class="brand-wrap" href="/" style="text-decoration:none; color:inherit;">
         <img class="brand-logo" src="/full@4x.png" alt="Crypto Lifeguard Logo" decoding="async" fetchpriority="high" />
-        <div class="brand-text">
+        <div class="brand-text brand-text--hidden">
           <h1 class="brand-title">Crypto Lifeguard</h1>
           <p class="brand-tagline">Your account</p>
         </div>
       </a>
       <div class="actions">
-        <a class="menu-btn" href="/">← Back</a>
+        <a class="btn-ghost-dark" href="/" aria-label="Back to alerts">
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+          Back
+        </a>
       </div>
     </div>
   </header>
 
   <main class="container">
-    <!-- Profile Header Card -->
-    <section class="card full-width">
-      <div class="profile-header">
-        <div id="prof-avatar" class="profile-avatar"></div>
-        <div class="profile-info">
-          <h2 id="prof-name" class="profile-name">Loading...</h2>
-          <p id="prof-username" class="profile-username"></p>
-          <p id="prof-email" class="profile-email"></p>
-        </div>
+    <!-- HERO -->
+    <section class="profile-hero">
+      <div id="prof-avatar" class="profile-hero__avatar" aria-hidden="true"></div>
+      <div class="profile-hero__info">
+        <h2 id="prof-name" class="profile-hero__name">Loading…</h2>
+        <p id="prof-username" class="profile-hero__username"></p>
+        <p id="prof-email" class="profile-hero__email"></p>
+      </div>
+      <div class="profile-hero__actions">
+        <button id="btn-export" type="button" class="btn-ghost-dark" title="Download your data as JSON">
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+            <path d="M7 10l5 5 5-5"/>
+            <path d="M12 15V3"/>
+          </svg>
+          Export data
+        </button>
+        <button id="btn-logout" type="button" class="btn-ghost-dark btn-ghost-dark--danger" title="Sign out">
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <path d="M16 17l5-5-5-5"/>
+            <path d="M21 12H9"/>
+          </svg>
+          Log out
+        </button>
       </div>
     </section>
 
-    <!-- Two-Column Grid Layout -->
+    <!-- GRID -->
     <div class="profile-grid">
-      
+
       <!-- LEFT COLUMN -->
-      
-      <!-- Watchlist Section -->
-      <section class="card">
-        <div class="profile-section">
-          <h3>Watchlist</h3>
-          <div id="prof-watch-pills" class="pill-row" style="margin-bottom: 10px; min-height: 32px;"></div>
-          <div class="token-select-row">
-            <input id="prof-token-input" class="input" type="text" placeholder="Type token name or symbol (e.g., Bitcoin, BTC) and press Enter…" autocomplete="off" autocorrect="off" aria-autocomplete="list" autocapitalize="off" spellcheck="false" />
-            <button id="prof-add-token" class="btn">Add</button>
-          </div>
+
+      <!-- Watchlist -->
+      <section class="profile-card">
+        <header class="profile-card__header">
+          <h3 class="profile-card__title">Watchlist</h3>
+          <span class="profile-card__hint">Tokens you're monitoring</span>
+        </header>
+        <div id="prof-watch-pills" class="watchlist-pills" aria-live="polite"></div>
+        <div class="field" style="position:relative;">
+          <input id="prof-token-input" class="field__input" type="text" placeholder="Type token name or symbol (e.g. Bitcoin, BTC)" autocomplete="off" autocorrect="off" aria-autocomplete="list" autocapitalize="off" spellcheck="false" />
+          <button id="prof-add-token" type="button" class="field__btn">Add</button>
+        </div>
+      </section>
+
+      <!-- Currency -->
+      <section class="profile-card">
+        <header class="profile-card__header">
+          <h3 class="profile-card__title">Currency</h3>
+          <span class="profile-card__hint">Used for the price ticker and market data</span>
+        </header>
+        <div class="currency-select-wrap">
+          <select id="prof-currency-select" class="currency-select">
+            <option value="USD">🇺🇸 USD ($) &mdash; US Dollar</option>
+            <option value="EUR">🇪🇺 EUR (€) &mdash; Euro</option>
+            <option value="GBP">🇬🇧 GBP (£) &mdash; British Pound</option>
+            <option value="JPY">🇯🇵 JPY (¥) &mdash; Japanese Yen</option>
+            <option value="AUD">🇦🇺 AUD (A$) &mdash; Australian Dollar</option>
+            <option value="CAD">🇨🇦 CAD (C$) &mdash; Canadian Dollar</option>
+            <option value="CHF">🇨🇭 CHF &mdash; Swiss Franc</option>
+            <option value="CNY">🇨🇳 CNY (¥) &mdash; Chinese Yuan</option>
+            <option value="INR">🇮🇳 INR (₹) &mdash; Indian Rupee</option>
+            <option value="BRL">🇧🇷 BRL (R$) &mdash; Brazilian Real</option>
+          </select>
         </div>
       </section>
 
       <!-- Alert Preferences -->
-      <section class="card">
-        <div class="profile-section">
-          <h3>Alert Preferences</h3>
-          <div class="label-row">
-            <span class="muted">Severities:</span>
-            <button class="sev-btn" data-sev="critical" title="Critical">🚨</button>
-            <button class="sev-btn" data-sev="warning" title="Warning">⚠️</button>
-            <button class="sev-btn" data-sev="info" title="Info">🛟</button>
+      <section class="profile-card">
+        <header class="profile-card__header">
+          <h3 class="profile-card__title">Alert Preferences</h3>
+          <span class="profile-card__hint">Choose what surfaces in your feed</span>
+        </header>
+
+        <div class="pref-row pref-row--critical">
+          <div class="pref-row__label">
+            <span class="pref-row__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+            </span>
+            <span class="pref-row__text">
+              <span class="pref-row__title">Emergencies</span>
+              <span class="pref-row__sub">Critical severity alerts</span>
+            </span>
           </div>
-          <label class="switch small" title="Include closed/dismissed alerts">
-            <span class="switch-caption">Show closed alerts</span>
+          <label class="toggle">
+            <input type="checkbox" id="pref-sev-critical" />
+            <span class="toggle__slider" aria-hidden="true"></span>
+          </label>
+        </div>
+
+        <div class="pref-row pref-row--warning">
+          <div class="pref-row__label">
+            <span class="pref-row__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+            </span>
+            <span class="pref-row__text">
+              <span class="pref-row__title">Alerts</span>
+              <span class="pref-row__sub">Warnings and time-sensitive notices</span>
+            </span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="pref-sev-warning" />
+            <span class="toggle__slider" aria-hidden="true"></span>
+          </label>
+        </div>
+
+        <div class="pref-row pref-row--info">
+          <div class="pref-row__label">
+            <span class="pref-row__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            </span>
+            <span class="pref-row__text">
+              <span class="pref-row__title">Info</span>
+              <span class="pref-row__sub">News, tips and general updates</span>
+            </span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="pref-sev-info" />
+            <span class="toggle__slider" aria-hidden="true"></span>
+          </label>
+        </div>
+
+        <div class="pref-row pref-row--closed">
+          <div class="pref-row__label">
+            <span class="pref-row__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </span>
+            <span class="pref-row__text">
+              <span class="pref-row__title">Show closed alerts</span>
+              <span class="pref-row__sub">Include dismissed and expired items</span>
+            </span>
+          </div>
+          <label class="toggle">
             <input type="checkbox" id="prof-show-all" />
-            <span class="slider" aria-hidden="true"></span>
+            <span class="toggle__slider" aria-hidden="true"></span>
           </label>
         </div>
       </section>
 
-      <!-- Currency Preference -->
-      <section class="card">
-        <div class="profile-section">
-          <h3>Currency</h3>
-          <div class="label-row">
-            <span class="muted">Display prices in:</span>
-            <select id="prof-currency-select" class="input" style="width: auto; min-width: 120px;">
-              <option value="USD">🇺🇸 USD ($)</option>
-              <option value="EUR">🇪🇺 EUR (€)</option>
-              <option value="GBP">🇬🇧 GBP (£)</option>
-              <option value="JPY">🇯🇵 JPY (¥)</option>
-              <option value="AUD">🇦🇺 AUD (A$)</option>
-              <option value="CAD">🇨🇦 CAD (C$)</option>
-              <option value="CHF">🇨🇭 CHF</option>
-              <option value="CNY">🇨🇳 CNY (¥)</option>
-              <option value="INR">🇮🇳 INR (₹)</option>
-              <option value="BRL">🇧🇷 BRL (R$)</option>
-            </select>
-          </div>
-          <p class="muted" style="margin-top: 8px; font-size: 12px;">Used for price ticker and market data</p>
+      <!-- Username -->
+      <section class="profile-card">
+        <header class="profile-card__header">
+          <h3 class="profile-card__title">Username</h3>
+          <span class="profile-card__hint">3&ndash;20 chars, letters, numbers, _</span>
+        </header>
+        <div class="field">
+          <input id="prof-username-input" class="field__input" type="text" placeholder="Choose a username" autocomplete="off" />
+          <button id="prof-username-save" type="button" class="field__btn">Save</button>
         </div>
-      </section>
-      
-      <!-- RIGHT COLUMN -->
-      
-      <!-- Username & Avatar -->
-      <section class="card">
-        <div class="profile-section">
-          <h3>Username & Avatar</h3>
-          <div class="token-select-row" style="margin-bottom: 12px;">
-            <input id="prof-username-input" class="input" placeholder="Choose username..." />
-            <button id="prof-username-save" class="btn">Save</button>
-          </div>
-          <div class="muted" style="margin-bottom: 8px; font-size: 13px;">Choose avatar:</div>
-          <div id="avatar-presets" class="pill-row"></div>
-        </div>
+        <p id="username-msg" class="inline-msg"></p>
       </section>
 
-      <!-- Account Actions -->
-      <section class="card">
-        <div class="profile-section">
-          <h3>Account</h3>
-          <div class="profile-actions">
-            <button id="btn-export" class="btn gray">Export data</button>
-            <button id="btn-logout" class="btn">Log out</button>
-          </div>
-          <p id="prof-msg" class="muted" style="margin-top:8px; font-size: 13px;"></p>
-        </div>
+      <!-- Avatar -->
+      <section class="profile-card">
+        <header class="profile-card__header">
+          <h3 class="profile-card__title">Avatar</h3>
+          <span class="profile-card__hint">Choose one</span>
+        </header>
+        <div id="avatar-presets" class="avatar-grid"></div>
       </section>
-      
+
     </div>
+
+    <p id="prof-msg" class="inline-msg" role="status"></p>
   </main>
 
-  <footer class="footer muted"><span>© 2026 Crypto Lifeguard</span></footer>
+  <footer class="footer footer--split">
+    <img class="footer-logo" src="/full@4x.png" alt="" width="120" height="32" decoding="async" />
+    <span class="footer-rights">All rights reserved 2026</span>
+  </footer>
+
+  <!-- Lifeguard AI chat widget -->
+  <script>window.CLG_CHAT_CONTEXT = { page: 'profile' };</script>
 </body>
 </html>
