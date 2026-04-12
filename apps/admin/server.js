@@ -1431,9 +1431,35 @@ async function callAnthropicSummary(prompt) {
   return { content, model: 'anthropic:claude-3-5-sonnet' };
 }
 
+async function callXAISummary(prompt) {
+  if (!XAI_API_KEY) throw new Error('no-xai');
+  const model = 'grok-4-1-fast-reasoning';
+  const r = await fetch('https://api.x.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${XAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: 'You are Lifeguard AI, a calm crypto-security analyst. Write clear, concrete analysis in plain English. Never give financial advice. Use UK English spelling.' },
+        { role: 'user', content: prompt }
+      ],
+      max_tokens: 700
+    })
+  });
+  try { await trackAPICall('xAI', '/v1/chat/completions'); } catch (_) {}
+  if (!r.ok) throw new Error(`xai ${r.status}`);
+  const d = await r.json();
+  const content = d.choices?.[0]?.message?.content || '';
+  return { content, model: `xai:${model}` };
+}
+
 async function generateAlertSummaryContent(alert) {
   const prompt = buildAlertSummaryPrompt(alert);
-  const attempts = [callOpenAISummary, callAnthropicSummary];
+  // Try xAI (Grok) first, then OpenAI, then Anthropic
+  const attempts = [callXAISummary, callOpenAISummary, callAnthropicSummary];
   let lastErr = null;
   for (const fn of attempts) {
     try {
