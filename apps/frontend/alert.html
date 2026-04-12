@@ -10,6 +10,37 @@
   <meta name="description" content="Crypto Lifeguard alert detail — full context, live price, related alerts, and news." />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="/config.js"></script>
+  <script>
+    // --- Login diagnostic helper (see index.html for the canonical copy) ---
+    (function(){
+      try {
+        var backendFromGlobal = function(){
+          try {
+            return (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+              ? window.BACKEND_URL
+              : 'https://clg-admin-production.up.railway.app';
+          } catch (_) { return 'https://clg-admin-production.up.railway.app'; }
+        };
+        window.__clgDiag = function(stage, data){
+          try {
+            var backend = backendFromGlobal();
+            var payload = { stage: String(stage || 'unknown'), data: Object.assign({}, data || {}, {
+              _href: location.href,
+              _path: location.pathname,
+              _hasDocCookie: !!(document.cookie && document.cookie.length),
+              _docCookieLen: (document.cookie || '').length,
+            }) };
+            try { console.log('[LOGIN-DIAG][client]', stage, payload.data); } catch(_) {}
+            fetch(backend + '/api/debug-log', {
+              method: 'POST', credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload), keepalive: true,
+            }).catch(function(){});
+          } catch(_) {}
+        };
+      } catch(_) {}
+    })();
+  </script>
   <link rel="stylesheet" href="/src/styles.css" />
   <style>
     /* Auth-gate splash (matches index.html) */

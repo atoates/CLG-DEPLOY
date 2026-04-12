@@ -85,8 +85,14 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps, curl, Postman, same-origin)
     if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
+
+    const allowed = allowedOrigins.indexOf(origin) !== -1;
+    try {
+      if (typeof diagLog === 'function') {
+        diagLog('server', 'cors-check', { origin, allowed, allowedOrigins });
+      }
+    } catch(_) {}
+    if (allowed) {
       callback(null, true);
     } else {
       log.debug('[CORS] Blocked request from origin:', origin);
@@ -5492,38 +5498,53 @@ app.get('/auth/google/callback', async (req, res) => {
 app.post('/auth/exchange-token', express.json(), (req, res) => {
   const { token } = req.body;
   console.log('Token exchange request received:', { hasToken: !!token, tokenPrefix: token ? token.substring(0, 8) : 'none' });
-  
+  try {
+    diagLog('server', '/auth/exchange-token.enter', {
+      hasToken: !!token,
+      tokenPrefix: token ? String(token).substring(0, 8) : null,
+      origin: req.get('origin') || '',
+      referer: req.get('referer') || '',
+      cookieNames: Object.keys(req.cookies || {}),
+      hasSid: !!req.cookies.sid,
+      hasUid: !!req.cookies.uid,
+    });
+  } catch(_) {}
+
   if (!token) {
     console.log('❌ No token provided');
+    try { diagLog('server', '/auth/exchange-token.reject', { reason: 'no_token' }); } catch(_){}
     return res.status(400).json({ error: 'Token required' });
   }
-  
+
   const sessionData = sessions.get(`auth_token_${token}`);
   console.log('Session data lookup:', { found: !!sessionData, totalSessions: sessions.size });
-  
+
   if (!sessionData) {
     console.log('❌ Token not found in sessions');
+    try { diagLog('server', '/auth/exchange-token.reject', { reason: 'token_not_found', totalSessions: sessions.size }); } catch(_){}
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
-  
+
   // Check if token is too old (5 minutes)
   const age = Date.now() - sessionData.createdAt;
   console.log('Token age:', age, 'ms');
-  
+
   if (age > 5 * 60 * 1000) {
     console.log('❌ Token expired');
+    try { diagLog('server', '/auth/exchange-token.reject', { reason: 'token_expired', ageMs: age }); } catch(_){}
     sessions.delete(`auth_token_${token}`);
     return res.status(401).json({ error: 'Token expired' });
   }
-  
+
   // Delete one-time token
   sessions.delete(`auth_token_${token}`);
   console.log('✅ Token validated, creating session for uid:', sessionData.uid);
-  
+
   // Create session with uid
   setSession(res, { uid: sessionData.uid });
-  
+
   console.log('✅ Session created successfully');
+  try { diagLog('server', '/auth/exchange-token.success', { uid: sessionData.uid, ageMs: age }); } catch(_){}
   res.json({ success: true, uid: sessionData.uid });
 });
 

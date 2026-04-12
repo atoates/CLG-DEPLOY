@@ -472,19 +472,34 @@ function renderAvatarPresets(){
 async function handleAuthToken(){
   const urlParams = new URLSearchParams(window.location.search);
   const authToken = urlParams.get('auth_token');
+  try { window.__clgDiag && window.__clgDiag('profile.handleAuthToken.start', { hasToken: !!authToken, tokenPrefix: authToken ? authToken.slice(0, 8) : null }); } catch(_) {}
   if (!authToken) return;
   try {
-    const response = await apiFetch(apiUrl('/auth/exchange-token'), {
+    const exchangeUrl = apiUrl('/auth/exchange-token');
+    try { window.__clgDiag && window.__clgDiag('profile.handleAuthToken.fetch', { url: exchangeUrl }); } catch(_) {}
+    const response = await apiFetch(exchangeUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: authToken })
     });
+    try {
+      const responseClone = response.clone();
+      const body = await responseClone.text();
+      window.__clgDiag && window.__clgDiag('profile.handleAuthToken.result', {
+        ok: response.ok,
+        status: response.status,
+        bodySnippet: body.slice(0, 200),
+        hasDocCookieAfter: !!(document.cookie && document.cookie.length),
+        docCookieLenAfter: (document.cookie || '').length,
+      });
+    } catch(_) {}
     if (response.ok){
       window.history.replaceState({}, document.title, '/profile.html');
     } else {
       console.error('Token exchange failed');
     }
   } catch (error) {
+    try { window.__clgDiag && window.__clgDiag('profile.handleAuthToken.error', { err: String(error && error.message || error) }); } catch(_) {}
     console.error('Token exchange error:', error);
   }
 }

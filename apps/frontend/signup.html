@@ -8,6 +8,39 @@
   <link rel="apple-touch-icon" href="/favicon-180.png" />
   <title>Sign in — Crypto Lifeguard</title>
   <meta name="description" content="Sign in to Crypto Lifeguard to get personalised crypto alerts and sync your watchlist across devices." />
+  <script src="/config.js"></script>
+  <script>
+    // --- Login diagnostic helper (see index.html for the canonical copy) ---
+    (function(){
+      try {
+        var backendFromGlobal = function(){
+          try {
+            return (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+              ? window.BACKEND_URL
+              : 'https://clg-admin-production.up.railway.app';
+          } catch (_) { return 'https://clg-admin-production.up.railway.app'; }
+        };
+        window.__clgDiag = function(stage, data){
+          try {
+            var backend = backendFromGlobal();
+            var payload = { stage: String(stage || 'unknown'), data: Object.assign({}, data || {}, {
+              _href: location.href,
+              _path: location.pathname,
+              _hasDocCookie: !!(document.cookie && document.cookie.length),
+              _docCookieLen: (document.cookie || '').length,
+            }) };
+            try { console.log('[LOGIN-DIAG][client]', stage, payload.data); } catch(_) {}
+            fetch(backend + '/api/debug-log', {
+              method: 'POST', credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload), keepalive: true,
+            }).catch(function(){});
+          } catch(_) {}
+        };
+        try { window.__clgDiag('signup.html.load', {}); } catch(_) {}
+      } catch(_) {}
+    })();
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/styles.css" />
   <style>
@@ -379,7 +412,6 @@
       }
     }
   </style>
-  <script src="/config.js"></script>
   <script>
     // If the user is already logged in, bounce them straight into the app
     // (honouring any return destination stashed by the auth gate).
@@ -388,9 +420,14 @@
         var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
           ? window.BACKEND_URL
           : 'https://clg-admin-production.up.railway.app';
+        try { window.__clgDiag && window.__clgDiag('signup.alreadyLoggedInCheck.start', { backend: backend }); } catch(_){}
         fetch(backend + '/api/me', { credentials: 'include' })
-          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(r){
+            try { window.__clgDiag && window.__clgDiag('signup.alreadyLoggedInCheck.resp', { ok: r.ok, status: r.status }); } catch(_){}
+            return r.ok ? r.json() : null;
+          })
           .then(function(me){
+            try { window.__clgDiag && window.__clgDiag('signup.alreadyLoggedInCheck.parsed', { hasMe: !!me, loggedIn: !!(me && me.loggedIn) }); } catch(_){}
             if (me && me.loggedIn) {
               var back = '/';
               try {
@@ -401,7 +438,9 @@
               window.location.replace(back);
             }
           })
-          .catch(function(){});
+          .catch(function(err){
+            try { window.__clgDiag && window.__clgDiag('signup.alreadyLoggedInCheck.err', { err: String(err && err.message || err) }); } catch(_){}
+          });
       } catch(_) {}
     })();
 
@@ -416,7 +455,11 @@
       } catch(_) {}
       // Hand off to backend OAuth flow. The existing index.html early redirect
       // will send this to the Railway backend in production.
-      window.location.href = '/auth/google';
+      try { window.__clgDiag && window.__clgDiag('signup.googleLogin.click', { target: '/auth/google' }); } catch(_) {}
+      // Brief delay so the diag fetch has a chance to flush.
+      setTimeout(function(){
+        window.location.href = '/auth/google';
+      }, 80);
     }
   </script>
 </head>
