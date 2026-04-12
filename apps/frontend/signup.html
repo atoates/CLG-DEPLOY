@@ -13,16 +13,10 @@
     // --- Login diagnostic helper (see index.html for the canonical copy) ---
     (function(){
       try {
-        var backendFromGlobal = function(){
-          try {
-            return (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
-              ? window.BACKEND_URL
-              : 'https://clg-admin-production.up.railway.app';
-          } catch (_) { return 'https://clg-admin-production.up.railway.app'; }
-        };
         window.__clgDiag = function(stage, data){
           try {
-            var backend = backendFromGlobal();
+            var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+              ? window.BACKEND_URL : '';
             var payload = { stage: String(stage || 'unknown'), data: Object.assign({}, data || {}, {
               _href: location.href,
               _path: location.pathname,
@@ -418,16 +412,10 @@
     (function(){
       try {
         var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
-          ? window.BACKEND_URL
-          : 'https://clg-admin-production.up.railway.app';
-        try { window.__clgDiag && window.__clgDiag('signup.alreadyLoggedInCheck.start', { backend: backend }); } catch(_){}
+          ? window.BACKEND_URL : '';
         fetch(backend + '/api/me', { credentials: 'include' })
-          .then(function(r){
-            try { window.__clgDiag && window.__clgDiag('signup.alreadyLoggedInCheck.resp', { ok: r.ok, status: r.status }); } catch(_){}
-            return r.ok ? r.json() : null;
-          })
+          .then(function(r){ return r.ok ? r.json() : null; })
           .then(function(me){
-            try { window.__clgDiag && window.__clgDiag('signup.alreadyLoggedInCheck.parsed', { hasMe: !!me, loggedIn: !!(me && me.loggedIn) }); } catch(_){}
             if (me && me.loggedIn) {
               var back = '/';
               try {
@@ -438,9 +426,7 @@
               window.location.replace(back);
             }
           })
-          .catch(function(err){
-            try { window.__clgDiag && window.__clgDiag('signup.alreadyLoggedInCheck.err', { err: String(err && err.message || err) }); } catch(_){}
-          });
+          .catch(function(){});
       } catch(_) {}
     })();
 
@@ -453,13 +439,8 @@
           btn.querySelector('.btn-label').textContent = 'Redirecting…';
         }
       } catch(_) {}
-      // Hand off to backend OAuth flow. The existing index.html early redirect
-      // will send this to the Railway backend in production.
-      try { window.__clgDiag && window.__clgDiag('signup.googleLogin.click', { target: '/auth/google' }); } catch(_) {}
-      // Brief delay so the diag fetch has a chance to flush.
-      setTimeout(function(){
-        window.location.href = '/auth/google';
-      }, 80);
+      // Same-origin: go straight to /auth/google on this server.
+      window.location.href = '/auth/google';
     }
   </script>
 </head>

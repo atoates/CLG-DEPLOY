@@ -3,13 +3,6 @@
 function getApiBaseUrl() {
   const injected = (typeof window !== 'undefined' && window.BACKEND_URL) ? window.BACKEND_URL : '';
   if (injected && injected !== '__BACKEND_URL__') return injected;
-  // Fallback: in hosted environments (non-local), default to production backend
-  try {
-    const host = window.location.hostname || '';
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      return 'https://clg-admin-production.up.railway.app';
-    }
-  } catch {}
   return '';
 }
 

@@ -9,20 +9,14 @@
   <title>Crypto Lifeguard — Protect Your Crypto Assets</title>
   <script>
     // --- Login diagnostic helper (available on every page) ------------------
-    // Posts to backend /api/debug-log so we can follow a mobile login attempt
-    // in Railway logs or at /debug/login. Best-effort, never throws.
+    // Posts to /api/debug-log so we can follow a login attempt in Railway logs
+    // or at /debug/login. Best-effort, never throws.
     (function(){
       try {
-        var backendFromGlobal = function(){
-          try {
-            return (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
-              ? window.BACKEND_URL
-              : 'https://clg-admin-production.up.railway.app';
-          } catch (_) { return 'https://clg-admin-production.up.railway.app'; }
-        };
         window.__clgDiag = function(stage, data){
           try {
-            var backend = backendFromGlobal();
+            var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+              ? window.BACKEND_URL : '';
             var payload = {
               stage: String(stage || 'unknown'),
               data: Object.assign({}, data || {}, {
@@ -44,21 +38,9 @@
         };
       } catch(_) {}
     })();
-    // Early redirect for backend-only routes when user lands directly on /auth/*
-    (function(){
-      try {
-        var p = window.location && window.location.pathname || '';
-        try { window.__clgDiag && window.__clgDiag('index.html.earlyEntry', { pathname: p }); } catch(_){}
-        if (p.startsWith('/auth/')) {
-          var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
-            ? window.BACKEND_URL
-            : 'https://clg-admin-production.up.railway.app';
-          var target = backend + p + (window.location.search || '') + (window.location.hash || '');
-          try { window.__clgDiag && window.__clgDiag('index.html.authRedirect', { target: target }); } catch(_){}
-          window.location.replace(target);
-        }
-      } catch(_) {}
-    })();
+    // NOTE: The old early-redirect for /auth/* routes is no longer needed.
+    // Express serves both the frontend and the API on the same origin,
+    // so /auth/google is handled server-side without a client redirect.
   </script>
   <meta name="description" content="Crypto Lifeguard — Protect your crypto assets with personalised alerts. Real-time monitoring for tokens you care about." />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -99,48 +81,37 @@
     html:not(.clg-auth-pending) #clg-auth-splash { display: none; }
   </style>
   <script>
-    // Auth gate: require login before the app renders. Runs synchronously so
-    // unauthenticated users never see the app UI.
+    // Auth gate: require login before the app renders.
     (function(){
       try {
         document.documentElement.classList.add('clg-auth-pending');
         var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
-          ? window.BACKEND_URL
-          : 'https://clg-admin-production.up.railway.app';
+          ? window.BACKEND_URL : '';
         try { window.__clgDiag && window.__clgDiag('index.authGate.start', { backend: backend }); } catch(_){}
         var ac = new AbortController();
         var authFetchTimer = setTimeout(function(){ try { ac.abort(); } catch(_) {} }, 18000);
         fetch(backend + '/api/me', { credentials: 'include', signal: ac.signal })
-          .then(function(r){
-            try { window.__clgDiag && window.__clgDiag('index.authGate.meResponse', { ok: r.ok, status: r.status }); } catch(_){}
-            return r.ok ? r.json() : null;
-          })
+          .then(function(r){ return r.ok ? r.json() : null; })
           .then(function(me){
-            try { window.__clgDiag && window.__clgDiag('index.authGate.meParsed', { hasMe: !!me, loggedIn: !!(me && me.loggedIn), uid: me && me.userId }); } catch(_){}
+            try { window.__clgDiag && window.__clgDiag('index.authGate.meParsed', { hasMe: !!me, loggedIn: !!(me && me.loggedIn) }); } catch(_){}
             if (!me || !me.loggedIn) {
-              // Preserve destination so signup can bounce back after login
               try {
                 var back = window.location.pathname + window.location.search + window.location.hash;
                 sessionStorage.setItem('clg_auth_return', back);
               } catch(_) {}
-              try { window.__clgDiag && window.__clgDiag('index.authGate.redirectSignup', {}); } catch(_){}
               window.location.replace('/signup.html');
               return;
             }
-            // Cache so app.js doesn't need to refetch
             try { window.__CLG_ME__ = me; } catch(_) {}
             document.documentElement.classList.remove('clg-auth-pending');
           })
-          .catch(function(err){
-            try { window.__clgDiag && window.__clgDiag('index.authGate.error', { err: String(err && err.message || err) }); } catch(_){}
-            // On network failure, fail-closed to the signup page
+          .catch(function(){
             window.location.replace('/signup.html');
           })
           .finally(function(){
             try { clearTimeout(authFetchTimer); } catch(_) {}
           });
       } catch(_) {
-        // If anything explodes, don't block forever
         document.documentElement.classList.remove('clg-auth-pending');
       }
     })();

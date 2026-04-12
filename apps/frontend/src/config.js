@@ -1,6 +1,4 @@
-// Backend API configuration
-// This file is loaded before app.js and sets the backend URL
-// For production, point to the admin backend service
-
-window.BACKEND_URL = 'https://clg-admin-production.up.railway.app';
+// Backend API configuration (loaded before app bundles).
+// Same-origin deploy: empty string → relative /api. Railway build overwrites main-app-dist/config.js.
+window.BACKEND_URL = '';
 

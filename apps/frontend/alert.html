@@ -14,16 +14,10 @@
     // --- Login diagnostic helper (see index.html for the canonical copy) ---
     (function(){
       try {
-        var backendFromGlobal = function(){
-          try {
-            return (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
-              ? window.BACKEND_URL
-              : 'https://clg-admin-production.up.railway.app';
-          } catch (_) { return 'https://clg-admin-production.up.railway.app'; }
-        };
         window.__clgDiag = function(stage, data){
           try {
-            var backend = backendFromGlobal();
+            var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
+              ? window.BACKEND_URL : '';
             var payload = { stage: String(stage || 'unknown'), data: Object.assign({}, data || {}, {
               _href: location.href,
               _path: location.pathname,
@@ -73,8 +67,7 @@
       try {
         document.documentElement.classList.add('clg-auth-pending');
         var backend = (window.BACKEND_URL && window.BACKEND_URL !== '__BACKEND_URL__')
-          ? window.BACKEND_URL
-          : 'https://clg-admin-production.up.railway.app';
+          ? window.BACKEND_URL : '';
         var ac = new AbortController();
         var authFetchTimer = setTimeout(function(){ try { ac.abort(); } catch(_) {} }, 18000);
         fetch(backend + '/api/me', { credentials: 'include', signal: ac.signal })

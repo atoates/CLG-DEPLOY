@@ -831,11 +831,11 @@ function saveOAuthStates() {
 function setSession(res, data){
   const sid = crypto.randomBytes(16).toString('hex');
   sessions.set(sid, { ...data, t: Date.now() });
-  // Use sameSite: 'none' for cross-domain cookies (frontend on different domain than backend)
+  // Same-origin: lax is the safe default. Works for top-level navigations (OAuth redirect).
   res.cookie('sid', sid, {
     httpOnly: true,
-    sameSite: 'none',  // Required for cross-domain
-    secure: true,      // Required when sameSite: 'none'
+    sameSite: 'lax',
+    secure: true,
     maxAge: 365*24*3600*1000
   });
   try {
@@ -855,11 +855,10 @@ app.use(async (req, res, next) => {
   const hadUid = !!uid;
   if (!uid) {
     uid = `usr_${Math.random().toString(36).slice(2,10)}`;
-    // Use sameSite: 'none' for cross-domain cookies
     res.cookie('uid', uid, {
       httpOnly: true,
-      sameSite: 'none',  // Required for cross-domain
-      secure: true,      // Required when sameSite: 'none'
+      sameSite: 'lax',
+      secure: true,
       maxAge: 365*24*3600*1000
     });
   }
@@ -5205,44 +5204,32 @@ app.get('/admin/export/alerts.csv', requireAdmin, (_req, res) => {
 });
 
 // Serve static SPA (after API routes)
-// Smart routing: serve main app at app.crypto-lifeguard.com, admin dashboard at Railway subdomain
+// Consolidated routing: main app at app.crypto-lifeguard.com, admin dashboard at Railway subdomain
 const mainAppDistDir = path.resolve(__dirname, 'main-app-dist');
 const adminDistDir = path.resolve(__dirname, 'dist');
 
-// Middleware to route to correct frontend based on hostname
+const mainAppHasFiles = fs.existsSync(mainAppDistDir);
+const adminHasFiles = fs.existsSync(adminDistDir);
+if (mainAppHasFiles) console.log('[Static Files] main-app-dist found:', mainAppDistDir);
+if (adminHasFiles) console.log('[Static Files] admin dist found:', adminDistDir);
+
+// Helper: is this hostname the main user-facing app?
+function isMainAppHost(hostname) {
+  return hostname.includes('app.crypto-lifeguard.com') ||
+         hostname.includes('localhost') ||
+         hostname.includes('127.0.0.1');
+}
+
+// Serve static files based on hostname
 app.use((req, res, next) => {
   const hostname = req.hostname || req.get('host') || '';
-  
-  console.log(`[Static Files] Request for ${req.path} from ${hostname}`);
-  
-  // IMPORTANT: CLG-ADMIN service should ONLY serve admin dashboard
-  // The main app is served by CLG-DEPLOY service at app.crypto-lifeguard.com
-  // Never serve main-app-dist from this service in production
-  const isProduction = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
-  
-  if (isProduction) {
-    // In production, ALWAYS serve admin dashboard only
-    console.log('[Static Files] Production mode: serving admin dashboard from', maskPath(adminDistDir));
-    if (fs.existsSync(adminDistDir)) {
-      return express.static(adminDistDir)(req, res, next);
-    }
-  } else {
-    // Development mode: support both
-    const isMainAppDomain = hostname.includes('app.crypto-lifeguard.com') || 
-                            hostname.includes('localhost') ||
-                            hostname.includes('127.0.0.1');
-    
-    const isAdminDomain = hostname.includes('clg-admin-') && hostname.includes('railway.app');
-    
-    if (isMainAppDomain && !isAdminDomain && fs.existsSync(mainAppDistDir)) {
-      return express.static(mainAppDistDir)(req, res, next);
-    }
-    
-    if (fs.existsSync(adminDistDir)) {
-      return express.static(adminDistDir)(req, res, next);
-    }
+
+  if (isMainAppHost(hostname) && mainAppHasFiles) {
+    return express.static(mainAppDistDir)(req, res, next);
   }
-  
+  if (adminHasFiles) {
+    return express.static(adminDistDir)(req, res, next);
+  }
   next();
 });
 
@@ -5283,6 +5270,24 @@ if (fs.existsSync(mainAppPublicDir)) {
 
 // In local dev without a Vite build, also serve static files from the project root
 app.use(express.static(__dirname));
+
+// SPA fallback for the main frontend app:
+// Any non-API, non-auth, non-file request on the main app domain gets index.html.
+// This handles client-side routes (e.g. /auth/google via the early-redirect script).
+app.use((req, res, next) => {
+  const hostname = req.hostname || req.get('host') || '';
+  if (!isMainAppHost(hostname) || !mainAppHasFiles) return next();
+  // Don't intercept API, auth, admin, or debug routes
+  if (/^\/(api|auth|admin|debug|healthz|ready)\b/.test(req.path)) return next();
+  // Don't intercept requests that look like static files (have an extension)
+  if (/\.\w{2,5}$/.test(req.path)) return next();
+  // Serve the frontend index.html for everything else
+  const indexPath = path.join(mainAppDistDir, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
+  next();
+});
 
 // Mask paths for logging (basic)
 function maskPath(p){
@@ -5470,24 +5475,26 @@ app.get('/auth/google/callback', async (req, res) => {
       [googleId, email, name, avatar, uid]
     );
     setSession(res, { uid });
-    console.log('OAuth success, generating auth token for frontend handoff');
+    console.log('OAuth success, session cookie set, redirecting to profile');
 
-    // Generate a one-time token for cross-domain auth handoff
+    // Same-origin: the sid cookie we just set will be present when the
+    // browser loads /profile.html, so no auth-token exchange is needed.
+    // We still generate one as a fallback for any cross-origin callers
+    // (e.g. the admin dashboard).
     const authToken = crypto.randomBytes(32).toString('hex');
     sessions.set(`auth_token_${authToken}`, { uid, createdAt: Date.now() });
 
-    // Redirect to frontend with token
-    const frontendUrl = process.env.FRONTEND_URL || 'https://app.crypto-lifeguard.com';
     try {
       diagLog('server', '/auth/google/callback.success', {
         uid,
         email,
         authTokenPrefix: authToken.slice(0, 8),
-        frontendUrl,
-        frontendUrlFromEnv: !!process.env.FRONTEND_URL,
+        sameOriginRedirect: true,
       });
     } catch(_) {}
-    res.redirect(`${frontendUrl}/profile.html?auth_token=${authToken}`);
+    // Redirect to the profile page on the same origin.
+    // The sid cookie is already set and will travel with the redirect.
+    res.redirect('/profile.html');
   }catch(e){
     console.error('OAuth callback error:', e.message, e.stack);
     res.status(500).send('oauth failed');
@@ -5552,7 +5559,7 @@ app.post('/auth/logout', (req, res) => {
   const sid = req.cookies.sid;
   if (sid) { 
     sessions.delete(sid); 
-    res.clearCookie('sid', { secure: true, sameSite: 'none', httpOnly: true }); 
+    res.clearCookie('sid', { secure: true, sameSite: 'lax', httpOnly: true }); 
   }
   res.json({ ok:true });
 });
