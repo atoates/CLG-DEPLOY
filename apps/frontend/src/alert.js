@@ -5,7 +5,7 @@
  *   - Full alert card (title, severity, description, further info, source)
  *   - Live token snapshot (price, 24h/7d change, market cap, volume)
  *   - 7-day mini price chart (SVG sparkline)
- *   - Lifeguard AI generated analysis, streamed via /api/chat SSE
+ *   - Sentinel AI generated analysis, streamed via /api/chat SSE
  *   - Other active alerts for the same token
  *   - Recent news for the same token
  * ========================================================================== */
@@ -396,7 +396,7 @@ function renderAiCard() {
     el('div', { class: 'clg-alert-card__header' }, [
       el('h2', {}, [
         el('span', { class: 'clg-alert-ai__sparkle' }, ['✨']),
-        'Lifeguard AI analysis'
+        'Sentinel AI analysis'
       ]),
       el('span', { class: 'clg-alert-card__badge clg-alert-card__badge--ai', id: 'clg-alert-ai-badge' }, ['Loading…'])
     ]),
@@ -499,7 +499,7 @@ function renderNewsList(items) {
   });
 }
 
-// ---- Lifeguard AI analysis loader (cache-first) ---------------------------
+// ---- Sentinel AI analysis loader (cache-first) ---------------------------
 //
 // The AI analysis for each alert is cached server-side in the alert_summaries
 // table. We fetch the most recent row on page load, type-animate it into the

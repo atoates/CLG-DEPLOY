@@ -1296,7 +1296,7 @@ app.delete('/api/me/profile', async (req, res) => {
   if (!effectiveUid) return res.status(401).json({ error: 'no user identity' });
   try {
     await pool.query('DELETE FROM user_profiles WHERE user_id = $1', [effectiveUid]);
-    res.json({ ok: true, note: 'Profile cleared. Lifeguard AI will start fresh next time.' });
+    res.json({ ok: true, note: 'Profile cleared. Sentinel AI will start fresh next time.' });
   } catch (err) {
     if (err.code === '42P01') return res.json({ ok: true });
     res.status(500).json({ error: 'delete_failed' });
@@ -1444,7 +1444,7 @@ async function callOpenAISummary(prompt) {
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: 'You are Lifeguard AI, a calm crypto-security analyst. Write clear, concrete analysis in plain English. Never give financial advice. Use UK English spelling.' },
+        { role: 'system', content: 'You are Sentinel AI, a calm crypto-security analyst. Write clear, concrete analysis in plain English. Never give financial advice. Use UK English spelling.' },
         { role: 'user', content: prompt }
       ],
       temperature: 0.4,
@@ -1470,7 +1470,7 @@ async function callAnthropicSummary(prompt) {
     body: JSON.stringify({
       model: 'claude-3-5-sonnet-20241022',
       max_tokens: 700,
-      system: 'You are Lifeguard AI, a calm crypto-security analyst. Write clear, concrete analysis in plain English. Never give financial advice. Use UK English spelling.',
+      system: 'You are Sentinel AI, a calm crypto-security analyst. Write clear, concrete analysis in plain English. Never give financial advice. Use UK English spelling.',
       messages: [{ role: 'user', content: prompt }]
     })
   });
@@ -1493,7 +1493,7 @@ async function callXAISummary(prompt) {
     body: JSON.stringify({
       model,
       messages: [
-        { role: 'system', content: 'You are Lifeguard AI, a calm crypto-security analyst. Write clear, concrete analysis in plain English. Never give financial advice. Use UK English spelling.' },
+        { role: 'system', content: 'You are Sentinel AI, a calm crypto-security analyst. Write clear, concrete analysis in plain English. Never give financial advice. Use UK English spelling.' },
         { role: 'user', content: prompt }
       ],
       max_tokens: 700
@@ -4108,7 +4108,7 @@ app.get('/admin/stats', requireAdmin, async (req, res) => {
 //   event: error   data: { "error": "..." }
 
 // ============================================================================
-// USER PROFILE SYSTEM (Lifeguard AI memory)
+// USER PROFILE SYSTEM (Sentinel AI memory)
 // ============================================================================
 // Builds a persistent profile for each user from chat conversations and
 // onboarding questions. The profile is injected into the system prompt so
@@ -4254,7 +4254,7 @@ function formatProfileContext(profile) {
 const ONBOARDING_QUESTIONS = [
   {
     step: 1,
-    question: "Welcome to Lifeguard AI! I'd love to get to know you so I can give you better advice. To start -- how would you describe your crypto experience?",
+    question: "Welcome to Sentinel AI! I'd love to get to know you so I can give you better advice. To start -- how would you describe your crypto experience?",
     options: ['beginner', 'intermediate', 'advanced'],
     field: 'experience',
     parse: (answer) => {
@@ -4821,7 +4821,7 @@ async function chatProviderCall(providerMessages, { stream = false } = {}) {
 }
 
 // ---- The agent loop --------------------------------------------------------
-const CHAT_SYSTEM_PROMPT = `You are **Lifeguard AI**, the in-house crypto assistant for Crypto Lifeguard — a platform that keeps users safe and informed about their crypto holdings.
+const CHAT_SYSTEM_PROMPT = `You are **Sentinel AI**, the in-house crypto assistant for Crypto Lifeguard — a platform that keeps users safe and informed about their crypto holdings.
 
 You embody several specialist skills and should route yourself to the right one automatically:
 

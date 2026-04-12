@@ -1,4 +1,4 @@
--- User profiles: persistent memory for Lifeguard AI
+-- User profiles: persistent memory for Sentinel AI
 -- Stores structured profile data extracted from conversations + onboarding
 CREATE TABLE IF NOT EXISTS user_profiles (
   user_id        TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

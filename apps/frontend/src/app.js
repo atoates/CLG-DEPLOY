@@ -265,7 +265,7 @@ function switchTab(tab){
   updateFilterVisibility(name);
   if (name === 'news') loadNews();
   if (name === 'market') loadMarket();
-  // Refresh chat context for the Lifeguard AI widget so starter prompts adapt
+  // Refresh chat context for the Sentinel AI widget so starter prompts adapt
   try {
     const existing = window.CLG_CHAT_CONTEXT || {};
     window.CLG_CHAT_CONTEXT = { ...existing, page: name };
@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Summary tab was removed — Lifeguard AI chat widget now covers this use case.
+  // Summary tab was removed — Sentinel AI chat widget now covers this use case.
 });
 
 // --- Init (boot) -------------------------------------------------------------

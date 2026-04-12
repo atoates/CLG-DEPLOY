@@ -1,5 +1,5 @@
 /* ============================================================================
- * Lifeguard AI — floating chat widget
+ * Sentinel AI — floating chat widget
  * ----------------------------------------------------------------------------
  * A self-contained chat experience that talks to POST /api/chat (SSE).
  * Designed to be dropped into any page with <script type="module" src="/src/chat.js">
@@ -177,13 +177,13 @@ function describeTool(name, args) {
 function buildLauncher(onOpen) {
   return el('button', {
     class: 'clg-chat-launcher',
-    'aria-label': 'Open Lifeguard AI assistant',
+    'aria-label': 'Open Sentinel AI assistant',
     type: 'button',
     onclick: onOpen
   }, [
     el('span', { class: 'clg-chat-launcher__glow' }),
     el('span', { class: 'clg-chat-launcher__icon', html: sparklesSvg() }),
-    el('span', { class: 'clg-chat-launcher__label' }, ['Ask Lifeguard AI'])
+    el('span', { class: 'clg-chat-launcher__label' }, ['Ask Sentinel AI'])
   ]);
 }
 
@@ -197,14 +197,14 @@ function trashSvg()   { return `<svg viewBox="0 0 24 24" fill="none" stroke="cur
 function toolSvg()    { return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1"/></svg>`; }
 
 function buildPanel({ onClose, onSend, onReset, onStarter }) {
-  const panel = el('div', { class: 'clg-chat-panel', role: 'dialog', 'aria-label': 'Lifeguard AI' });
+  const panel = el('div', { class: 'clg-chat-panel', role: 'dialog', 'aria-label': 'Sentinel AI' });
 
   // Header
   const header = el('header', { class: 'clg-chat-header' }, [
     el('div', { class: 'clg-chat-brand' }, [
       el('span', { class: 'clg-chat-brand__icon', html: shieldSvg() }),
       el('div', { class: 'clg-chat-brand__text' }, [
-        el('div', { class: 'clg-chat-brand__title' }, ['Lifeguard AI']),
+        el('div', { class: 'clg-chat-brand__title' }, ['Sentinel AI']),
         el('div', { class: 'clg-chat-brand__sub' }, ['Your crypto co-pilot'])
       ])
     ]),
@@ -234,7 +234,7 @@ function buildPanel({ onClose, onSend, onReset, onStarter }) {
   // Composer
   const textarea = el('textarea', {
     class: 'clg-chat-textarea',
-    placeholder: 'Ask Lifeguard AI anything about crypto…',
+    placeholder: 'Ask Sentinel AI anything about crypto…',
     rows: '1',
     'aria-label': 'Message'
   });
@@ -278,7 +278,7 @@ function buildPanel({ onClose, onSend, onReset, onStarter }) {
 function renderWelcome(bodyEl, onStarter) {
   const starters = getStarterPrompts();
   const wrap = el('div', { class: 'clg-chat-welcome' }, [
-    el('div', { class: 'clg-chat-welcome__badge' }, ['Lifeguard AI · beta']),
+    el('div', { class: 'clg-chat-welcome__badge' }, ['Sentinel AI · beta']),
     el('h3', { class: 'clg-chat-welcome__title' }, ["Hi, I'm your crypto co-pilot"]),
     el('p', { class: 'clg-chat-welcome__lede' }, [
       'Ask me about live prices, active alerts, recent news, or anything on your watchlist. I have access to real-time data, so I won\'t guess.'
@@ -350,7 +350,7 @@ function renderAssistantBubble(bodyEl) {
   const content = el('div', { class: 'clg-chat-bubble clg-chat-bubble--ai' }, [
     el('div', { class: 'clg-chat-ai-header' }, [
       el('span', { class: 'clg-chat-ai-icon', html: sparklesSvg() }),
-      el('span', {}, ['Lifeguard AI'])
+      el('span', {}, ['Sentinel AI'])
     ]),
     tools,
     el('div', { class: 'clg-chat-content' }, [
@@ -693,7 +693,7 @@ function boot() {
     document.body.appendChild(root);
   }
   const ctrl = buildController(root);
-  window.LifeguardAI = ctrl;
+  window.SentinelAI = ctrl;
 
   // Auto-restore if user had it open last session
   try {
