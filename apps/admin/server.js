@@ -3721,62 +3721,44 @@ async function chatToolExecutor(name, args, ctx) {
       }
 
       case 'search_news': {
+        // news_cache schema (migration 008): tickers is JSONB, date is BIGINT (ms epoch)
         const query = String(args.query || '').trim();
         const token = args.token ? String(args.token).toUpperCase() : null;
         const limit = Math.min(Math.max(parseInt(args.limit || 6, 10), 1), 15);
         try {
-          let sql = 'SELECT article_url, title, text, date, source_name, sentiment, tickers FROM news_cache WHERE expires_at > NOW()';
           const params = [];
+          let sql = 'SELECT article_url, title, text, date, source_name, sentiment, tickers FROM news_cache WHERE expires_at > NOW()';
           if (token) {
-            params.push(token);
-            sql += ` AND tickers_json::jsonb ? $${params.length}`;
+            params.push(JSON.stringify([token]));
+            sql += ` AND tickers @> $${params.length}::jsonb`;
           }
           if (query) {
             params.push(`%${query}%`);
             const idx = params.length;
             sql += ` AND (title ILIKE $${idx} OR text ILIKE $${idx})`;
           }
-          sql += ' ORDER BY date DESC LIMIT ' + limit;
+          params.push(limit);
+          sql += ` ORDER BY date DESC LIMIT $${params.length}`;
           const result = await pool.query(sql, params);
-          const rows = (result.rows || []).map(r => ({
-            title: r.title,
-            excerpt: (r.text || '').slice(0, 220),
-            source: r.source_name,
-            date: r.date,
-            sentiment: r.sentiment,
-            tickers: Array.isArray(r.tickers) ? r.tickers : (r.tickers_json ? JSON.parse(r.tickers_json) : []),
-            url: r.article_url
-          }));
+          const rows = (result.rows || []).map(r => {
+            // pg returns JSONB as a JS value already; fall back to safeParseJson for strings
+            const tickers = typeof safeParseJson === 'function'
+              ? safeParseJson(r.tickers, [])
+              : (Array.isArray(r.tickers) ? r.tickers : []);
+            return {
+              title: r.title,
+              excerpt: (r.text || '').slice(0, 220),
+              source: r.source_name,
+              date: r.date ? new Date(Number(r.date)).toISOString() : null,
+              sentiment: r.sentiment,
+              tickers,
+              url: r.article_url
+            };
+          });
           return { items: rows };
         } catch (err) {
-          // Fallback: try with tickers_json as text column
-          try {
-            let sql = 'SELECT article_url, title, text, date, source_name, sentiment, tickers_json FROM news_cache WHERE expires_at > NOW()';
-            const params = [];
-            if (query) {
-              params.push(`%${query}%`);
-              sql += ` AND (title ILIKE $${params.length} OR text ILIKE $${params.length})`;
-            }
-            sql += ' ORDER BY date DESC LIMIT ' + limit;
-            const result = await pool.query(sql, params);
-            const rows = (result.rows || [])
-              .filter(r => !token || (() => {
-                try { return (JSON.parse(r.tickers_json || '[]')).includes(token); } catch { return false; }
-              })())
-              .slice(0, limit)
-              .map(r => ({
-                title: r.title,
-                excerpt: (r.text || '').slice(0, 220),
-                source: r.source_name,
-                date: r.date,
-                sentiment: r.sentiment,
-                tickers: (() => { try { return JSON.parse(r.tickers_json || '[]'); } catch { return []; } })(),
-                url: r.article_url
-              }));
-            return { items: rows };
-          } catch (e2) {
-            return { error: 'news search failed', detail: e2.message };
-          }
+          console.warn('[chat search_news]', err.message);
+          return { error: 'news search failed', detail: err.message };
         }
       }
 
@@ -3942,8 +3924,11 @@ app.post('/api/chat', async (req, res) => {
       .map(m => ({ role: (m.role === 'assistant' ? 'assistant' : 'user'), content: m.content.slice(0, 6000) }))
       .slice(-12);
 
+    // Only treat a real session cookie as "logged in". The anon middleware
+    // assigns req.uid to every visitor, so using that would make get_watchlist
+    // think an anon user is signed in.
     const sess = getSession(req);
-    const uid = sess?.uid || req.uid || null;
+    const uid = sess?.uid || null;
 
     // SSE setup
     res.setHeader('Content-Type', 'text/event-stream');
