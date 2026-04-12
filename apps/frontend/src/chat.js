@@ -575,6 +575,9 @@ function buildController(root) {
     }
   });
 
+  // Render the launcher immediately so it's visible on load
+  renderAll();
+
   // Public API
   return { open: openChat, close: closeChat, reset: resetChat };
 }

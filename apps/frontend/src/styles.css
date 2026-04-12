@@ -1662,7 +1662,7 @@ button#user-menu-btn.menu-btn {
 .fab {
   position: fixed;
   right: max(16px, env(safe-area-inset-right));
-  bottom: max(16px, env(safe-area-inset-bottom));
+  bottom: max(90px, calc(env(safe-area-inset-bottom) + 90px));
   z-index: 1000;
   display: inline-grid;
   place-items: center;
@@ -4382,7 +4382,7 @@ body.clg-theme-dark .footer {
 .clg-chat-launcher {
   position: fixed;
   right: 24px;
-  bottom: calc(96px + env(safe-area-inset-bottom, 0));
+  bottom: max(24px, env(safe-area-inset-bottom, 24px));
   display: inline-flex;
   align-items: center;
   gap: 9px;
