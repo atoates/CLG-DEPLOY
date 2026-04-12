@@ -4216,6 +4216,321 @@ Return ONLY the JSON object, no prose.`;
   }
 });
 
+// ---------------------------------------------------------------------------
+// Quick-create alert: accepts a URL or raw text, fetches the page if needed,
+// runs the AI drafter, then publishes the alert immediately. One-shot flow
+// for the admin "paste a link or info" box.
+// ---------------------------------------------------------------------------
+
+function extractFirstUrl(s) {
+  if (!s) return null;
+  const m = String(s).match(/https?:\/\/[^\s<>"')]+/i);
+  return m ? m[0] : null;
+}
+
+function looksLikeOnlyUrl(s) {
+  const trimmed = String(s || '').trim();
+  if (!trimmed) return false;
+  return /^https?:\/\/\S+$/i.test(trimmed);
+}
+
+async function fetchAndExtractUrl(url) {
+  // Server-side fetch with a reasonable UA and timeout.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const r = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; CryptoLifeguardBot/1.0; +https://crypto-lifeguard.com)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-GB,en;q=0.9'
+      },
+      signal: controller.signal,
+      redirect: 'follow'
+    });
+    clearTimeout(timeout);
+    if (!r.ok) throw new Error(`fetch ${r.status}`);
+    const ct = String(r.headers.get('content-type') || '');
+    if (!/text\/html|application\/xhtml|text\/plain|application\/json/i.test(ct)) {
+      throw new Error(`unsupported content-type: ${ct}`);
+    }
+    const html = await r.text();
+
+    // Basic extraction without any DOM lib.
+    const pick = (re) => { const m = html.match(re); return m ? m[1].trim() : ''; };
+    const stripTags = (s) => String(s || '')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const title =
+      pick(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i) ||
+      pick(/<meta\s+name=["']twitter:title["']\s+content=["']([^"']+)["']/i) ||
+      pick(/<title[^>]*>([\s\S]*?)<\/title>/i);
+
+    const description =
+      pick(/<meta\s+property=["']og:description["']\s+content=["']([^"']+)["']/i) ||
+      pick(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i) ||
+      pick(/<meta\s+name=["']twitter:description["']\s+content=["']([^"']+)["']/i);
+
+    const siteName =
+      pick(/<meta\s+property=["']og:site_name["']\s+content=["']([^"']+)["']/i);
+
+    // Prefer <article>, then <main>, then whole body.
+    let bodyHtml =
+      (html.match(/<article[\s\S]*?<\/article>/i) || [])[0] ||
+      (html.match(/<main[\s\S]*?<\/main>/i) || [])[0] ||
+      (html.match(/<body[\s\S]*?<\/body>/i) || [])[0] ||
+      html;
+
+    const bodyText = stripTags(bodyHtml).slice(0, 6000);
+
+    return {
+      url,
+      title: stripTags(title),
+      description: stripTags(description),
+      siteName: stripTags(siteName),
+      bodyText
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+app.post('/admin/ai/quick-create-alert', requireAdmin, async (req, res) => {
+  try {
+    const { input, hint_token } = req.body || {};
+    if (!input || String(input).trim().length < 4) {
+      return res.status(400).json({ error: 'input is required (paste a URL or some text)' });
+    }
+
+    const rawInput = String(input).trim();
+    const firstUrl = extractFirstUrl(rawInput);
+    const isOnlyUrl = looksLikeOnlyUrl(rawInput);
+
+    let sourceUrl = firstUrl || '';
+    let draftText = rawInput;
+    let fetched = null;
+
+    if (firstUrl) {
+      try {
+        fetched = await fetchAndExtractUrl(firstUrl);
+        if (fetched) {
+          const parts = [
+            fetched.title ? `Title: ${fetched.title}` : null,
+            fetched.siteName ? `Source: ${fetched.siteName}` : null,
+            fetched.description ? `Summary: ${fetched.description}` : null,
+            fetched.bodyText ? `Body:\n${fetched.bodyText}` : null,
+          ].filter(Boolean);
+          // If the user pasted more than just a URL, keep that context too.
+          if (!isOnlyUrl) parts.push(`Admin note:\n${rawInput}`);
+          draftText = parts.join('\n\n');
+        }
+      } catch (fetchErr) {
+        console.warn('[quick-create-alert] URL fetch failed:', fetchErr.message);
+        // Fall back to drafting from the raw input alone.
+      }
+    }
+
+    // Delegate the AI drafting by re-using the same JSON-mode providers
+    // inline so we don't have to refactor the existing route.
+    const validTags = [
+      'price-change','migration','hack','fork','scam','airdrop','whale',
+      'news','community','exploit','privacy','community-vote','token-unlocks'
+    ];
+    const validSeverities = ['critical','warning','info'];
+    const validSourceTypes = ['anonymous','mainstream-media','trusted-source','social-media','dev-team'];
+
+    const systemPrompt = `You are a senior crypto-security analyst for Crypto Lifeguard.
+You write concise, accurate, actionable alerts for crypto holders.
+
+Output STRICT JSON only (no markdown fences, no commentary) with this exact shape:
+{
+  "token": "<primary ticker symbol, upper-case, 2-6 chars>",
+  "title": "<max 80 chars, specific, no clickbait>",
+  "body": "<2-4 sentence description: what happened, who it affects, what to do>",
+  "severity": "critical" | "warning" | "info",
+  "tags": [<one or more of: ${validTags.join(', ')}>],
+  "deadline_days": <integer 1-90 if time sensitive, else null>,
+  "source_type": "anonymous" | "mainstream-media" | "trusted-source" | "social-media" | "dev-team",
+  "reasoning": "<1-2 sentence explanation of severity + tag choices>"
+}
+
+Severity guidelines:
+- critical: active exploit, hack confirmed, exchange halt, major regulatory ban, stablecoin depeg
+- warning: upcoming hard fork / migration, token unlock cliff, suspicious movement, governance vote deadline, fraud allegation
+- info: general announcement, partnership, release, market commentary, price milestone`;
+
+    const userPrompt = `Draft an alert from this source material.
+${hint_token ? `The admin suggested primary token is: ${hint_token}\n` : ''}${sourceUrl ? `Source URL: ${sourceUrl}\n` : ''}
+---
+${String(draftText).slice(0, 5000)}
+---
+
+Return ONLY the JSON object, no prose.`;
+
+    async function callOpenAIJson() {
+      if (!OPENAI_API_KEY) throw new Error('no-openai');
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 700,
+          response_format: { type: 'json_object' }
+        })
+      });
+      try { await trackAPICall('OpenAI', '/v1/chat/completions'); } catch(_) {}
+      if (!r.ok) throw new Error(`openai ${r.status}`);
+      const d = await r.json();
+      return { content: d.choices[0].message.content, model: 'OpenAI gpt-4o-mini' };
+    }
+
+    async function callAnthropicJson() {
+      if (!ANTHROPIC_API_KEY) throw new Error('no-anthropic');
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': ANTHROPIC_API_KEY,
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 700,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt + '\n\nRespond with ONLY the JSON object.' }]
+        })
+      });
+      try { await trackAPICall('Anthropic', '/v1/messages'); } catch(_) {}
+      if (!r.ok) throw new Error(`anthropic ${r.status}`);
+      const d = await r.json();
+      const txt = (d.content && d.content[0] && d.content[0].text) || '';
+      return { content: txt, model: 'Anthropic claude-3-5-sonnet' };
+    }
+
+    let raw = null;
+    let usedModel = null;
+    for (const fn of [callOpenAIJson, callAnthropicJson]) {
+      try {
+        const out = await fn();
+        raw = out.content;
+        usedModel = out.model;
+        break;
+      } catch (e) {
+        console.warn('[quick-create-alert] provider failed:', e && e.message);
+      }
+    }
+
+    if (!raw) {
+      return res.status(503).json({
+        error: 'No AI provider available to draft this alert. Check OPENAI_API_KEY / ANTHROPIC_API_KEY.'
+      });
+    }
+
+    let draft;
+    try {
+      const cleaned = String(raw).replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+      draft = JSON.parse(cleaned);
+    } catch (e) {
+      return res.status(502).json({ error: 'AI returned malformed JSON', details: e.message });
+    }
+
+    // Normalise / sanitise (same rules as draft-alert)
+    const token = String(draft.token || hint_token || 'BTC')
+      .toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'BTC';
+    const title = (String(draft.title || '').trim() || `${token} update`).slice(0, 120);
+    const description = String(draft.body || draft.description || '').slice(0, 1200);
+    const severity = validSeverities.includes(String(draft.severity)) ? draft.severity : 'info';
+    const tags = Array.isArray(draft.tags)
+      ? Array.from(new Set(draft.tags.map(t => String(t).toLowerCase()).filter(t => validTags.includes(t))))
+      : [];
+    let deadline;
+    const dd = Number(draft.deadline_days);
+    if (Number.isFinite(dd) && dd > 0 && dd <= 365) {
+      const d = new Date();
+      d.setDate(d.getDate() + Math.floor(dd));
+      deadline = d.toISOString();
+    } else {
+      // Always need a deadline to publish — default to 7 days out if the model didn't pick one.
+      const d = new Date();
+      d.setDate(d.getDate() + 7);
+      deadline = d.toISOString();
+    }
+    const source_type = validSourceTypes.includes(String(draft.source_type))
+      ? draft.source_type
+      : (sourceUrl ? 'mainstream-media' : 'anonymous');
+    const reasoning = String(draft.reasoning || '').slice(0, 400);
+
+    // Build the alert payload and persist it using the same logic as POST /api/alerts.
+    let logoUrl = '';
+    try { logoUrl = await getLogoUrl(token) || ''; }
+    catch (err) { console.warn(`[quick-create-alert] logo fetch failed for ${token}:`, err.message); }
+
+    const item = {
+      id: `a_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      token,
+      title,
+      description,
+      severity,
+      deadline,
+      tags: tags.length ? tags : JSON.parse(getDefaultTags(severity)),
+      further_info: '',
+      source_type,
+      source_url: sourceUrl || '',
+      logo_url: logoUrl
+    };
+
+    alerts.push(item);
+    if (usingDatabaseAlerts) {
+      try {
+        await upsertAlert({
+          id: item.id,
+          token: item.token,
+          title: item.title,
+          description: item.description,
+          severity: item.severity,
+          deadline: item.deadline,
+          tags: JSON.stringify(item.tags),
+          further_info: item.further_info,
+          source_type: item.source_type,
+          source_url: item.source_url,
+          logo_url: item.logo_url
+        });
+        await reloadAlertsFromDatabase();
+      } catch (dbError) {
+        console.warn('[quick-create-alert] DB insert failed:', dbError.message);
+      }
+    } else {
+      persistAlerts();
+    }
+
+    res.status(201).json({
+      alert: item,
+      model: usedModel,
+      reasoning,
+      fetched: fetched ? { url: fetched.url, title: fetched.title, siteName: fetched.siteName } : null
+    });
+  } catch (error) {
+    console.error('[quick-create-alert] error:', error);
+    res.status(500).json({ error: 'Failed to quick-create alert', details: error && error.message });
+  }
+});
+
 // Create alert from admin panel (admin only)
 // Admin panel uses different field names: 'body' instead of 'description', optional deadline
 app.post('/admin/alerts', requireAdmin, async (req, res) => {

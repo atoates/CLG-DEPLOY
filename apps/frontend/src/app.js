@@ -64,13 +64,8 @@ const alertsListEl = document.getElementById('alerts-list');
 const noAlertsEl = document.getElementById('no-alerts');
 
 const panelAlerts = document.getElementById('panel-alerts');
-const panelSummary = document.getElementById('panel-summary');
 const panelNews = document.getElementById('panel-news');
 const panelMarket = document.getElementById('panel-market');
-
-// Summary controls (buttons will be bound in DOMContentLoaded)
-const summaryStampEl = document.getElementById('summary-stamp');
-const summaryModelSel = document.getElementById('summary-model');
 
 // Tabs and ancillary controls
 const tabs = document.querySelectorAll('.tab');
@@ -115,11 +110,6 @@ let tagFilter = [];
 // Market state
 let marketItems = [];
 let marketProvider = 'none';
-
-// Summary navigation button references (assigned in DOMContentLoaded)
-let summaryPrevBtn = null;
-let summaryNextBtn = null;
-let summaryRefreshBtn = null;
 
 /** Paginated alerts list (main feed mockup) */
 const ALERTS_PAGE_SIZE = 6;
@@ -246,7 +236,6 @@ function syncSevUi(){
         syncSevUi();
         persistPrefsServerDebounced();
         renderAlerts();
-        updateSummaryIfActive();
       });
     });
   }
@@ -264,7 +253,6 @@ if (showAllToggle){
     showAll = !!showAllToggle.checked;
     persistPrefsServerDebounced();
     renderAlerts();
-    updateSummaryIfActive();
   });
 }
 
@@ -273,7 +261,6 @@ function switchTab(tab){
   const name = String(tab || 'alerts');
   // Panels
   if (panelAlerts) panelAlerts.hidden = (name !== 'alerts');
-  if (panelSummary) panelSummary.hidden = (name !== 'summary');
   if (panelNews) panelNews.hidden = (name !== 'news');
   if (panelMarket) panelMarket.hidden = (name !== 'market');
   // Tabs active state
@@ -283,7 +270,6 @@ function switchTab(tab){
     t.setAttribute('aria-selected', String(is));
   });
   updateFilterVisibility(name);
-  if (name === 'summary') renderSummary();
   if (name === 'news') loadNews();
   if (name === 'market') loadMarket();
   // Refresh chat context for the Lifeguard AI widget so starter prompts adapt
@@ -511,61 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Summary history navigation buttons (assign to global variables, must run after DOM loads)
-  summaryPrevBtn = document.getElementById('summary-prev');
-  summaryNextBtn = document.getElementById('summary-next');
-  summaryRefreshBtn = document.getElementById('summary-refresh');
-
-  if (summaryPrevBtn){
-    summaryPrevBtn.addEventListener('click', async ()=>{
-      if (!summaryHistory.length){
-        summaryHistory = await fetchRecentSummaries(10);
-        summaryIndex = 0;
-      }
-      const nextIdx = Math.min(summaryIndex + 1, summaryHistory.length - 1);
-      if (nextIdx !== summaryIndex){
-        summaryIndex = nextIdx;
-        const item = summaryHistory[summaryIndex];
-        renderSummaryFromSaved(item);
-        updateSummaryStamp(item);
-        updateSummaryHistoryNav(summaryHistory, summaryIndex);
-      }
-    });
-  }
-
-  if (summaryNextBtn){
-    summaryNextBtn.addEventListener('click', async ()=>{
-      if (!summaryHistory.length){
-        summaryHistory = await fetchRecentSummaries(10);
-        summaryIndex = 0;
-      }
-      const nextIdx = Math.max(summaryIndex - 1, 0);
-      if (nextIdx !== summaryIndex){
-        summaryIndex = nextIdx;
-        const item = summaryHistory[summaryIndex];
-        renderSummaryFromSaved(item);
-        updateSummaryStamp(item);
-        updateSummaryHistoryNav(summaryHistory, summaryIndex);
-      }
-    });
-  }
-
-  if (summaryRefreshBtn){
-    summaryRefreshBtn.addEventListener('click', async ()=>{
-      // Force generate a fresh summary by calling generation directly
-      summaryHistory = [];
-      summaryIndex = -1;
-      await generateNewSummary(); // Force generation regardless of login state
-      // After generation, fetch and bind latest list again to enable nav
-      setTimeout(async ()=>{
-        const list = await fetchRecentSummaries(10);
-        if (list.length){
-          updateSummaryHistoryNav(list, 0);
-          updateSummaryStamp(list[0]);
-        }
-      }, 1000);
-    });
-  }
+  // Summary tab was removed — Lifeguard AI chat widget now covers this use case.
 });
 
 // --- Init (boot) -------------------------------------------------------------
@@ -673,21 +605,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
   if (showAllTokensToggle) showAllTokensToggle.checked = !!showAllTokens;
   syncSevUi();
-
-  // Restore summary model selection
-  if (summaryModelSel){
-    try {
-      const savedModel = localStorage.getItem('clg_summary_model');
-      // Normalize 'auto' to 'openai' (auto is deprecated)
-      if (savedModel === 'auto') {
-        summaryModelSel.value = 'openai';
-        localStorage.setItem('clg_summary_model', 'openai');
-      } else if (savedModel) {
-        summaryModelSel.value = savedModel;
-      }
-      // If no saved model, dropdown will use its default (OpenAI selected in HTML)
-    } catch {}
-  }
 
   // Render + load data
   renderDatalist();
@@ -1224,7 +1141,6 @@ function toggleTagFilter(tag) {
   updateTagButtonStates();
   updateDropdownText();
   renderAlerts();
-  updateSummaryIfActive();
 }
 
 function updateTagButtonStates() {
@@ -1253,13 +1169,12 @@ function updateDropdownText() {
 
 function resetTagFilters() {
   tagFilter = [];
-  
+
   // Update tag button states in popup
   updateTagButtonStates();
-  
+
   updateDropdownText();
   renderAlerts();
-  updateSummaryIfActive();
 }
 
 // Apply tag filter
@@ -1642,362 +1557,19 @@ function startTicking(){
   }, 1000);
 }
 
-// --- AI-Powered Summary ------------------------------------------------------
-// Force generate a new summary (called by Refresh button)
-async function generateNewSummary(){
-  const sc = document.getElementById('summary-content');
-  
-  // Show loading state with countdown
-  sc.innerHTML = `
-    <div class="loading-state">
-      <div class="countdown-container">
-        <div class="countdown-circle">
-          <svg class="countdown-svg" viewBox="0 0 100 100">
-            <circle class="countdown-track" cx="50" cy="50" r="45" fill="none" stroke="#e2e8f0" stroke-width="8"/>
-            <circle class="countdown-progress" cx="50" cy="50" r="45" fill="none" stroke="#3b82f6" stroke-width="8" 
-                    stroke-linecap="round" transform="rotate(-90 50 50)"/>
-          </svg>
-          <div class="countdown-number">30</div>
-        </div>
-        <p class="countdown-text">🤖 Generating AI summary...</p>
-      </div>
-    </div>
-  `;
-  
-  // Start countdown animation
-  let countdownSeconds = 30;
-  const countdownNumber = sc.querySelector('.countdown-number');
-  const countdownProgress = sc.querySelector('.countdown-progress');
-  const circumference = 2 * Math.PI * 45; // radius = 45
-  
-  countdownProgress.style.strokeDasharray = circumference;
-  countdownProgress.style.strokeDashoffset = 0;
-  
-  window.currentCountdownInterval = setInterval(() => {
-    countdownSeconds--;
-    countdownNumber.textContent = countdownSeconds;
-    
-    // Update progress circle
-    const progress = (30 - countdownSeconds) / 30;
-    const offset = circumference * (1 - progress);
-    countdownProgress.style.strokeDashoffset = offset;
-    
-    if (countdownSeconds <= 0) {
-      clearInterval(window.currentCountdownInterval);
-      countdownNumber.textContent = '⏳';
-      sc.querySelector('.countdown-text').textContent = '🤖 Finalizing summary...';
-    }
-  }, 1000);
-  
-  if (!selectedTokens.length && !showAllTokens) {
-    sc.innerHTML = '<p class="muted">Select some tokens to see an AI-generated summary of your alerts.</p>';
-    return;
-  }
-
-  try {
-    // Get visible alerts (same filtering as main alerts view)
-    const visibleAlerts = getVisibleAlerts();
-    
-    if (visibleAlerts.length === 0) {
-      sc.innerHTML = '<p class="muted">No alerts match your current filters. Adjust your severity or tag filters to see a summary.</p>';
-      return;
-    }
-
-    // Call AI summary API
-    const response = await apiFetch(apiUrl('/api/summary/generate'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        alerts: visibleAlerts,
-        tokens: showAllTokens ? getUniqueTokensFromAlerts(visibleAlerts) : selectedTokens,
-        sevFilter: sevFilter,
-        tagFilter: tagFilter,
-        model: getSelectedModel()
-      })
-    });
-
-    if (!response.ok) {
-      // If 401, user needs to log in
-      if (response.status === 401) {
-        if (window.currentCountdownInterval) {
-          clearInterval(window.currentCountdownInterval);
-        }
-        // Show the login prompt
-        sc.innerHTML = `
-          <div class="summary-login-prompt">
-            <h2 class="summary-login-title">🤖 AI-Powered Alert Summaries</h2>
-            <p class="summary-login-sub">
-              Get intelligent analysis of your crypto alerts with AI-generated summaries.
-            </p>
-            <div class="summary-login-features">
-              <p class="summary-login-features-label"><strong>✨ Features include:</strong></p>
-              <ul class="summary-login-features-list">
-                <li>Multi-model AI analysis (OpenAI, Anthropic, xAI)</li>
-                <li>Severity-based prioritization</li>
-                <li>Historical summary tracking</li>
-                <li>Customizable filters and preferences</li>
-              </ul>
-            </div>
-            <a href="${apiUrl('/auth/google')}" class="summary-login-btn">
-              Sign in with Google to Continue
-            </a>
-          </div>
-        `;
-        return;
-      }
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    // Clear countdown timer
-    if (window.currentCountdownInterval) {
-      clearInterval(window.currentCountdownInterval);
-    }
-    
-    // Render the AI summary
-    sc.innerHTML = '';
-    
-    const header = document.createElement('div');
-    header.className = 'summary-header';
-    
-    // Format usage info
-    let usageInfo = '';
-    if (data.usage) {
-      if (data.usage.total_tokens) {
-        usageInfo = ` • ${data.usage.total_tokens} API tokens`;
-      } else if (data.usage.input_tokens && data.usage.output_tokens) {
-        usageInfo = ` • ${data.usage.input_tokens + data.usage.output_tokens} API tokens`;
-      }
-    }
-    
-    const ts = new Date(data.timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', year:'numeric', month:'short', day:'2-digit', timeZoneName:'short' });
-    header.innerHTML = `
-      <h2 class="section-title">🤖 AI Portfolio Summary</h2>
-      <div class="summary-meta">
-        <span>${data.alertCount} alerts • ${data.tokenCount} crypto tokens${usageInfo}</span>
-        <span class="model-info">Generated by ${data.model} • ${ts}</span>
-      </div>
-    `;
-    sc.appendChild(header);
-
-    const summaryContent = document.createElement('div');
-    summaryContent.className = 'summary-text';
-    
-    // Convert markdown-style formatting to HTML
-    const formattedSummary = formatSummaryText(data.summary);
-    summaryContent.innerHTML = formattedSummary;
-    
-    sc.appendChild(summaryContent);
-
-    // Update the news tab if news data is available
-    if (data.news && data.news.length > 0) {
-      updateNewsTab(data.news);
-    } else {
-      clearNewsTab();
-    }
-
-    // Refresh summary history to enable prev/next navigation
-    try {
-      const recent = await fetchRecentSummaries(10);
-      updateSummaryHistoryNav(recent, 0); // Set to index 0 (newest)
-    } catch (histErr) {
-      /* silently ignore */
-    }
-
-  } catch (error) {
-    console.error('Failed to generate AI summary:', error);
-    
-    // Clear countdown timer
-    if (window.currentCountdownInterval) {
-      clearInterval(window.currentCountdownInterval);
-    }
-    
-    // Fallback to basic summary
-    sc.innerHTML = '';
-    const header = document.createElement('h2');
-    header.className = 'section-title';
-    header.textContent = '📊 Basic Summary';
-    sc.appendChild(header);
-
-    const fallback = generateBasicSummary();
-    const content = document.createElement('div');
-    content.innerHTML = fallback;
-    sc.appendChild(content);
-
-    const note = document.createElement('p');
-    note.className = 'muted';
-    note.textContent = 'AI summary unavailable. Check API configuration.';
-    sc.appendChild(note);
-  }
-}
-
-async function renderSummary(){
-  const sc = document.getElementById('summary-content');
-  
-  // If not logged in, show login prompt instead of auto-generating
-  if (!isLoggedIn) {
-    sc.innerHTML = `
-      <div class="summary-login-prompt">
-        <h2 class="summary-login-title">🤖 AI-Powered Alert Summaries</h2>
-        <p class="summary-login-sub">
-          Get intelligent analysis of your crypto alerts with AI-generated summaries.
-        </p>
-        <div class="summary-login-features">
-          <p class="summary-login-features-label"><strong>✨ Features include:</strong></p>
-          <ul class="summary-login-features-list">
-            <li>Multi-model AI analysis (OpenAI, Anthropic, xAI)</li>
-            <li>Severity-based prioritization</li>
-            <li>Historical summary tracking</li>
-            <li>Customizable filters and preferences</li>
-          </ul>
-        </div>
-        <a href="${apiUrl('/auth/google')}" class="summary-login-btn">
-          Sign in with Google to Continue
-        </a>
-      </div>
-    `;
-    updateSummaryHistoryNav([], -1);
-    return;
-  }
-  
-  // Try to load the most recent saved summary first (for logged-in users)
-  try {
-    const recent = await fetchRecentSummaries(10);
-    if (recent && recent.length > 0){
-      const item = recent[0];
-      renderSummaryFromSaved(item);
-      updateSummaryHistoryNav(recent, 0);
-      updateSummaryStamp(item);
-      return; // Show last generated response immediately
-    }
-  } catch(_) {}
-  
-  // If logged in and no history, show a helpful hint instead of auto-generating
-  if (isLoggedIn) {
-    sc.innerHTML = '<p class="muted">No saved summaries yet. Click <strong>Refresh</strong> to generate your first summary.</p>';
-    updateSummaryHistoryNav([], -1);
-    return;
-  }
-}
-
-// --- Summary History --------------------------------------------------------
-let summaryHistory = [];
-let summaryIndex = -1; // 0 is latest
-
-function updateSummaryStamp(item){
-  if (!summaryStampEl) return;
-  try{
-    const t = item.created_at || item.timestamp;
-    if (t) {
-      const ts = new Date(t).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', year:'numeric', month:'short', day:'2-digit', timeZoneName:'short' });
-      summaryStampEl.textContent = `Generated ${ts}`;
-    }
-    else summaryStampEl.textContent = '';
-  }catch{ summaryStampEl.textContent = ''; }
-}
-
-function renderSummaryFromSaved(item){
-  const sc = document.getElementById('summary-content');
-  sc.innerHTML = '';
-  const tokens = Array.isArray(item.tokens) ? item.tokens : [];
-  const usage = item.usage || null;
-  const alertCount = (item.alertIds || []).length;
-  let usageTotal = 0;
-  if (usage) {
-    usageTotal = usage.total_tokens || ((usage.input_tokens||0) + (usage.output_tokens||0)) || 0;
-  }
-  const modelName = item.model || 'AI';
-  const generatedTime = item.created_at ? new Date(item.created_at).toLocaleString(undefined, {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-  }) : '';
-
-  const header = document.createElement('div');
-  header.className = 'summary-header';
-  header.innerHTML = `
-    <div class="summary-hero">
-      <div class="summary-hero-top">
-        <div class="summary-hero-title">
-          <span class="summary-hero-emoji">🤖</span>
-          <div>
-            <h2 class="section-title">AI Portfolio Summary</h2>
-            <div class="summary-hero-sub">Generated by <span class="model-info">${escapeHtml(modelName)}</span>${generatedTime ? ` · ${escapeHtml(generatedTime)}` : ''}</div>
-          </div>
-        </div>
-      </div>
-      <div class="summary-stats-row">
-        <div class="summary-stat">
-          <div class="summary-stat-value">${alertCount.toLocaleString()}</div>
-          <div class="summary-stat-label">${alertCount === 1 ? 'Alert' : 'Alerts'}</div>
-        </div>
-        <div class="summary-stat">
-          <div class="summary-stat-value">${tokens.length.toLocaleString()}</div>
-          <div class="summary-stat-label">${tokens.length === 1 ? 'Token' : 'Tokens'}</div>
-        </div>
-        <div class="summary-stat">
-          <div class="summary-stat-value">${usageTotal ? usageTotal.toLocaleString() : '—'}</div>
-          <div class="summary-stat-label">API tokens</div>
-        </div>
-      </div>
-      ${tokens.length ? `<div class="summary-token-chips">${tokens.slice(0, 12).map(t => `<span class="summary-token-chip">${escapeHtml(t)}</span>`).join('')}${tokens.length > 12 ? `<span class="summary-token-chip summary-token-more">+${tokens.length - 12}</span>` : ''}</div>` : ''}
-    </div>
-  `;
-  sc.appendChild(header);
-
-  const body = document.createElement('div');
-  body.className = 'summary-text';
-  body.innerHTML = formatSummaryText(item.content || '');
-  sc.appendChild(body);
-}
-
-function updateSummaryHistoryNav(list, idx){
-  summaryHistory = list.slice();
-  summaryIndex = idx;
-  if (summaryPrevBtn) summaryPrevBtn.disabled = (idx >= list.length - 1);
-  if (summaryNextBtn) summaryNextBtn.disabled = (idx <= 0);
-}
-
-async function fetchRecentSummaries(limit=10){
-  try{
-    const r = await apiFetch(apiUrl(`/api/summary/recent?limit=${limit}`));
-    if (!r.ok) return [];
-    const j = await r.json();
-    return Array.isArray(j.summaries) ? j.summaries : [];
-  }catch{ return []; }
-}
-
-// Helper function to get visible alerts (same logic as main view)
-function getVisibleAlerts() {
-  return getRelevantAlerts();
-}
-
-// Helper to update summary if it's the active tab
-function updateSummaryIfActive() {
-  if (!panelSummary.hidden) {
-    renderSummary();
-  }
-}
-
-// --- Summary model selection -----------------------------------------------
-function getSelectedModel(){
-  try {
-    if (summaryModelSel && summaryModelSel.value) return summaryModelSel.value;
-    const saved = localStorage.getItem('clg_summary_model');
-    return saved || 'openai'; // Default to OpenAI
-  } catch { return 'openai'; }
-}
-if (summaryModelSel){
-  summaryModelSel.addEventListener('change', () => {
-    try { localStorage.setItem('clg_summary_model', summaryModelSel.value); } catch {}
-    updateSummaryIfActive();
-  });
-}
-
 // Helper function to get unique tokens from alerts
 function getUniqueTokensFromAlerts(alerts) {
   return [...new Set(alerts.map(a => a.token))].sort();
+}
+
+// Small HTML escape helper (used by news tab templating)
+function escapeHtml(str){
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // Relative time helper (e.g. "3h ago", "2d ago")
@@ -2019,123 +1591,6 @@ function relativeTimeFrom(date){
   if (mo < 12) return `${mo}mo ago`;
   const yr = Math.round(day / 365);
   return `${yr}y ago`;
-}
-
-// Format summary text - proper markdown renderer for headings, lists, bold, italic
-function escapeHtml(str){
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function formatInline(str){
-  // Escape first, then add inline styles
-  let s = escapeHtml(str);
-  // Code spans
-  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
-  // Bold (must come before italic)
-  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  // Italic
-  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
-  return s;
-}
-
-function formatSummaryText(text) {
-  if (!text) return '';
-  const lines = String(text).split('\n');
-  const out = [];
-  let i = 0;
-  let inUl = false;
-  let inOl = false;
-
-  const closeLists = () => {
-    if (inUl) { out.push('</ul>'); inUl = false; }
-    if (inOl) { out.push('</ol>'); inOl = false; }
-  };
-
-  while (i < lines.length) {
-    const raw = lines[i];
-    const line = raw.replace(/\s+$/, '');
-
-    // Blank line
-    if (!line.trim()) {
-      closeLists();
-      i++;
-      continue;
-    }
-
-    // Headings
-    const h3 = line.match(/^###\s+(.+)$/);
-    const h2 = line.match(/^##\s+(.+)$/);
-    const h1 = line.match(/^#\s+(.+)$/);
-    if (h3) { closeLists(); out.push(`<h3 class="md-h3">${formatInline(h3[1])}</h3>`); i++; continue; }
-    if (h2) { closeLists(); out.push(`<h2 class="md-h2">${formatInline(h2[1])}</h2>`); i++; continue; }
-    if (h1) { closeLists(); out.push(`<h1 class="md-h1">${formatInline(h1[1])}</h1>`); i++; continue; }
-
-    // Horizontal rule
-    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
-      closeLists(); out.push('<hr class="md-hr">'); i++; continue;
-    }
-
-    // Unordered list
-    const ul = line.match(/^\s*[-*+]\s+(.+)$/);
-    if (ul) {
-      if (!inUl) { closeLists(); out.push('<ul class="md-ul">'); inUl = true; }
-      out.push(`<li>${formatInline(ul[1])}</li>`);
-      i++; continue;
-    }
-
-    // Ordered list
-    const ol = line.match(/^\s*\d+\.\s+(.+)$/);
-    if (ol) {
-      if (!inOl) { closeLists(); out.push('<ol class="md-ol">'); inOl = true; }
-      out.push(`<li>${formatInline(ol[1])}</li>`);
-      i++; continue;
-    }
-
-    // Blockquote
-    const bq = line.match(/^>\s?(.*)$/);
-    if (bq) {
-      closeLists();
-      out.push(`<blockquote class="md-bq">${formatInline(bq[1])}</blockquote>`);
-      i++; continue;
-    }
-
-    // Paragraph (collect consecutive non-blank, non-special lines)
-    closeLists();
-    const paraLines = [line];
-    i++;
-    while (i < lines.length) {
-      const nxt = lines[i];
-      if (!nxt.trim()) break;
-      if (/^(#{1,6}\s+|>\s?|\s*[-*+]\s+|\s*\d+\.\s+|-{3,}|\*{3,}|_{3,})/.test(nxt)) break;
-      paraLines.push(nxt.replace(/\s+$/, ''));
-      i++;
-    }
-    out.push(`<p>${paraLines.map(formatInline).join('<br>')}</p>`);
-  }
-  closeLists();
-  return out.join('\n');
-}
-
-// Basic fallback summary
-function generateBasicSummary() {
-  const visibleAlerts = getVisibleAlerts();
-  const criticalCount = visibleAlerts.filter(a => a.severity === 'critical').length;
-  const warningCount = visibleAlerts.filter(a => a.severity === 'warning').length;
-  const infoCount = visibleAlerts.filter(a => a.severity === 'info').length;
-  
-  const tokens = showAllTokens ? getUniqueTokensFromAlerts(visibleAlerts) : selectedTokens;
-  
-  return `
-    <p><strong>Alert Overview:</strong> ${visibleAlerts.length} total alerts across ${tokens.length} tokens</p>
-    <p><strong>Severity Breakdown:</strong> ${criticalCount} critical, ${warningCount} warning, ${infoCount} info</p>
-    <p><strong>Monitored Tokens:</strong> ${tokens.join(', ')}</p>
-    <p><em>Enable AI analysis by configuring OpenAI or Anthropic API keys for detailed insights.</em></p>
-  `;
 }
 
 // --- News Tab Functions ---
@@ -2466,7 +1921,6 @@ function renderMarket(){
 function renderAll(){
   renderPills();
   renderAlerts();
-  renderSummary();
 }
 
 // --- Expose functions to window for HTML event handlers ---

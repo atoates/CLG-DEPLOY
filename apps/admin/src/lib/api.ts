@@ -168,3 +168,36 @@ export async function draftAlert(input: DraftAlertInput): Promise<DraftAlertResp
   const { data } = await api.post('/admin/ai/draft-alert', input)
   return data
 }
+
+export interface QuickCreateAlertInput {
+  input: string
+  hint_token?: string
+}
+
+export interface QuickCreateAlertResponse {
+  alert: {
+    id: string
+    token: string
+    title: string
+    description: string
+    severity: 'critical' | 'warning' | 'info'
+    tags: string[]
+    deadline: string
+    source_type?: string
+    source_url?: string
+    logo_url?: string
+    further_info?: string
+  }
+  model: string
+  reasoning?: string
+  fetched?: { url: string; title: string; siteName: string } | null
+}
+
+/**
+ * One-shot: paste a link or a blob of text and let the backend fetch, draft
+ * AND publish the alert in a single request. Returns the created alert.
+ */
+export async function quickCreateAlert(input: QuickCreateAlertInput): Promise<QuickCreateAlertResponse> {
+  const { data } = await api.post('/admin/ai/quick-create-alert', input)
+  return data
+}

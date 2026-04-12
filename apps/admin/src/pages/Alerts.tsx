@@ -22,8 +22,9 @@ import {
   Copy,
   Check,
   RefreshCw,
+  Zap,
 } from 'lucide-react'
-import { api, draftAlert } from '../lib/api'
+import { api, draftAlert, quickCreateAlert } from '../lib/api'
 
 interface Alert {
   id: string
@@ -112,6 +113,18 @@ export function Alerts() {
   const [aiReasoning, setAiReasoning] = useState('')
   const [composer, setComposer] = useState<ComposerState>(emptyComposer())
   const [publishSuccess, setPublishSuccess] = useState(false)
+
+  // quick create (paste link/text → auto publish)
+  const [quickInput, setQuickInput] = useState('')
+  const [quickLoading, setQuickLoading] = useState(false)
+  const [quickError, setQuickError] = useState('')
+  const [quickSuccess, setQuickSuccess] = useState<null | {
+    token: string
+    title: string
+    severity: string
+    source?: string
+    model: string
+  }>(null)
 
   // feed
   const [searchTerm, setSearchTerm] = useState('')
@@ -224,6 +237,34 @@ export function Alerts() {
     createAlertMutation.mutate(composer)
   }
 
+  async function handleQuickCreate() {
+    const trimmed = quickInput.trim()
+    if (trimmed.length < 4) {
+      setQuickError('Paste a link or a few words of context.')
+      return
+    }
+    setQuickError('')
+    setQuickLoading(true)
+    setQuickSuccess(null)
+    try {
+      const { alert, model, fetched } = await quickCreateAlert({ input: trimmed })
+      queryClient.invalidateQueries({ queryKey: ['alerts'] })
+      setQuickSuccess({
+        token: alert.token,
+        title: alert.title,
+        severity: alert.severity,
+        source: fetched?.siteName || fetched?.url || alert.source_url || '',
+        model: model || '',
+      })
+      setQuickInput('')
+      setTimeout(() => setQuickSuccess(null), 6000)
+    } catch (e: any) {
+      setQuickError(e?.response?.data?.error || e?.message || 'Quick create failed')
+    } finally {
+      setQuickLoading(false)
+    }
+  }
+
   const filteredAlerts = useMemo(() => {
     if (!alerts) return []
     const term = searchTerm.trim().toLowerCase()
@@ -290,6 +331,107 @@ export function Alerts() {
 
   return (
     <div className="space-y-6 animate-fade-up">
+      {/* =============== QUICK CREATE =============== */}
+      <section className="glass-card relative overflow-hidden p-6">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-gradient-to-br from-teal-400/25 via-cyan-400/10 to-indigo-500/20 blur-3xl"
+        />
+        <div className="relative">
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-indigo-600 shadow-glow-teal">
+                <Zap className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <div className="section-title">Quick create</div>
+                <h2 className="font-display text-2xl font-bold text-white">
+                  Paste a link or info &rarr; publish
+                </h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Drop a URL, a headline, a tweet or a full article. The AI fetches the
+                  page if needed, picks the token, severity and tags, and publishes the
+                  alert in one step.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-teal-400/25 bg-slate-900/40 p-4">
+            <textarea
+              className="input h-28 resize-none font-mono text-sm leading-relaxed"
+              placeholder={`https://www.coindesk.com/...   — or —\nMajor DEX drained for $40m, team paused withdrawals, attacker address flagged.`}
+              value={quickInput}
+              onChange={(e) => {
+                setQuickInput(e.target.value)
+                setQuickError('')
+              }}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                  e.preventDefault()
+                  if (!quickLoading) handleQuickCreate()
+                }
+              }}
+              disabled={quickLoading}
+            />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs text-slate-500">
+                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-300">
+                  {typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl'}
+                </kbd>{' '}
+                + <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-300">Enter</kbd>{' '}
+                to publish
+              </div>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleQuickCreate}
+                disabled={quickLoading || quickInput.trim().length < 4}
+              >
+                {quickLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Drafting &amp; publishing…
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4" />
+                    Generate &amp; publish
+                  </>
+                )}
+              </button>
+            </div>
+
+            {quickError && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{quickError}</span>
+              </div>
+            )}
+
+            {quickSuccess && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-teal-400/30 bg-teal-500/10 p-3 text-sm text-teal-100">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-teal-300" />
+                <div className="flex-1">
+                  <div className="font-semibold text-white">
+                    Published{' '}
+                    <span className={`badge ${sevClass(quickSuccess.severity)} ml-1`}>
+                      {sevIcon(quickSuccess.severity)}
+                      {quickSuccess.severity}
+                    </span>{' '}
+                    {quickSuccess.token} — {quickSuccess.title}
+                  </div>
+                  <div className="mt-0.5 text-xs text-teal-200/80">
+                    {quickSuccess.source ? `Source: ${quickSuccess.source} · ` : ''}
+                    Drafted with {quickSuccess.model}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* =============== COMPOSER =============== */}
       <section className="glass-card p-6">
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
