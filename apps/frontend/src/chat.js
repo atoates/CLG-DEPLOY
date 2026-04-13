@@ -10,7 +10,7 @@
  *   - Glass panel with header, scroll-follow message list, composer
  *   - Streaming assistant responses via Server-Sent Events
  *   - Tool-use status pills ("Checking BTC price...", "Searching news...")
- *   - Lightweight markdown rendering (bold, italic, code, inline links, lists)
+ *   - Extended markdown (bold, italic, code blocks, headings, lists, links)
  *   - Suggested starter prompts that adapt to the current page context
  *   - Conversation persistence in localStorage (24h rolling)
  *   - Keyboard shortcuts: Cmd/Ctrl+K opens, Esc closes, Enter sends, Shift+Enter newlines
@@ -40,6 +40,16 @@ let state = {
   notificationsChecked: false
 };
 
+// ---- Time-of-day greeting -------------------------------------------------
+function getTimeGreeting() {
+  const h = new Date().getHours();
+  if (h < 5)  return { greeting: 'Burning the midnight oil?', period: 'night' };
+  if (h < 12) return { greeting: 'Good morning', period: 'morning' };
+  if (h < 17) return { greeting: 'Good afternoon', period: 'afternoon' };
+  if (h < 21) return { greeting: 'Good evening', period: 'evening' };
+  return { greeting: 'Evening', period: 'night' };
+}
+
 // ---- Starter prompts (contextual) -----------------------------------------
 function getStarterPrompts() {
   const ctx = window.CLG_CHAT_CONTEXT || {};
@@ -48,23 +58,31 @@ function getStarterPrompts() {
       { icon: '📈', text: `What's the latest on ${ctx.token}?` },
       { icon: '🛡️', text: `Any security warnings for ${ctx.token}?` },
       { icon: '📰', text: `Show me recent news about ${ctx.token}` },
-      { icon: '💡', text: `Explain ${ctx.token} in two sentences` }
+      { icon: '💡', text: `Explain ${ctx.token} in simple terms` }
     ];
   }
   if (ctx.page === 'news') {
     return [
       { icon: '🔥', text: 'What are the biggest crypto stories today?' },
-      { icon: '🛡️', text: 'Any active hacks or exploits I should know about?' },
+      { icon: '🛡️', text: 'Any active hacks or exploits right now?' },
       { icon: '📊', text: 'How is Bitcoin performing right now?' },
-      { icon: '🎯', text: 'Summarise the last 24h in one paragraph' }
+      { icon: '🎯', text: 'Give me a quick market summary' }
     ];
   }
-  return [
-    { icon: '👋', text: "What's happening in crypto right now?" },
+  const { period } = getTimeGreeting();
+  const base = [
     { icon: '🛡️', text: 'Any critical alerts I should know about?' },
     { icon: '📈', text: 'Show me BTC and ETH prices' },
-    { icon: '⭐', text: 'How is my watchlist doing today?' }
+    { icon: '⭐', text: 'How is my watchlist doing?' }
   ];
+  if (period === 'morning') {
+    base.unshift({ icon: '☀️', text: 'Give me a morning market briefing' });
+  } else if (period === 'night') {
+    base.unshift({ icon: '🌙', text: "What happened in crypto today?" });
+  } else {
+    base.unshift({ icon: '👋', text: "What's happening in crypto right now?" });
+  }
+  return base;
 }
 
 // ---- Persistence ----------------------------------------------------------
@@ -84,8 +102,10 @@ function saveHistory() {
   } catch {}
 }
 
-// ---- Minimal safe markdown renderer ---------------------------------------
-// Supports: **bold**, *italic*, `code`, [text](url), - bullet lists, line breaks
+// ---- Markdown renderer (extended) -----------------------------------------
+// Supports: **bold**, *italic*, `code`, ```code blocks```, [text](url),
+// - bullet lists, 1. numbered lists, ## headings, --- horizontal rules,
+// line breaks, bare URLs
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -94,12 +114,9 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
-function renderMarkdown(text) {
-  if (!text) return '';
-  // Escape first, then apply inline markdown
-  let html = escapeHtml(text);
 
-  // Code spans
+function applyInline(html) {
+  // Code spans (must be first to prevent inner formatting)
   html = html.replace(/`([^`]+?)`/g, '<code>$1</code>');
   // Bold (double star)
   html = html.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
@@ -107,25 +124,78 @@ function renderMarkdown(text) {
   html = html.replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
   // Links [text](url)
   html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>');
-  // Bare URLs
+  // Bare URLs (not inside href="")
   html = html.replace(/(^|\s)(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noreferrer noopener">$2</a>');
+  return html;
+}
 
-  // Bullet lists: lines starting with "- " or "* "
+function renderMarkdown(text) {
+  if (!text) return '';
+
+  // Handle fenced code blocks first (before escaping)
+  const codeBlocks = [];
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const placeholder = `\x00CB${codeBlocks.length}\x00`;
+    codeBlocks.push(`<pre class="clg-code-block"><code>${escapeHtml(code.trim())}</code></pre>`);
+    return placeholder;
+  });
+
+  let html = escapeHtml(text);
+
+  // Restore code block placeholders
+  for (let i = 0; i < codeBlocks.length; i++) {
+    html = html.replace(`\x00CB${i}\x00`, codeBlocks[i]);
+  }
+
   const lines = html.split('\n');
   const out = [];
-  let inList = false;
+  let listType = null; // 'ul' | 'ol' | null
+
   for (const line of lines) {
-    const m = line.match(/^\s*[-*]\s+(.*)$/);
-    if (m) {
-      if (!inList) { out.push('<ul>'); inList = true; }
-      out.push(`<li>${m[1]}</li>`);
-    } else {
-      if (inList) { out.push('</ul>'); inList = false; }
-      if (line.trim() === '') out.push('<br>');
-      else out.push(`<p>${line}</p>`);
+    // Check for code block placeholder (already rendered)
+    if (line.includes('<pre class="clg-code-block">')) {
+      if (listType) { out.push(`</${listType}>`); listType = null; }
+      out.push(line);
+      continue;
     }
+    // Horizontal rule
+    if (/^\s*[-*_]{3,}\s*$/.test(line)) {
+      if (listType) { out.push(`</${listType}>`); listType = null; }
+      out.push('<hr class="clg-hr">');
+      continue;
+    }
+    // Headings (## or ###)
+    const headingMatch = line.match(/^(#{1,3})\s+(.*)$/);
+    if (headingMatch) {
+      if (listType) { out.push(`</${listType}>`); listType = null; }
+      const level = Math.min(headingMatch[1].length + 2, 6); // ## -> h4, ### -> h5
+      out.push(`<h${level} class="clg-heading">${applyInline(headingMatch[2])}</h${level}>`);
+      continue;
+    }
+    // Bullet list
+    const bulletMatch = line.match(/^\s*[-*]\s+(.*)$/);
+    if (bulletMatch) {
+      if (listType === 'ol') { out.push('</ol>'); listType = null; }
+      if (!listType) { out.push('<ul>'); listType = 'ul'; }
+      out.push(`<li>${applyInline(bulletMatch[1])}</li>`);
+      continue;
+    }
+    // Numbered list
+    const numMatch = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (numMatch) {
+      if (listType === 'ul') { out.push('</ul>'); listType = null; }
+      if (!listType) { out.push('<ol>'); listType = 'ol'; }
+      out.push(`<li>${applyInline(numMatch[1])}</li>`);
+      continue;
+    }
+    // Close any open list
+    if (listType) { out.push(`</${listType}>`); listType = null; }
+    // Empty line
+    if (line.trim() === '') { out.push('<br>'); continue; }
+    // Normal paragraph
+    out.push(`<p>${applyInline(line)}</p>`);
   }
-  if (inList) out.push('</ul>');
+  if (listType) out.push(`</${listType}>`);
   return out.join('');
 }
 
@@ -275,13 +345,13 @@ async function fetchNotificationsGreeting(bodyEl) {
     const count = unread.length;
     const types = {};
     for (const n of unread) { types[n.type] = (types[n.type] || 0) + 1; }
-    let text = `You have ${count} new notification${count > 1 ? 's' : ''}`;
+    let text = `Heads up: ${count} thing${count > 1 ? 's' : ''} happened while you were away`;
     const parts = [];
     if (types.portfolio_alert) parts.push(`${types.portfolio_alert} portfolio alert${types.portfolio_alert > 1 ? 's' : ''}`);
     if (types.price_trigger) parts.push(`${types.price_trigger} price trigger${types.price_trigger > 1 ? 's' : ''}`);
-    if (types.digest_ready) parts.push('a new weekly digest');
-    if (parts.length) text += ': ' + parts.join(', ');
-    text += '. Ask me about them!';
+    if (types.digest_ready) parts.push('your weekly digest is ready');
+    if (parts.length) text += ' \u2013 ' + parts.join(', ');
+    text += '. Just ask and I\'ll fill you in.';
     const banner = el('div', { class: 'clg-notif-greeting' }, [
       el('span', { class: 'clg-notif-greeting__icon', html: '🔔' }),
       el('span', { class: 'clg-notif-greeting__text' }, [text])
@@ -332,7 +402,7 @@ function buildPanel({ onClose, onSend, onReset, onStarter }) {
       el('span', { class: 'clg-chat-brand__icon', html: shieldSvg() }),
       el('div', { class: 'clg-chat-brand__text' }, [
         el('div', { class: 'clg-chat-brand__title' }, ['Sentinel AI']),
-        el('div', { class: 'clg-chat-brand__sub' }, ['Your crypto co-pilot'])
+        el('div', { class: 'clg-chat-brand__sub' }, ['Your crypto guardian'])
       ])
     ]),
     el('div', { class: 'clg-chat-header__actions' }, [
@@ -361,7 +431,7 @@ function buildPanel({ onClose, onSend, onReset, onStarter }) {
   // Composer
   const textarea = el('textarea', {
     class: 'clg-chat-textarea',
-    placeholder: 'Ask Sentinel AI anything about crypto…',
+    placeholder: 'Ask me anything about crypto…',
     rows: '1',
     'aria-label': 'Message'
   });
@@ -404,17 +474,25 @@ function buildPanel({ onClose, onSend, onReset, onStarter }) {
 // ---- Message rendering ----------------------------------------------------
 function renderWelcome(bodyEl, onStarter) {
   const starters = getStarterPrompts();
+  const { greeting } = getTimeGreeting();
   const wrap = el('div', { class: 'clg-chat-welcome' }, [
-    el('div', { class: 'clg-chat-welcome__badge' }, ['Sentinel AI · beta']),
-    el('h3', { class: 'clg-chat-welcome__title' }, ["Hi, I'm your crypto co-pilot"]),
+    el('div', { class: 'clg-chat-welcome__badge' }, [
+      el('span', { class: 'clg-chat-welcome__status' }),
+      'Sentinel AI · online'
+    ]),
+    el('h3', { class: 'clg-chat-welcome__title' }, [`${greeting}. I'm Sentinel.`]),
     el('p', { class: 'clg-chat-welcome__lede' }, [
-      'Ask me about live prices, active alerts, recent news, or anything on your watchlist. I have access to real-time data, so I won\'t guess.'
+      'Your personal crypto guardian. I track live prices, surface security threats, and keep an eye on your portfolio, all backed by real-time data.'
     ]),
     el('div', { class: 'clg-chat-skills' }, [
-      skillPill('📈', 'Market Analyst'),
-      skillPill('🛡️', 'Security Watchdog'),
-      skillPill('📰', 'News Scout'),
-      skillPill('⭐', 'Watchlist Coach')
+      skillPill('📈', 'Market Analysis'),
+      skillPill('🛡️', 'Security Watch'),
+      skillPill('📰', 'News & Intel'),
+      skillPill('⭐', 'Watchlist'),
+      skillPill('🔔', 'Price Alerts'),
+      skillPill('📋', 'Weekly Digest'),
+      skillPill('🧠', 'Memory'),
+      skillPill('🔍', 'Portfolio Guard')
     ]),
     el('div', { class: 'clg-chat-starters' }, starters.map((s) =>
       el('button', {
@@ -496,7 +574,7 @@ function renderAssistantBubble(bodyEl) {
     contentEl: content.querySelector('.clg-chat-content'),
     setTyping(on) {
       const t = content.querySelector('.clg-chat-typing');
-      if (on && !t) content.querySelector('.clg-chat-content').innerHTML = '<span class="clg-chat-typing"><span></span><span></span><span></span></span>';
+      if (on && !t) content.querySelector('.clg-chat-content').innerHTML = '<span class="clg-chat-typing"><span class="clg-chat-typing__label">Thinking</span><span></span><span></span><span></span></span>';
       else if (!on && t) t.remove();
     },
     addTool(label) {
@@ -746,8 +824,8 @@ function buildController(root) {
             bubble.contentEl.innerHTML = fullHtml;
             // Animate: find text nodes and mark the newly added portion
             if (prevLen === 0) {
-              // First chunk - animate entire content
-              bubble.contentEl.querySelectorAll('p, li, code, strong, em, a').forEach(node => {
+              // First chunk: animate entire content
+              bubble.contentEl.querySelectorAll('p, li, code, pre, strong, em, a, h4, h5').forEach(node => {
                 node.classList.add('clg-stream-in');
               });
             }
@@ -757,7 +835,7 @@ function buildController(root) {
             // Remove streaming cursor
             bubble.contentEl.classList.remove('clg-streaming');
             if (!assistantText) {
-              bubble.contentEl.innerHTML = '<p><em>No response. Try asking again.</em></p>';
+              bubble.contentEl.innerHTML = '<p><em>I didn\'t catch that one. Could you try rephrasing?</em></p>';
             }
             const footer = el('div', { class: 'clg-chat-msg-footer' }, [
               el('span', { class: 'clg-chat-model' }, [data.model || 'AI'])
@@ -765,7 +843,28 @@ function buildController(root) {
             bubble.contentEl.appendChild(footer);
           } else if (event === 'error') {
             bubble.setTyping(false);
-            bubble.contentEl.innerHTML = `<p class="clg-chat-error">⚠️ ${escapeHtml(data.error || 'Something went wrong')}</p>`;
+            const friendlyMsg = data.error === 'rate_limited'
+              ? 'Easy there! You\'re sending messages a bit fast. Give it a moment and try again.'
+              : data.error === 'chat_agent_loop_exhausted'
+              ? 'I got tangled up trying to pull that together. Mind rephrasing?'
+              : 'Something went wrong on my end. Let\'s try that again.';
+            const retryBtn = el('button', {
+              class: 'clg-chat-retry',
+              type: 'button',
+              onclick: () => {
+                const lastUser = state.messages.filter(m => m.role === 'user').pop();
+                if (lastUser) {
+                  bubble.wrap.remove();
+                  state.messages = state.messages.filter(m => m !== state.messages[state.messages.length - 1]);
+                  sendMessage(lastUser.content);
+                }
+              }
+            }, ['Try again']);
+            bubble.contentEl.innerHTML = '';
+            bubble.contentEl.appendChild(el('div', { class: 'clg-chat-error' }, [
+              el('span', {}, [`⚠️ ${friendlyMsg}`]),
+              data.error !== 'rate_limited' ? retryBtn : null
+            ]));
           }
         }
       });
@@ -773,7 +872,31 @@ function buildController(root) {
       saveHistory();
     } catch (err) {
       bubble.setTyping(false);
-      bubble.contentEl.innerHTML = `<p class="clg-chat-error">⚠️ ${escapeHtml(err.message || 'Chat failed')}</p>`;
+      if (err.name === 'AbortError') {
+        bubble.wrap.remove();
+      } else {
+        const isNetwork = err.message?.includes('fetch') || err.message?.includes('network') || err.message?.includes('Failed');
+        const msg = isNetwork
+          ? 'Looks like we lost the connection. Check your internet and try again.'
+          : 'Something went wrong on my end. Let\'s give that another go.';
+        const retryBtn = el('button', {
+          class: 'clg-chat-retry',
+          type: 'button',
+          onclick: () => {
+            const lastUser = state.messages.filter(m => m.role === 'user').pop();
+            if (lastUser) {
+              bubble.wrap.remove();
+              state.messages.pop(); // remove failed assistant entry
+              sendMessage(lastUser.content);
+            }
+          }
+        }, ['Try again']);
+        bubble.contentEl.innerHTML = '';
+        bubble.contentEl.appendChild(el('div', { class: 'clg-chat-error' }, [
+          el('span', {}, [`⚠️ ${msg}`]),
+          retryBtn
+        ]));
+      }
     } finally {
       state.isStreaming = false;
       activeStream = null;
