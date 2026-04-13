@@ -2016,6 +2016,147 @@ document.addEventListener('DOMContentLoaded', () => {
 // Expose for inline onclick
 window.loadSentinelSummary = loadSentinelSummary;
 
+// --- Sentinel tab inline chat -----------------------------------------------
+const sentinelChatState = { messages: [], isStreaming: false, activeCtrl: null };
+
+function sentinelEscape(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function sentinelAppendMessage(role, text) {
+  const wrap = document.getElementById('sentinel-chat-messages');
+  if (!wrap) return null;
+  const bubble = document.createElement('div');
+  bubble.className = `sentinel-msg sentinel-msg--${role}`;
+  const body = document.createElement('div');
+  body.className = 'sentinel-msg__body';
+  if (role === 'user') body.textContent = text;
+  else body.innerHTML = sentinelMarkdown(text || '');
+  bubble.appendChild(body);
+  wrap.appendChild(bubble);
+  wrap.scrollTop = wrap.scrollHeight;
+  return body;
+}
+
+function sentinelAppendTypingIndicator() {
+  const wrap = document.getElementById('sentinel-chat-messages');
+  if (!wrap) return null;
+  const el = document.createElement('div');
+  el.className = 'sentinel-msg sentinel-msg--assistant sentinel-msg--typing';
+  el.innerHTML = '<div class="sentinel-msg__body"><span class="sentinel-typing"><span></span><span></span><span></span></span></div>';
+  wrap.appendChild(el);
+  wrap.scrollTop = wrap.scrollHeight;
+  return el;
+}
+
+async function sendSentinelMessage(text) {
+  if (!text || sentinelChatState.isStreaming) return;
+  sentinelChatState.isStreaming = true;
+  sentinelAppendMessage('user', text);
+  sentinelChatState.messages.push({ role: 'user', content: text });
+
+  const typingEl = sentinelAppendTypingIndicator();
+  const sendBtn = document.getElementById('sentinel-chat-send');
+  if (sendBtn) sendBtn.disabled = true;
+
+  const ctrl = new AbortController();
+  sentinelChatState.activeCtrl = ctrl;
+  let assistantBody = null;
+  let fullText = '';
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+      credentials: 'include',
+      body: JSON.stringify({ messages: sentinelChatState.messages, context: { source: 'sentinel-tab' } }),
+      signal: ctrl.signal
+    });
+    if (!res.ok) throw new Error(`Chat ${res.status}`);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buffer.indexOf('\n\n')) !== -1) {
+        const chunk = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        let event = 'message';
+        const dataLines = [];
+        for (const line of chunk.split('\n')) {
+          if (line.startsWith('event:')) event = line.slice(6).trim();
+          else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+        }
+        if (!dataLines.length) continue;
+        let payload = dataLines.join('\n');
+        try { payload = JSON.parse(payload); } catch {}
+
+        if (event === 'chunk') {
+          if (!assistantBody) {
+            if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+            assistantBody = sentinelAppendMessage('assistant', '');
+          }
+          const txt = typeof payload === 'string' ? payload : (payload.text || payload.content || '');
+          fullText += txt;
+          if (assistantBody) {
+            assistantBody.innerHTML = sentinelMarkdown(fullText);
+            const wrap = document.getElementById('sentinel-chat-messages');
+            if (wrap) wrap.scrollTop = wrap.scrollHeight;
+          }
+        } else if (event === 'done') {
+          if (fullText) sentinelChatState.messages.push({ role: 'assistant', content: fullText });
+        } else if (event === 'error') {
+          if (!assistantBody) {
+            if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+            assistantBody = sentinelAppendMessage('assistant', '');
+          }
+          assistantBody.innerHTML = `<em>Something went wrong. Please try again.</em>`;
+        }
+      }
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      console.error('[sentinel-chat]', e);
+      if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+      if (!assistantBody) sentinelAppendMessage('assistant', '_Couldn\'t reach Sentinel. Please try again._');
+    }
+  } finally {
+    if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+    sentinelChatState.isStreaming = false;
+    sentinelChatState.activeCtrl = null;
+    if (sendBtn) sendBtn.disabled = false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('sentinel-chat-input');
+  const sendBtn = document.getElementById('sentinel-chat-send');
+  if (!input || !sendBtn) return;
+
+  const submit = () => {
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    input.style.height = 'auto';
+    sendSentinelMessage(text);
+  };
+
+  sendBtn.addEventListener('click', submit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      submit();
+    }
+  });
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 160) + 'px';
+  });
+});
+
 // --- Render all ---------------------------------------------------------------
 function renderAll(){
   renderPills();
