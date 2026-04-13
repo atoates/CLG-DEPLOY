@@ -4600,6 +4600,54 @@ body.clg-theme-dark .footer {
   text-shadow: 0 1px 2px rgba(2, 44, 52, 0.35);
 }
 
+/* ---- Notification badge -------------------------------------------------- */
+.clg-chat-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  z-index: 2;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.5);
+  animation: clg-badge-pop 0.3s ease-out both;
+  pointer-events: none;
+}
+@keyframes clg-badge-pop {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* ---- Notification greeting banner ---------------------------------------- */
+.clg-notif-greeting {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  animation: clg-stream-fade 0.4s ease-out both;
+}
+.clg-notif-greeting__icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+.clg-notif-greeting__text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.4;
+}
+
 /* ---- Backdrop (mobile) --------------------------------------------------- */
 .clg-chat-backdrop {
   position: fixed;

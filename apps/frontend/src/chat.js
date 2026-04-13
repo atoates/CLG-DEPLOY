@@ -35,7 +35,9 @@ let state = {
   messages: [],      // [{ role, content, toolCalls?: [] }]
   isOpen: false,
   isStreaming: false,
-  lastError: ''
+  lastError: '',
+  unreadCount: 0,
+  notificationsChecked: false
 };
 
 // ---- Starter prompts (contextual) -----------------------------------------
@@ -168,14 +170,136 @@ function describeTool(name, args) {
     case 'update_user_profile':
     case 'get_user_profile':
       return null; // Silent -- don't show pill for profile operations
+    case 'set_price_alert': {
+      const tok = args?.token || 'token';
+      const dir = args?.direction === 'above' ? 'above' : args?.direction === 'below' ? 'below' : 'change of';
+      return `Setting price alert for ${tok} ${dir} ${args?.threshold || ''}`;
+    }
+    case 'remove_price_alert':
+      return `Removing price alert #${args?.alert_id || ''}`;
+    case 'get_my_price_alerts':
+      return 'Checking your price alerts';
+    case 'get_my_notifications':
+      return 'Checking your notifications';
+    case 'get_alert_digest':
+      return 'Fetching your weekly digest';
     default:
       return `Running ${name}`;
   }
 }
 
+// ---- Notification badge ---------------------------------------------------
+let _badgeEl = null;
+let _notifPollTimer = null;
+
+async function fetchUnreadCount() {
+  try {
+    const r = await fetch(`${API_BASE}/api/me/notifications`);
+    if (!r.ok) return 0;
+    const data = await r.json();
+    return data.unread_count || 0;
+  } catch { return 0; }
+}
+
+function updateBadge(count) {
+  state.unreadCount = count;
+  if (!_badgeEl) return;
+  if (count > 0) {
+    _badgeEl.textContent = count > 9 ? '9+' : String(count);
+    _badgeEl.style.display = '';
+  } else {
+    _badgeEl.style.display = 'none';
+  }
+}
+
+// ---- Browser push notifications -------------------------------------------
+let _pushPermission = typeof Notification !== 'undefined' ? Notification.permission : 'denied';
+let _lastKnownUnread = 0;
+
+function requestPushPermission() {
+  if (typeof Notification === 'undefined' || _pushPermission === 'granted' || _pushPermission === 'denied') return;
+  Notification.requestPermission().then(perm => { _pushPermission = perm; });
+}
+
+function showBrowserNotification(title, body) {
+  if (_pushPermission !== 'granted' || typeof Notification === 'undefined') return;
+  try {
+    const notif = new Notification(title, {
+      body,
+      icon: '/logo-192.png',
+      badge: '/logo-192.png',
+      tag: 'clg-sentinel-alert',
+      renotify: true
+    });
+    notif.onclick = () => {
+      window.focus();
+      if (window.SentinelAI) window.SentinelAI.open();
+      notif.close();
+    };
+  } catch {}
+}
+
+async function pollAndNotify() {
+  if (state.isOpen) return;
+  const count = await fetchUnreadCount();
+  updateBadge(count);
+  // If new notifications appeared since last check, show a browser notification
+  if (count > _lastKnownUnread && _lastKnownUnread >= 0) {
+    const diff = count - _lastKnownUnread;
+    showBrowserNotification(
+      'Sentinel AI',
+      `You have ${diff} new alert${diff > 1 ? 's' : ''} affecting your portfolio.`
+    );
+  }
+  _lastKnownUnread = count;
+}
+
+function startNotifPolling() {
+  if (_notifPollTimer) return;
+  // Initial check
+  fetchUnreadCount().then(c => { _lastKnownUnread = c; updateBadge(c); });
+  // Poll every 2 minutes
+  _notifPollTimer = setInterval(pollAndNotify, 120000);
+}
+
+async function fetchNotificationsGreeting(bodyEl) {
+  try {
+    const r = await fetch(`${API_BASE}/api/me/notifications`);
+    if (!r.ok) return;
+    const data = await r.json();
+    const unread = (data.notifications || []).filter(n => !n.read);
+    if (!unread.length) return;
+    // Build a greeting banner in the welcome area
+    const welcomeEl = bodyEl?.querySelector('.clg-chat-welcome');
+    if (!welcomeEl) return;
+    const count = unread.length;
+    const types = {};
+    for (const n of unread) { types[n.type] = (types[n.type] || 0) + 1; }
+    let text = `You have ${count} new notification${count > 1 ? 's' : ''}`;
+    const parts = [];
+    if (types.portfolio_alert) parts.push(`${types.portfolio_alert} portfolio alert${types.portfolio_alert > 1 ? 's' : ''}`);
+    if (types.price_trigger) parts.push(`${types.price_trigger} price trigger${types.price_trigger > 1 ? 's' : ''}`);
+    if (types.digest_ready) parts.push('a new weekly digest');
+    if (parts.length) text += ': ' + parts.join(', ');
+    text += '. Ask me about them!';
+    const banner = el('div', { class: 'clg-notif-greeting' }, [
+      el('span', { class: 'clg-notif-greeting__icon', html: '🔔' }),
+      el('span', { class: 'clg-notif-greeting__text' }, [text])
+    ]);
+    welcomeEl.insertBefore(banner, welcomeEl.firstChild);
+    // Mark them as read
+    fetch(`${API_BASE}/api/me/notifications/read`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true })
+    }).catch(() => {});
+  } catch {}
+}
+
 // ---- UI builders ----------------------------------------------------------
 function buildLauncher(onOpen) {
-  return el('button', {
+  _badgeEl = el('span', { class: 'clg-chat-badge' });
+  _badgeEl.style.display = 'none';
+  const btn = el('button', {
     class: 'clg-chat-launcher',
     'aria-label': 'Open Sentinel AI assistant',
     type: 'button',
@@ -183,8 +307,11 @@ function buildLauncher(onOpen) {
   }, [
     el('span', { class: 'clg-chat-launcher__glow' }),
     el('span', { class: 'clg-chat-launcher__icon', html: sparklesSvg() }),
-    el('span', { class: 'clg-chat-launcher__label' }, ['Ask Sentinel AI'])
+    el('span', { class: 'clg-chat-launcher__label' }, ['Ask Sentinel AI']),
+    _badgeEl
   ]);
+  startNotifPolling();
+  return btn;
 }
 
 function sparklesSvg() {
@@ -525,6 +652,13 @@ function buildController(root) {
       backdropEl?.classList.add('is-open');
       textareaEl?.focus();
     });
+    // Clear badge when chat opens
+    updateBadge(0);
+    // Show greeting with pending notifications (only on fresh conversations)
+    if (state.messages.length === 0 && !state.notificationsChecked) {
+      state.notificationsChecked = true;
+      fetchNotificationsGreeting(bodyEl);
+    }
   }
   function closeChat() {
     state.isOpen = false;
@@ -552,6 +686,8 @@ function buildController(root) {
 
   async function sendMessage(text) {
     if (!text || state.isStreaming) return;
+    // Request push notification permission on first interaction
+    requestPushPermission();
     // Drop the welcome screen if present
     const welcome = bodyEl?.querySelector('.clg-chat-welcome');
     if (welcome) welcome.remove();

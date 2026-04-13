@@ -4453,6 +4453,405 @@ function chatRateLimit(ip, limit = 20, windowMs = 60_000) {
   return true;
 }
 
+// ============================================================================
+// PORTFOLIO WATCHDOG + PRICE ALERTS + ALERT DIGEST
+// ============================================================================
+
+// ---- Portfolio Watchdog: match new alerts to user holdings -----------------
+// When alerts change, find users whose holdings overlap and create notifications.
+async function runPortfolioWatchdog() {
+  try {
+    // Get all users with a profile that has holdings
+    const { rows: profiles } = await pool.query(
+      `SELECT user_id, holdings FROM user_profiles WHERE holdings != '[]'::jsonb`
+    );
+    if (!profiles.length) return;
+
+    for (const profile of profiles) {
+      let holdings;
+      try {
+        holdings = typeof profile.holdings === 'string' ? JSON.parse(profile.holdings) : profile.holdings;
+      } catch { continue; }
+      if (!Array.isArray(holdings) || !holdings.length) continue;
+
+      const userTokens = holdings.map(h => (h.token || h).toString().toUpperCase());
+      if (!userTokens.length) continue;
+
+      // Find alerts matching user's tokens
+      const matchingAlerts = alerts.filter(a =>
+        userTokens.includes((a.token || '').toUpperCase())
+      );
+      if (!matchingAlerts.length) continue;
+
+      // Check which alerts the user has already been notified about
+      for (const alert of matchingAlerts) {
+        try {
+          const { rows: seen } = await pool.query(
+            'SELECT 1 FROM user_alert_seen WHERE user_id = $1 AND alert_id = $2',
+            [profile.user_id, alert.id]
+          );
+          if (seen.length) continue; // Already notified
+
+          // Create notification
+          await pool.query(
+            `INSERT INTO user_notifications (user_id, type, title, body, data)
+             VALUES ($1, 'portfolio_alert', $2, $3, $4)`,
+            [
+              profile.user_id,
+              `${alert.severity === 'critical' ? '🚨' : '⚠️'} ${alert.token} alert: ${alert.title}`,
+              alert.description ? alert.description.slice(0, 300) : '',
+              JSON.stringify({ alert_id: alert.id, token: alert.token, severity: alert.severity })
+            ]
+          );
+
+          // Mark as seen
+          await pool.query(
+            'INSERT INTO user_alert_seen (user_id, alert_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [profile.user_id, alert.id]
+          );
+        } catch (e) {
+          console.warn(`[watchdog] Error processing alert ${alert.id} for user ${profile.user_id}:`, e.message);
+        }
+      }
+    }
+  } catch (e) {
+    // Tables may not exist yet on first deploy
+    if (e.code === '42P01') return;
+    console.warn('[watchdog] Error:', e.message);
+  }
+}
+
+// Run watchdog every 10 minutes
+setInterval(runPortfolioWatchdog, 10 * 60 * 1000);
+// Also run once shortly after boot
+setTimeout(runPortfolioWatchdog, 30_000);
+
+// ---- Price Alert Checker: poll prices and trigger threshold watches --------
+async function checkPriceWatches() {
+  try {
+    const { rows: watches } = await pool.query(
+      'SELECT * FROM price_watches WHERE active = TRUE AND triggered = FALSE'
+    );
+    if (!watches.length) return;
+
+    // Group by token to minimise API calls
+    const tokenSet = [...new Set(watches.map(w => w.token.toUpperCase()))];
+    const prices = {};
+
+    for (const symbol of tokenSet) {
+      try {
+        // Use the market snapshot endpoint logic (CoinGecko/CMC)
+        const coinId = await getCoinGeckoId(symbol);
+        if (!coinId) continue;
+        const base = COINGECKO_API_KEY
+          ? 'https://pro-api.coingecko.com/api/v3'
+          : 'https://api.coingecko.com/api/v3';
+        const url = `${base}/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true`;
+        const headers = COINGECKO_API_KEY ? { 'x-cg-pro-api-key': COINGECKO_API_KEY } : {};
+        const res = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
+        if (res.ok) {
+          const data = await res.json();
+          const info = data[coinId];
+          if (info) {
+            prices[symbol] = {
+              price: info.usd,
+              change24h: info.usd_24h_change
+            };
+          }
+        }
+      } catch (e) {
+        console.warn(`[price-watch] Failed to fetch ${symbol}:`, e.message);
+      }
+    }
+
+    // Check each watch against current prices
+    for (const watch of watches) {
+      const priceData = prices[watch.token.toUpperCase()];
+      if (!priceData) continue;
+
+      let triggered = false;
+      if (watch.direction === 'below' && priceData.price <= Number(watch.threshold)) {
+        triggered = true;
+      } else if (watch.direction === 'above' && priceData.price >= Number(watch.threshold)) {
+        triggered = true;
+      } else if (watch.direction === 'change_pct' && Math.abs(priceData.change24h || 0) >= Number(watch.threshold)) {
+        triggered = true;
+      }
+
+      if (triggered) {
+        const dirLabel = watch.direction === 'below' ? 'dropped below'
+          : watch.direction === 'above' ? 'risen above'
+          : 'moved more than';
+        const threshLabel = watch.direction === 'change_pct'
+          ? `${watch.threshold}% in 24h`
+          : `$${Number(watch.threshold).toLocaleString()}`;
+
+        // Mark as triggered
+        await pool.query(
+          `UPDATE price_watches SET triggered = TRUE, triggered_at = EXTRACT(EPOCH FROM NOW()),
+           triggered_price = $1, updated_at = EXTRACT(EPOCH FROM NOW()) WHERE id = $2`,
+          [priceData.price, watch.id]
+        );
+
+        // Create notification
+        await pool.query(
+          `INSERT INTO user_notifications (user_id, type, title, body, data)
+           VALUES ($1, 'price_trigger', $2, $3, $4)`,
+          [
+            watch.user_id,
+            `💰 ${watch.token} has ${dirLabel} ${threshLabel}`,
+            `Current price: $${Number(priceData.price).toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
+            JSON.stringify({
+              watch_id: watch.id,
+              token: watch.token,
+              direction: watch.direction,
+              threshold: watch.threshold,
+              triggered_price: priceData.price
+            })
+          ]
+        );
+      }
+    }
+  } catch (e) {
+    if (e.code === '42P01') return;
+    console.warn('[price-watch] Error:', e.message);
+  }
+}
+
+// Check price watches every 5 minutes
+setInterval(checkPriceWatches, 5 * 60 * 1000);
+setTimeout(checkPriceWatches, 60_000);
+
+// ---- Alert Digest Generator: weekly summaries per user --------------------
+async function generateAlertDigest(userId, forceGenerate = false) {
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const oneWeekAgo = now - (7 * 24 * 3600);
+
+    // Check if we already have a recent digest (within 6 days) unless forced
+    if (!forceGenerate) {
+      const { rows: existing } = await pool.query(
+        'SELECT id FROM alert_digests WHERE user_id = $1 AND period_end > $2 ORDER BY period_end DESC LIMIT 1',
+        [userId, now - (6 * 24 * 3600)]
+      );
+      if (existing.length) return null; // Already have a recent digest
+    }
+
+    // Get user profile for holdings
+    const profile = await getUserProfile(userId);
+    if (!profile) return null;
+
+    let holdings;
+    try {
+      holdings = typeof profile.holdings === 'string' ? JSON.parse(profile.holdings) : profile.holdings;
+    } catch { holdings = []; }
+    const userTokens = (Array.isArray(holdings) ? holdings : []).map(h => (h.token || h).toString().toUpperCase());
+
+    // Get all alerts from the period
+    const periodAlerts = alerts.filter(a => {
+      const alertTime = new Date(a.deadline).getTime() / 1000;
+      return alertTime >= oneWeekAgo;
+    });
+
+    // Split into relevant (matching holdings) and general
+    const relevantAlerts = userTokens.length
+      ? periodAlerts.filter(a => userTokens.includes((a.token || '').toUpperCase()))
+      : [];
+    const allAlerts = periodAlerts;
+
+    // Build severity breakdown
+    const severityBreakdown = { critical: 0, warning: 0, info: 0 };
+    for (const a of allAlerts) {
+      if (severityBreakdown[a.severity] !== undefined) severityBreakdown[a.severity]++;
+    }
+
+    // Build highlights (top 5 most relevant alerts)
+    const highlights = [...relevantAlerts, ...allAlerts]
+      .slice(0, 8)
+      .filter((a, i, arr) => arr.findIndex(x => x.id === a.id) === i)
+      .slice(0, 5)
+      .map(a => ({
+        id: a.id,
+        token: a.token,
+        title: a.title,
+        severity: a.severity,
+        relevant: userTokens.includes((a.token || '').toUpperCase())
+      }));
+
+    // Build summary text
+    const tokensCovered = [...new Set(allAlerts.map(a => a.token))];
+    const relevantTokens = [...new Set(relevantAlerts.map(a => a.token))];
+
+    let summary = `This week: ${allAlerts.length} alert${allAlerts.length !== 1 ? 's' : ''} across ${tokensCovered.length} token${tokensCovered.length !== 1 ? 's' : ''}.`;
+    if (severityBreakdown.critical > 0) {
+      summary += ` ${severityBreakdown.critical} critical.`;
+    }
+    if (relevantAlerts.length > 0) {
+      summary += ` ${relevantAlerts.length} directly affect your holdings (${relevantTokens.join(', ')}).`;
+    } else if (userTokens.length > 0) {
+      summary += ` None directly affect your holdings this week.`;
+    }
+
+    // Store digest
+    const { rows } = await pool.query(
+      `INSERT INTO alert_digests (user_id, period_start, period_end, summary, alert_count, tokens_covered, severity_breakdown, highlights)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [
+        userId, oneWeekAgo, now, summary, allAlerts.length,
+        JSON.stringify(tokensCovered),
+        JSON.stringify(severityBreakdown),
+        JSON.stringify(highlights)
+      ]
+    );
+
+    return rows[0] || null;
+  } catch (e) {
+    if (e.code === '42P01') return null;
+    console.warn('[digest] Error generating for', userId, e.message);
+    return null;
+  }
+}
+
+// Weekly auto-digest: every Monday at ~08:00 UTC, generate digests for all profiled users
+async function runWeeklyDigests() {
+  try {
+    const { rows: profiles } = await pool.query(
+      `SELECT user_id FROM user_profiles WHERE holdings != '[]'::jsonb`
+    );
+    let generated = 0;
+    for (const p of profiles) {
+      const digest = await generateAlertDigest(p.user_id);
+      if (digest) {
+        generated++;
+        // Also create a notification
+        await pool.query(
+          `INSERT INTO user_notifications (user_id, type, title, body, data)
+           VALUES ($1, 'digest_ready', $2, $3, $4)`,
+          [
+            p.user_id,
+            '📋 Your weekly alert digest is ready',
+            digest.summary || '',
+            JSON.stringify({ digest_id: digest.id })
+          ]
+        );
+      }
+    }
+    if (generated > 0) console.log(`[digest] Generated ${generated} weekly digests`);
+  } catch (e) {
+    if (e.code === '42P01') return;
+    console.warn('[digest] Weekly run error:', e.message);
+  }
+}
+
+// Check every hour if it's Monday 08:00 UTC (approximate, good enough)
+let lastDigestDay = -1;
+setInterval(() => {
+  const now = new Date();
+  if (now.getUTCDay() === 1 && now.getUTCHours() === 8 && lastDigestDay !== now.getUTCDate()) {
+    lastDigestDay = now.getUTCDate();
+    runWeeklyDigests();
+  }
+}, 60 * 60 * 1000);
+
+// ---- Notifications API endpoints ------------------------------------------
+// GET /api/me/notifications - get unread notifications for current user
+app.get('/api/me/notifications', (req, res) => {
+  const sess = getSession(req);
+  const uid = sess?.uid || req.uid || null;
+  if (!uid) return res.json({ notifications: [], unread: 0 });
+
+  pool.query(
+    `SELECT id, type, title, body, data, read, created_at
+     FROM user_notifications WHERE user_id = $1
+     ORDER BY created_at DESC LIMIT 20`,
+    [uid]
+  ).then(({ rows }) => {
+    const unread = rows.filter(r => !r.read).length;
+    res.json({ notifications: rows, unread });
+  }).catch(e => {
+    if (e.code === '42P01') return res.json({ notifications: [], unread: 0 });
+    console.warn('[notifications] Error:', e.message);
+    res.json({ notifications: [], unread: 0 });
+  });
+});
+
+// POST /api/me/notifications/read - mark notifications as read
+app.post('/api/me/notifications/read', express.json(), (req, res) => {
+  const sess = getSession(req);
+  const uid = sess?.uid || req.uid || null;
+  if (!uid) return res.json({ ok: true });
+
+  const { ids } = req.body || {};
+  if (Array.isArray(ids) && ids.length) {
+    pool.query(
+      'UPDATE user_notifications SET read = TRUE WHERE user_id = $1 AND id = ANY($2::int[])',
+      [uid, ids]
+    ).then(() => res.json({ ok: true }))
+     .catch(() => res.json({ ok: true }));
+  } else {
+    // Mark all as read
+    pool.query(
+      'UPDATE user_notifications SET read = TRUE WHERE user_id = $1',
+      [uid]
+    ).then(() => res.json({ ok: true }))
+     .catch(() => res.json({ ok: true }));
+  }
+});
+
+// GET /api/me/price-watches - list user's price watches
+app.get('/api/me/price-watches', (req, res) => {
+  const sess = getSession(req);
+  const uid = sess?.uid || req.uid || null;
+  if (!uid) return res.json({ watches: [] });
+
+  pool.query(
+    'SELECT * FROM price_watches WHERE user_id = $1 ORDER BY created_at DESC',
+    [uid]
+  ).then(({ rows }) => res.json({ watches: rows }))
+   .catch(e => {
+     if (e.code === '42P01') return res.json({ watches: [] });
+     res.json({ watches: [] });
+   });
+});
+
+// DELETE /api/me/price-watches/:id - remove a price watch
+app.delete('/api/me/price-watches/:id', (req, res) => {
+  const sess = getSession(req);
+  const uid = sess?.uid || req.uid || null;
+  if (!uid) return res.status(401).json({ error: 'not_authenticated' });
+
+  pool.query(
+    'DELETE FROM price_watches WHERE id = $1 AND user_id = $2',
+    [req.params.id, uid]
+  ).then(() => res.json({ ok: true }))
+   .catch(() => res.json({ ok: true }));
+});
+
+// GET /api/me/digest - get latest digest or generate on demand
+app.get('/api/me/digest', async (req, res) => {
+  const sess = getSession(req);
+  const uid = sess?.uid || req.uid || null;
+  if (!uid) return res.json({ digest: null });
+
+  try {
+    // Try to get most recent digest
+    const { rows } = await pool.query(
+      'SELECT * FROM alert_digests WHERE user_id = $1 ORDER BY period_end DESC LIMIT 1',
+      [uid]
+    );
+    if (rows.length) {
+      return res.json({ digest: rows[0] });
+    }
+    // Generate on demand if none exists
+    const digest = await generateAlertDigest(uid, true);
+    res.json({ digest });
+  } catch (e) {
+    if (e.code === '42P01') return res.json({ digest: null });
+    res.json({ digest: null });
+  }
+});
+
 // ---- Tool definitions (OpenAI-compatible JSON schema) ---------------------
 const CHAT_TOOLS = [
   {
@@ -4554,6 +4953,65 @@ const CHAT_TOOLS = [
     function: {
       name: 'get_user_profile',
       description: 'Retrieve the current user\'s saved profile. Use this when you need to recall what you know about the user, or when the user asks "what do you know about me" or "my profile".',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_price_alert',
+      description: 'Set a price alert for a token. The user can be notified when a token goes above or below a given price, or changes by a percentage. Use this when the user says things like "tell me if ETH drops below $2500", "alert me when BTC hits 100k", or "notify me if SOL moves 10%".',
+      parameters: {
+        type: 'object',
+        properties: {
+          token: { type: 'string', description: 'Token symbol, uppercase e.g. ETH' },
+          direction: { type: 'string', enum: ['above', 'below', 'change_pct'], description: '"above" for price rises above threshold, "below" for drops below, "change_pct" for percentage change in either direction' },
+          threshold: { type: 'number', description: 'The price threshold (USD) or percentage value e.g. 2500 or 10' }
+        },
+        required: ['token', 'direction', 'threshold']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'remove_price_alert',
+      description: 'Remove/cancel a price alert by its ID. Use this when the user wants to stop or cancel one of their price alerts.',
+      parameters: {
+        type: 'object',
+        properties: {
+          alert_id: { type: 'integer', description: 'The ID of the price alert to remove' }
+        },
+        required: ['alert_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_my_price_alerts',
+      description: 'List the user\'s active price alerts. Use this when the user asks "what alerts do I have", "my price alerts", or "show my notifications setup".',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_my_notifications',
+      description: 'Get recent notifications for the current user, including portfolio watchdog alerts, price trigger alerts, and digest-ready notices. Use this when the user asks "any notifications", "what did I miss", "updates for me", or at the start of a conversation to check for pending alerts.',
+      parameters: {
+        type: 'object',
+        properties: {
+          unread_only: { type: 'boolean', description: 'If true, only return unread notifications (default true)' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_alert_digest',
+      description: 'Get the user\'s latest weekly alert digest, a summary of all alerts relevant to their holdings over the past week. If no recent digest exists, one will be generated. Use this when the user asks for a "digest", "weekly summary", "what happened this week", or "recap".',
       parameters: { type: 'object', properties: {} }
     }
   }
@@ -4758,6 +5216,86 @@ async function chatToolExecutor(name, args, ctx) {
         return { profile: parsed };
       }
 
+      case 'set_price_alert': {
+        if (!ctx.uid) return { error: 'You need to be identified to set price alerts. Try refreshing the page.' };
+        const token = String(args.token || '').toUpperCase();
+        const direction = args.direction;
+        const threshold = parseFloat(args.threshold);
+        if (!token || !direction || isNaN(threshold)) return { error: 'token, direction and threshold are required' };
+        // Limit per user: max 20 active watches
+        const countRes = await pool.query('SELECT COUNT(*) FROM price_watches WHERE user_id = $1 AND active = TRUE', [ctx.uid]);
+        if (parseInt(countRes.rows[0].count, 10) >= 20) return { error: 'You already have 20 active price alerts. Remove some before adding new ones.' };
+        const res = await pool.query(
+          `INSERT INTO price_watches (user_id, token, direction, threshold) VALUES ($1, $2, $3, $4) RETURNING id, token, direction, threshold`,
+          [ctx.uid, token, direction, threshold]
+        );
+        const watch = res.rows[0];
+        return { success: true, alert: watch, message: `Price alert set: ${token} ${direction} ${threshold}${direction === 'change_pct' ? '%' : ' USD'}` };
+      }
+
+      case 'remove_price_alert': {
+        if (!ctx.uid) return { error: 'no user identity' };
+        const alertId = parseInt(args.alert_id, 10);
+        if (isNaN(alertId)) return { error: 'alert_id is required' };
+        const res = await pool.query(
+          'DELETE FROM price_watches WHERE id = $1 AND user_id = $2 RETURNING id',
+          [alertId, ctx.uid]
+        );
+        if (!res.rows.length) return { error: 'Alert not found or already removed' };
+        return { success: true, removed_id: alertId };
+      }
+
+      case 'get_my_price_alerts': {
+        if (!ctx.uid) return { error: 'no user identity' };
+        const res = await pool.query(
+          'SELECT id, token, direction, threshold, active, triggered, triggered_at, triggered_price, created_at FROM price_watches WHERE user_id = $1 ORDER BY created_at DESC LIMIT 25',
+          [ctx.uid]
+        );
+        return { alerts: res.rows };
+      }
+
+      case 'get_my_notifications': {
+        if (!ctx.uid) return { error: 'no user identity' };
+        const unreadOnly = args.unread_only !== false;
+        let sql = 'SELECT id, type, title, body, data, read, created_at FROM user_notifications WHERE user_id = $1';
+        if (unreadOnly) sql += ' AND read = FALSE';
+        sql += ' ORDER BY created_at DESC LIMIT 20';
+        const res = await pool.query(sql, [ctx.uid]);
+        // Also get unread count
+        const countRes = await pool.query('SELECT COUNT(*) FROM user_notifications WHERE user_id = $1 AND read = FALSE', [ctx.uid]);
+        return { notifications: res.rows, unread_count: parseInt(countRes.rows[0].count, 10) };
+      }
+
+      case 'get_alert_digest': {
+        if (!ctx.uid) return { error: 'no user identity' };
+        // Try to get the latest digest; generate if none exists
+        let digest = null;
+        const res = await pool.query(
+          'SELECT * FROM alert_digests WHERE user_id = $1 ORDER BY period_end DESC LIMIT 1',
+          [ctx.uid]
+        );
+        if (res.rows.length) {
+          digest = res.rows[0];
+          // Parse JSONB fields
+          for (const f of ['tokens_covered', 'severity_breakdown', 'highlights']) {
+            if (typeof digest[f] === 'string') {
+              try { digest[f] = JSON.parse(digest[f]); } catch {}
+            }
+          }
+        }
+        if (!digest) {
+          // Generate one on the fly
+          try {
+            digest = await generateAlertDigest(ctx.uid, true);
+          } catch (err) {
+            console.warn('[chat get_alert_digest] generate failed:', err.message);
+            return { error: 'Could not generate a digest. Make sure you have a profile with holdings set up.' };
+          }
+        }
+        if (!digest) return { digest: null, note: 'No alerts found matching your holdings for the past week.' };
+        return { digest };
+      }
+
       default:
         return { error: 'unknown tool' };
     }
@@ -4830,6 +5368,9 @@ You embody several specialist skills and should route yourself to the right one 
 - **News Scout** — recent headlines and analysis. Use search_news.
 - **Watchlist Coach** — use get_watchlist when the user asks about "my coins", "my watchlist", "my portfolio" or similar. Every visitor has a watchlist (kept per-device for anonymous users, synced across devices once they sign in), so get_watchlist works whether or not the user is signed in. Only mention signing in if (a) the user explicitly asks to sync across devices, or (b) get_watchlist returns loggedIn:false AND the user is asking about something that needs an account.
 - **Memory Keeper** — you remember things about users across conversations. When you learn something about the user (tokens they hold, their experience, exchanges they use, what they care about), call update_user_profile silently in the background. Do NOT announce that you are saving their info unless they ask. If they ask "what do you know about me" or "my profile", use get_user_profile.
+- **Portfolio Guardian** — you proactively watch over users' holdings. When the user opens a new conversation or asks "any updates?", call get_my_notifications to check for watchdog alerts (new security issues matching their holdings). Summarise anything important. If there are unread notifications, mention them naturally, e.g. "Heads up, there are 2 alerts affecting tokens you hold."
+- **Price Sentinel** — you manage price alerts. When a user says "tell me if ETH drops below 2500" or "alert me when BTC hits 100k", use set_price_alert. When they ask "what alerts do I have", use get_my_price_alerts. When they want to cancel one, use remove_price_alert. Present active alerts in a clean, scannable format.
+- **Digest Analyst** — you provide weekly summaries. When the user asks for a "digest", "weekly summary", "what happened this week", or "recap", use get_alert_digest. Present the digest in a structured but conversational way: highlight the most important items, mention severity breakdown, and note which of their tokens were affected.
 
 Rules:
 1. Prefer tool calls over guessing. If the user asks about price, ALWAYS call get_price. If they mention "any warnings about X", ALWAYS call get_alerts.
@@ -4843,7 +5384,10 @@ Rules:
 9. If a tool returns an error, gracefully explain what's missing rather than inventing data.
 10. Be conversational and warm. You're the friendly expert in the room, not a search engine.
 11. When you learn something new about the user during conversation (e.g. they mention holding ETH, or they say they use Binance, or they are worried about hacks), call update_user_profile with the relevant fields. Do this silently -- never say "I've updated your profile" unless they specifically ask.
-12. If the user's profile has context (provided below), use it to personalise your responses. For example, if you know they hold SOL, proactively mention relevant SOL alerts. If they are a beginner, explain things more simply.`;
+12. If the user's profile has context (provided below), use it to personalise your responses. For example, if you know they hold SOL, proactively mention relevant SOL alerts. If they are a beginner, explain things more simply.
+13. When presenting price alerts, format thresholds clearly: "$2,500" for prices, "10%" for percentage changes. Include the alert ID so users can reference it for removal.
+14. When presenting the weekly digest, structure it clearly: total alert count, severity breakdown, which tokens were affected, and the top highlights. Keep it scannable.
+15. When a user first opens chat, if they have unread notifications from the watchdog or price triggers, mention them proactively in your greeting. Be helpful, not alarming.`;
 
 async function runChatAgent({ messages, context, uid, loggedIn = false, sendEvent }) {
   // Build provider messages: system + context hint + conversation
