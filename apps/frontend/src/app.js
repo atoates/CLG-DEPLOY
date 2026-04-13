@@ -59,6 +59,7 @@ const noAlertsEl = document.getElementById('no-alerts');
 const panelAlerts = document.getElementById('panel-alerts');
 const panelNews = document.getElementById('panel-news');
 const panelMarket = document.getElementById('panel-market');
+const panelSentinel = document.getElementById('panel-sentinel');
 
 // Tabs and ancillary controls
 const tabs = document.querySelectorAll('.tab');
@@ -256,6 +257,7 @@ function switchTab(tab){
   if (panelAlerts) panelAlerts.hidden = (name !== 'alerts');
   if (panelNews) panelNews.hidden = (name !== 'news');
   if (panelMarket) panelMarket.hidden = (name !== 'market');
+  if (panelSentinel) panelSentinel.hidden = (name !== 'sentinel');
   // Tabs active state
   tabs.forEach(t => {
     const is = t.getAttribute('data-tab') === name;
@@ -265,6 +267,7 @@ function switchTab(tab){
   updateFilterVisibility(name);
   if (name === 'news') loadNews();
   if (name === 'market') loadMarket();
+  if (name === 'sentinel') loadSentinelSummary();
   // Refresh chat context for the Sentinel AI widget so starter prompts adapt
   try {
     const existing = window.CLG_CHAT_CONTEXT || {};
@@ -287,6 +290,11 @@ function updateFilterVisibility(activeTab){
   const alertsView = (activeTab === 'alerts');
   if (sevFilterEl) sevFilterEl.style.display = alertsView ? '' : 'none';
   if (showAllWrap) showAllWrap.style.display = alertsView ? '' : 'none';
+  // Hide the token selector and toggles row for the Sentinel tab (it has its own context)
+  const tokensRow = document.querySelector('.tokens-and-toggles-row');
+  const tokenSelector = document.querySelector('.token-selector-dropdown');
+  if (tokensRow) tokensRow.style.display = (activeTab === 'sentinel') ? 'none' : '';
+  if (tokenSelector) tokenSelector.style.display = (activeTab === 'sentinel') ? 'none' : '';
 }
 
 // --- Server-backed prefs -----------------------------------------------------
@@ -1866,6 +1874,147 @@ function renderMarket(){
     marketGridEl.appendChild(card);
   });
 }
+
+// --- Sentinel AI Summary Tab --------------------------------------------------
+let _sentinelCache = null;     // { summary, generated_at, stats }
+let _sentinelLoading = false;
+
+function sentinelMarkdown(text) {
+  if (!text) return '';
+  let html = escapeHtml(text);
+  html = html.replace(/`([^`]+?)`/g, '<code>$1</code>');
+  html = html.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>');
+  const lines = html.split('\n');
+  const out = [];
+  let listType = null;
+  for (const line of lines) {
+    if (/^\s*[-*_]{3,}\s*$/.test(line)) {
+      if (listType) { out.push(`</${listType}>`); listType = null; }
+      out.push('<hr class="sentinel-hr">');
+      continue;
+    }
+    const hm = line.match(/^(#{1,3})\s+(.*)$/);
+    if (hm) {
+      if (listType) { out.push(`</${listType}>`); listType = null; }
+      const lvl = Math.min(hm[1].length + 2, 6);
+      out.push(`<h${lvl} class="sentinel-heading">${hm[2]}</h${lvl}>`);
+      continue;
+    }
+    const bm = line.match(/^\s*[-*]\s+(.*)$/);
+    if (bm) {
+      if (listType === 'ol') { out.push('</ol>'); listType = null; }
+      if (!listType) { out.push('<ul>'); listType = 'ul'; }
+      out.push(`<li>${bm[1]}</li>`);
+      continue;
+    }
+    const nm = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (nm) {
+      if (listType === 'ul') { out.push('</ul>'); listType = null; }
+      if (!listType) { out.push('<ol>'); listType = 'ol'; }
+      out.push(`<li>${nm[1]}</li>`);
+      continue;
+    }
+    if (listType) { out.push(`</${listType}>`); listType = null; }
+    if (line.trim() === '') { out.push('<br>'); continue; }
+    out.push(`<p>${line}</p>`);
+  }
+  if (listType) out.push(`</${listType}>`);
+  return out.join('');
+}
+
+function renderSentinelStats(stats) {
+  const el = document.getElementById('sentinel-stats');
+  if (!el || !stats) { if (el) el.innerHTML = ''; return; }
+  const items = [
+    { icon: '⭐', label: 'Watchlist', value: stats.watchlist_count || 0 },
+    { icon: '🔔', label: 'Unread', value: stats.unread_notifications || 0 },
+    { icon: '🎯', label: 'Price alerts', value: stats.active_price_alerts || 0 },
+    { icon: '🛡️', label: 'Active alerts', value: stats.recent_alerts || 0 }
+  ];
+  el.innerHTML = items.map(i =>
+    `<div class="sentinel-stat"><span class="sentinel-stat__icon">${i.icon}</span><span class="sentinel-stat__value">${i.value}</span><span class="sentinel-stat__label">${i.label}</span></div>`
+  ).join('');
+}
+
+function renderSentinelTimestamp(isoStr) {
+  const el = document.getElementById('sentinel-last-refresh');
+  if (!el) return;
+  if (!isoStr) { el.textContent = 'Your personalised crypto briefing'; return; }
+  try {
+    const d = new Date(isoStr);
+    const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    el.textContent = `Last refreshed ${date} at ${time}`;
+  } catch (_) {
+    el.textContent = 'Updated just now';
+  }
+}
+
+async function loadSentinelSummary(forceRefresh = false) {
+  if (_sentinelLoading) return;
+
+  const bodyEl = document.getElementById('sentinel-body');
+  const refreshBtn = document.getElementById('sentinel-refresh-btn');
+  if (!bodyEl) return;
+
+  // Use cache if available and not forcing refresh
+  if (!forceRefresh && _sentinelCache) {
+    bodyEl.innerHTML = `<div class="sentinel-content">${sentinelMarkdown(_sentinelCache.summary)}</div>`;
+    renderSentinelStats(_sentinelCache.stats);
+    renderSentinelTimestamp(_sentinelCache.generated_at);
+    return;
+  }
+
+  // Show loading state
+  _sentinelLoading = true;
+  if (refreshBtn) {
+    refreshBtn.disabled = true;
+    refreshBtn.classList.add('is-loading');
+  }
+  bodyEl.innerHTML = `
+    <div class="sentinel-loading">
+      <div class="sentinel-loading__spinner"></div>
+      <p class="sentinel-loading__text">Sentinel is analysing your portfolio...</p>
+    </div>
+  `;
+
+  try {
+    const res = await apiFetch(apiUrl('/api/me/sentinel-summary'));
+    if (!res.ok) throw new Error(`${res.status}`);
+    const data = await res.json();
+    _sentinelCache = data;
+    bodyEl.innerHTML = `<div class="sentinel-content">${sentinelMarkdown(data.summary)}</div>`;
+    renderSentinelStats(data.stats);
+    renderSentinelTimestamp(data.generated_at);
+  } catch (e) {
+    console.error('[sentinel] summary load failed:', e);
+    bodyEl.innerHTML = `
+      <div class="sentinel-error">
+        <p>Couldn't load your summary right now. Give it another go.</p>
+        <button type="button" class="sentinel-error__retry" onclick="loadSentinelSummary(true)">Try again</button>
+      </div>
+    `;
+  } finally {
+    _sentinelLoading = false;
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.classList.remove('is-loading');
+    }
+  }
+}
+
+// Wire up refresh button
+document.addEventListener('DOMContentLoaded', () => {
+  const refreshBtn = document.getElementById('sentinel-refresh-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => loadSentinelSummary(true));
+  }
+});
+
+// Expose for inline onclick
+window.loadSentinelSummary = loadSentinelSummary;
 
 // --- Render all ---------------------------------------------------------------
 function renderAll(){
