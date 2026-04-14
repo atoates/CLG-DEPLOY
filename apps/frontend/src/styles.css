@@ -6678,3 +6678,79 @@ body.clg-theme-dark .tab--sentinel.active {
   .sentinel-chat__messages { max-height: 380px; }
   .sentinel-msg { max-width: 94%; }
 }
+
+/* --- Sentinel unified conversation layout ------------------------------ */
+.sentinel-conv {
+  display: flex;
+  flex-direction: column;
+  margin-top: 14px;
+}
+.sentinel-conv .sentinel-chat__messages {
+  max-height: none;
+  min-height: 200px;
+  overflow: visible;
+}
+
+/* Summary bubble (first assistant message) gets a richer look */
+.sentinel-msg--assistant:first-child .sentinel-msg__body {
+  background: linear-gradient(180deg, rgba(94,234,212,0.06), rgba(94,234,212,0.02));
+  border-color: rgba(94,234,212,0.18);
+}
+.sentinel-msg--loading-summary .sentinel-msg__body {
+  background: rgba(94,234,212,0.06);
+  border: 1px solid rgba(94,234,212,0.18);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.sentinel-typing-label {
+  font-size: 13px;
+  color: rgba(94,234,212,0.85);
+  margin-right: 2px;
+}
+
+/* Pills under a response */
+.sentinel-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 2px 0 10px 4px;
+  animation: sentinel-pill-in 0.3s ease-out;
+}
+@keyframes sentinel-pill-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.sentinel-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(94,234,212,0.08);
+  border: 1px solid rgba(94,234,212,0.22);
+  border-radius: 999px;
+  color: #e6fffb;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s, border-color 0.15s;
+  font-family: inherit;
+}
+.sentinel-pill:hover {
+  background: rgba(94,234,212,0.16);
+  border-color: rgba(94,234,212,0.4);
+  transform: translateY(-1px);
+}
+.sentinel-pill:active { transform: translateY(0); }
+.sentinel-pill__icon { font-size: 14px; line-height: 1; }
+.sentinel-pill__text { line-height: 1.2; }
+
+/* Composer sits below the scroll area, not sticky-in-chat */
+.card--sentinel > .sentinel-chat__composer {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+/* First assistant bubble full width-ish for summary readability */
+.sentinel-msg--assistant { max-width: 94%; }

@@ -4914,12 +4914,33 @@ ${dataLines.join('\n\n')}`;
     }
 
     if (!summaryText) {
-      summaryText = '## Welcome to Sentinel AI\n\nI couldn\'t generate your summary right now. Try refreshing in a moment, or open the chat to ask me anything directly.';
+      summaryText = '## Welcome to Sentinel AI\n\nI couldn\'t generate your summary right now. Try refreshing in a moment, or ask me anything directly.';
+    }
+
+    // Generate contextual follow-up suggestions based on the summary
+    let suggestions = [];
+    try {
+      suggestions = await generateSuggestionsAI({
+        assistantText: summaryText,
+        userMessage: 'Give me my personalised briefing',
+        context: { source: 'sentinel-summary', stats: { watchlist_count: watchlist.length, unread: unread.length } },
+        profile
+      });
+    } catch (e) {
+      console.warn('[sentinel-summary] suggestion generation failed:', e.message);
+    }
+    if (!Array.isArray(suggestions) || !suggestions.length) {
+      suggestions = [
+        { icon: '📊', text: 'Explain my watchlist performance' },
+        { icon: '🚨', text: 'What should I watch today?' },
+        { icon: '💡', text: 'Any risks I should know about?' }
+      ];
     }
 
     res.json({
       summary: summaryText,
       generated_at: new Date().toISOString(),
+      suggestions,
       stats: {
         watchlist_count: watchlist.length,
         unread_notifications: unread.length,

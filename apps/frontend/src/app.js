@@ -1952,75 +1952,12 @@ function renderSentinelTimestamp(isoStr) {
   }
 }
 
-async function loadSentinelSummary(forceRefresh = false) {
-  if (_sentinelLoading) return;
+// --- Sentinel tab: unified conversational AI --------------------------------
+const sentinelChatState = { messages: [], isStreaming: false, activeCtrl: null, pillsGenId: 0 };
 
-  const bodyEl = document.getElementById('sentinel-body');
-  const refreshBtn = document.getElementById('sentinel-refresh-btn');
-  if (!bodyEl) return;
-
-  // Use cache if available and not forcing refresh
-  if (!forceRefresh && _sentinelCache) {
-    bodyEl.innerHTML = `<div class="sentinel-content">${sentinelMarkdown(_sentinelCache.summary)}</div>`;
-    renderSentinelStats(_sentinelCache.stats);
-    renderSentinelTimestamp(_sentinelCache.generated_at);
-    return;
-  }
-
-  // Show loading state
-  _sentinelLoading = true;
-  if (refreshBtn) {
-    refreshBtn.disabled = true;
-    refreshBtn.classList.add('is-loading');
-  }
-  bodyEl.innerHTML = `
-    <div class="sentinel-loading">
-      <div class="sentinel-loading__spinner"></div>
-      <p class="sentinel-loading__text">Sentinel is analysing your portfolio...</p>
-    </div>
-  `;
-
-  try {
-    const res = await apiFetch(apiUrl('/api/me/sentinel-summary'));
-    if (!res.ok) throw new Error(`${res.status}`);
-    const data = await res.json();
-    _sentinelCache = data;
-    bodyEl.innerHTML = `<div class="sentinel-content">${sentinelMarkdown(data.summary)}</div>`;
-    renderSentinelStats(data.stats);
-    renderSentinelTimestamp(data.generated_at);
-  } catch (e) {
-    console.error('[sentinel] summary load failed:', e);
-    bodyEl.innerHTML = `
-      <div class="sentinel-error">
-        <p>Couldn't load your summary right now. Give it another go.</p>
-        <button type="button" class="sentinel-error__retry" onclick="loadSentinelSummary(true)">Try again</button>
-      </div>
-    `;
-  } finally {
-    _sentinelLoading = false;
-    if (refreshBtn) {
-      refreshBtn.disabled = false;
-      refreshBtn.classList.remove('is-loading');
-    }
-  }
-}
-
-// Wire up refresh button
-document.addEventListener('DOMContentLoaded', () => {
-  const refreshBtn = document.getElementById('sentinel-refresh-btn');
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', () => loadSentinelSummary(true));
-  }
-});
-
-// Expose for inline onclick
-window.loadSentinelSummary = loadSentinelSummary;
-
-// --- Sentinel tab inline chat -----------------------------------------------
-const sentinelChatState = { messages: [], isStreaming: false, activeCtrl: null };
-
-function sentinelEscape(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+function sentinelScrollToBottom() {
+  const wrap = document.getElementById('sentinel-chat-messages');
+  if (wrap) wrap.scrollTop = wrap.scrollHeight;
 }
 
 function sentinelAppendMessage(role, text) {
@@ -2034,35 +1971,114 @@ function sentinelAppendMessage(role, text) {
   else body.innerHTML = sentinelMarkdown(text || '');
   bubble.appendChild(body);
   wrap.appendChild(bubble);
-  wrap.scrollTop = wrap.scrollHeight;
-  return body;
+  sentinelScrollToBottom();
+  return { bubble, body };
 }
 
-function sentinelAppendTypingIndicator() {
+function sentinelAppendTyping() {
   const wrap = document.getElementById('sentinel-chat-messages');
   if (!wrap) return null;
   const el = document.createElement('div');
   el.className = 'sentinel-msg sentinel-msg--assistant sentinel-msg--typing';
-  el.innerHTML = '<div class="sentinel-msg__body"><span class="sentinel-typing"><span></span><span></span><span></span></span></div>';
+  el.innerHTML = '<div class="sentinel-msg__body"><span class="sentinel-typing-label">Thinking</span><span class="sentinel-typing"><span></span><span></span><span></span></span></div>';
   wrap.appendChild(el);
-  wrap.scrollTop = wrap.scrollHeight;
+  sentinelScrollToBottom();
   return el;
+}
+
+function clearAllPills() {
+  document.querySelectorAll('.sentinel-pills').forEach(el => el.remove());
+}
+
+function renderPillsAfter(bubbleEl, suggestions) {
+  if (!bubbleEl || !Array.isArray(suggestions) || !suggestions.length) return;
+  clearAllPills();
+  const container = document.createElement('div');
+  container.className = 'sentinel-pills';
+  suggestions.slice(0, 4).forEach(s => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sentinel-pill';
+    btn.innerHTML = `<span class="sentinel-pill__icon">${s.icon || '💬'}</span><span class="sentinel-pill__text"></span>`;
+    btn.querySelector('.sentinel-pill__text').textContent = s.text;
+    btn.addEventListener('click', () => {
+      if (sentinelChatState.isStreaming) return;
+      clearAllPills();
+      sendSentinelMessage(s.text);
+    });
+    container.appendChild(btn);
+  });
+  bubbleEl.insertAdjacentElement('afterend', container);
+  sentinelScrollToBottom();
+}
+
+async function loadSentinelSummary(forceRefresh = false) {
+  if (_sentinelLoading) return;
+  const wrap = document.getElementById('sentinel-chat-messages');
+  const refreshBtn = document.getElementById('sentinel-refresh-btn');
+  if (!wrap) return;
+
+  // If we have a cache and not forcing, just make sure it's rendered (no-op if already rendered)
+  if (!forceRefresh && _sentinelCache && wrap.children.length > 0) return;
+
+  _sentinelLoading = true;
+  if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.classList.add('is-loading'); }
+
+  // Reset conversation on refresh
+  clearAllPills();
+  wrap.innerHTML = '';
+  sentinelChatState.messages = [];
+
+  // Loading placeholder message
+  const loadingBubble = document.createElement('div');
+  loadingBubble.className = 'sentinel-msg sentinel-msg--assistant sentinel-msg--loading-summary';
+  loadingBubble.innerHTML = '<div class="sentinel-msg__body"><span class="sentinel-typing-label">Analysing your portfolio</span><span class="sentinel-typing"><span></span><span></span><span></span></span></div>';
+  wrap.appendChild(loadingBubble);
+
+  try {
+    const res = await apiFetch(apiUrl('/api/me/sentinel-summary'));
+    if (!res.ok) throw new Error(`${res.status}`);
+    const data = await res.json();
+    _sentinelCache = data;
+    loadingBubble.remove();
+
+    const { bubble, body } = sentinelAppendMessage('assistant', data.summary || '');
+    sentinelChatState.messages.push({ role: 'assistant', content: data.summary || '' });
+    renderSentinelStats(data.stats);
+    renderSentinelTimestamp(data.generated_at);
+    renderPillsAfter(bubble, data.suggestions || []);
+  } catch (e) {
+    console.error('[sentinel] summary load failed:', e);
+    loadingBubble.remove();
+    const { bubble } = sentinelAppendMessage('assistant', "I couldn't pull your briefing together just now. You can still ask me anything directly, or tap retry.");
+    const retry = document.createElement('div');
+    retry.className = 'sentinel-pills';
+    retry.innerHTML = '<button type="button" class="sentinel-pill"><span class="sentinel-pill__icon">↻</span><span class="sentinel-pill__text">Try again</span></button>';
+    retry.querySelector('button').addEventListener('click', () => loadSentinelSummary(true));
+    bubble.insertAdjacentElement('afterend', retry);
+  } finally {
+    _sentinelLoading = false;
+    if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.classList.remove('is-loading'); }
+  }
 }
 
 async function sendSentinelMessage(text) {
   if (!text || sentinelChatState.isStreaming) return;
   sentinelChatState.isStreaming = true;
+  clearAllPills();
   sentinelAppendMessage('user', text);
   sentinelChatState.messages.push({ role: 'user', content: text });
 
-  const typingEl = sentinelAppendTypingIndicator();
+  const typingEl = sentinelAppendTyping();
   const sendBtn = document.getElementById('sentinel-chat-send');
   if (sendBtn) sendBtn.disabled = true;
 
   const ctrl = new AbortController();
   sentinelChatState.activeCtrl = ctrl;
+  let assistantBubble = null;
   let assistantBody = null;
   let fullText = '';
+  let gotSuggestions = null;
 
   try {
     const res = await fetch('/api/chat', {
@@ -2097,31 +2113,35 @@ async function sendSentinelMessage(text) {
         if (event === 'chunk') {
           if (!assistantBody) {
             if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
-            assistantBody = sentinelAppendMessage('assistant', '');
+            const m = sentinelAppendMessage('assistant', '');
+            assistantBubble = m.bubble; assistantBody = m.body;
           }
           const txt = typeof payload === 'string' ? payload : (payload.text || payload.content || '');
           fullText += txt;
-          if (assistantBody) {
-            assistantBody.innerHTML = sentinelMarkdown(fullText);
-            const wrap = document.getElementById('sentinel-chat-messages');
-            if (wrap) wrap.scrollTop = wrap.scrollHeight;
-          }
+          assistantBody.innerHTML = sentinelMarkdown(fullText);
+          sentinelScrollToBottom();
+        } else if (event === 'suggestions') {
+          if (Array.isArray(payload)) gotSuggestions = payload;
+          else if (payload && Array.isArray(payload.items)) gotSuggestions = payload.items;
+          else if (payload && Array.isArray(payload.suggestions)) gotSuggestions = payload.suggestions;
         } else if (event === 'done') {
           if (fullText) sentinelChatState.messages.push({ role: 'assistant', content: fullText });
         } else if (event === 'error') {
           if (!assistantBody) {
             if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
-            assistantBody = sentinelAppendMessage('assistant', '');
+            const m = sentinelAppendMessage('assistant', '');
+            assistantBubble = m.bubble; assistantBody = m.body;
           }
-          assistantBody.innerHTML = `<em>Something went wrong. Please try again.</em>`;
+          assistantBody.innerHTML = '<em>Something went wrong. Please try again.</em>';
         }
       }
     }
+    if (assistantBubble && gotSuggestions) renderPillsAfter(assistantBubble, gotSuggestions);
   } catch (e) {
     if (e.name !== 'AbortError') {
       console.error('[sentinel-chat]', e);
       if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
-      if (!assistantBody) sentinelAppendMessage('assistant', '_Couldn\'t reach Sentinel. Please try again._');
+      if (!assistantBody) sentinelAppendMessage('assistant', "_Couldn't reach Sentinel. Please try again._");
     }
   } finally {
     if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
@@ -2131,7 +2151,11 @@ async function sendSentinelMessage(text) {
   }
 }
 
+// Wire up refresh + composer
 document.addEventListener('DOMContentLoaded', () => {
+  const refreshBtn = document.getElementById('sentinel-refresh-btn');
+  if (refreshBtn) refreshBtn.addEventListener('click', () => loadSentinelSummary(true));
+
   const input = document.getElementById('sentinel-chat-input');
   const sendBtn = document.getElementById('sentinel-chat-send');
   if (!input || !sendBtn) return;
@@ -2146,16 +2170,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   sendBtn.addEventListener('click', submit);
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      submit();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
   });
   input.addEventListener('input', () => {
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 160) + 'px';
   });
 });
+
+window.loadSentinelSummary = loadSentinelSummary;
 
 // --- Render all ---------------------------------------------------------------
 function renderAll(){
