@@ -848,3 +848,4 @@ module.exports.getAlerts = () => alerts;
 module.exports.setAlerts = (newAlerts) => { alerts = newAlerts; };
 module.exports.reloadAlertsFromDatabase = reloadAlertsFromDatabase;
 module.exports.persistAlerts = persistAlerts;
+module.exports.getUsingDatabaseAlerts = () => usingDatabaseAlerts;

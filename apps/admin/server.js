@@ -65,9 +65,20 @@ app.use(authRouter);     // /auth/google, /auth/exchange-token, /auth/logout
 // initDB creates tables if missing; initializeAlerts populates the in-memory
 // alerts cache from DB (falling back to data/alerts.json). Without this the
 // GET /api/alerts endpoint returns [] even when alerts exist.
+// adminRouter.setDependencies wires admin.js to the live alerts state so
+// /admin/export/alerts.csv and /admin/alerts-ai-create see current data.
 initDB()
   .then(() => alertsRouter.initializeAlerts(marketRouter.getLogoUrl, marketRouter.getCoinGeckoId))
-  .then(() => console.log(`Alerts initialized: ${alertsRouter.getAlerts().length} loaded`))
+  .then(() => {
+    adminRouter.setDependencies({
+      getAlerts: alertsRouter.getAlerts,
+      getUsingDatabaseAlerts: alertsRouter.getUsingDatabaseAlerts,
+      persistAlerts: alertsRouter.persistAlerts,
+      upsertAlert: require('./lib/db').upsertAlert,
+      reloadAlertsFromDatabase: alertsRouter.reloadAlertsFromDatabase
+    });
+    console.log(`Alerts initialized: ${alertsRouter.getAlerts().length} loaded`);
+  })
   .catch((err) => console.error('Startup initialization failed:', err));
 
 // --- Static file serving ---

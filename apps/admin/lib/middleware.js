@@ -1,6 +1,7 @@
 // middleware.js - Auth and middleware utilities
 const crypto = require('crypto');
 const log = require('./logger');
+const { upsertUser, getUser } = require('./db');
 
 // Admin token + email helpers (reuse for admin-only APIs)
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
@@ -84,8 +85,6 @@ function getAdminTokenFromReq(req){
 }
 
 // requireAdmin middleware - checks token OR session-based email whitelist
-// Note: This requires getUser and getSession functions from server context
-// When using in server.js, it should have access to getUser in scope
 async function requireAdmin(req, res, next){
   // Option 1: Header token
   const token = getAdminTokenFromReq(req);
@@ -95,7 +94,6 @@ async function requireAdmin(req, res, next){
   const sess = getSession(req);
   if (sess && sess.uid) {
     try{
-      // getUser must be available in server context
       const u = await getUser(sess.uid);
       const email = (u && u.email ? String(u.email).toLowerCase() : '');
       if (email && ADMIN_EMAILS.includes(email)) return next();
@@ -105,8 +103,8 @@ async function requireAdmin(req, res, next){
 }
 
 // Anonymous user middleware - assigns req.uid via cookie if missing
-// This should be used as: app.use(anonUserMiddleware)
-function createAnonUserMiddleware(upsertUserFn) {
+// This should be used as: app.use(createAnonUserMiddleware())
+function createAnonUserMiddleware() {
   return async (req, res, next) => {
     let uid = req.cookies.uid;
     const hadUid = !!uid;
@@ -134,7 +132,7 @@ function createAnonUserMiddleware(upsertUserFn) {
       }
     } catch(_) {}
     try {
-      await upsertUserFn(uid);
+      await upsertUser(uid);
     } catch (err) {
       console.error('Error upserting user:', err);
     }

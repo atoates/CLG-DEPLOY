@@ -15,29 +15,30 @@ const router = express.Router();
 const DATA_DIR = process.env.DATA_DIR || './data';
 const BACKUP_DIR = process.env.BACKUP_DIR || './backups';
 
-// Variables that need to be accessible (will be injected by server.js)
-let alerts = []; // Will be set by server.js
-let usingDatabaseAlerts = false; // Will be set by server.js
-let getUser = null; // Will be injected from server.js
-let persistAlerts = null; // Will be injected from server.js
-let upsertAlert = null; // Will be injected from server.js
-let reloadAlertsFromDatabase = null; // Will be injected from server.js
-let diagLog = null; // Will be injected from server.js
-let insertAudit = null; // Will be injected from server.js
+// Dependencies injected by server.js after routes are mounted.
+// Use getter functions for fields that can be reassigned in their owning
+// module (alerts array, usingDatabaseAlerts flag in routes/alerts.js) so we
+// never hold a stale snapshot.
+let getAlerts = () => [];
+let getUsingDatabaseAlerts = () => false;
+let persistAlerts = () => {};
+let upsertAlert = async () => {};
+let reloadAlertsFromDatabase = async () => false;
+
+// Diagnostic logging is always on in this module — the gated blocks below
+// only append to the local LOGIN_DIAG_BUFFER and console.log.
+const diagLog = true;
 
 const SOURCE_TYPES = ['mainstream-media', 'social-media', 'blockchain', 'developer'];
 
 /* ================== Injection Helper ================== */
 // Call this from server.js to inject dependencies
 router.setDependencies = function(deps) {
-  alerts = deps.alerts;
-  usingDatabaseAlerts = deps.usingDatabaseAlerts;
-  getUser = deps.getUser;
-  persistAlerts = deps.persistAlerts;
-  upsertAlert = deps.upsertAlert;
-  reloadAlertsFromDatabase = deps.reloadAlertsFromDatabase;
-  diagLog = deps.diagLog;
-  insertAudit = deps.insertAudit;
+  if (typeof deps.getAlerts === 'function') getAlerts = deps.getAlerts;
+  if (typeof deps.getUsingDatabaseAlerts === 'function') getUsingDatabaseAlerts = deps.getUsingDatabaseAlerts;
+  if (typeof deps.persistAlerts === 'function') persistAlerts = deps.persistAlerts;
+  if (typeof deps.upsertAlert === 'function') upsertAlert = deps.upsertAlert;
+  if (typeof deps.reloadAlertsFromDatabase === 'function') reloadAlertsFromDatabase = deps.reloadAlertsFromDatabase;
 };
 
 /* ================== LOGIN DIAGNOSTIC LOGGING ================== */
@@ -597,7 +598,7 @@ router.get('/admin/export/alerts.csv', requireAdmin, (_req, res) => {
     const headers = [
       'id','token','title','description','severity','deadline','tags','further_info','source_type','source_url'
     ];
-    const rows = alerts.map(a => ([
+    const rows = getAlerts().map(a => ([
       a.id,
       a.token,
       a.title,
@@ -1091,8 +1092,8 @@ Return ONLY the JSON object, no prose.`;
       logo_url: logoUrl
     };
 
-    alerts.push(item);
-    if (usingDatabaseAlerts) {
+    getAlerts().push(item);
+    if (getUsingDatabaseAlerts()) {
       try {
         await upsertAlert({
           id: item.id,
