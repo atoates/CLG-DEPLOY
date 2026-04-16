@@ -61,6 +61,15 @@ app.use(adminRouter);    // /admin/*, /debug/*, /healthz, /ready, /api/debug*
 app.use(userRouter);     // /api/me/*, /api/token-requests/*, /api/summary/*
 app.use(authRouter);     // /auth/google, /auth/exchange-token, /auth/logout
 
+// --- Database + alerts initialization ---
+// initDB creates tables if missing; initializeAlerts populates the in-memory
+// alerts cache from DB (falling back to data/alerts.json). Without this the
+// GET /api/alerts endpoint returns [] even when alerts exist.
+initDB()
+  .then(() => alertsRouter.initializeAlerts(marketRouter.getLogoUrl, marketRouter.getCoinGeckoId))
+  .then(() => console.log(`Alerts initialized: ${alertsRouter.getAlerts().length} loaded`))
+  .catch((err) => console.error('Startup initialization failed:', err));
+
 // --- Static file serving ---
 const mainAppDistDir = path.resolve(__dirname, 'main-app-dist');
 const adminDistDir = path.resolve(__dirname, 'dist');
