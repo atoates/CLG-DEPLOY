@@ -1116,6 +1116,8 @@ Return ONLY the JSON object, no prose.`;
       persistAlerts();
     }
 
+    require('../lib/push').notifyAlert(item);
+
     res.status(201).json({
       alert: item,
       model: usedModel,

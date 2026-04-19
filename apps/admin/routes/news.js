@@ -36,6 +36,13 @@ function normalizeTickers(tickers) {
  * Fetch and cache RSS articles from news sources
  * Fetches fresh articles from CoinDesk, adds to DB cache, returns merged result
  */
+// Make GET explicit so browser URL-bar requests don't fall through to the
+// SPA fallback handler and look like a 200 HTML response to JSON clients.
+router.get('/api/news', (_req, res) => {
+  res.set('Allow', 'POST');
+  res.status(405).json({ error: 'method_not_allowed', allow: 'POST' });
+});
+
 router.post('/api/news', async (req, res) => {
   try {
     const { tokens } = req.body;

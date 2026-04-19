@@ -115,7 +115,7 @@
       }
     })();
   </script>
-  <script type="module" crossorigin src="/assets/main-DTMGXGKO.js"></script>
+  <script type="module" crossorigin src="/assets/main-C4hGGueG.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/chat-DG6q3OlY.js">
   <link rel="stylesheet" crossorigin href="/assets/styles-kIEAt-F1.css">
 </head>
@@ -161,6 +161,7 @@
           <div id="user-menu" class="menu" hidden>
             <button class="menu-item" data-action="login">Log in / Sign up</button>
             <hr />
+            <button class="menu-item" data-action="notifications" id="menu-notifications" hidden>Enable notifications</button>
             <button class="menu-item" data-action="settings">Settings</button>
             <button class="menu-item" data-action="help">Help</button>
             <hr />
@@ -357,5 +358,54 @@
   <!-- App.js loaded by Vite bundle -->
   <!-- Sentinel AI chat widget (context is refreshed by app.js as the user switches tabs) -->
   <script>window.CLG_CHAT_CONTEXT = { page: 'alerts' };</script>
+  <!-- Web Push subscription helper (CLGPush) + menu wiring -->
+  <script>
+    (function () {
+      async function refreshNotifLabel() {
+        const btn = document.getElementById('menu-notifications');
+        if (!btn || !window.CLGPush) return;
+        if (!window.CLGPush.isSupported()) { btn.hidden = true; return; }
+        try {
+          const status = await window.CLGPush.getStatus();
+          if (status === 'denied') {
+            btn.hidden = true;
+            return;
+          }
+          btn.hidden = false;
+          btn.textContent = status === 'subscribed'
+            ? 'Disable notifications'
+            : 'Enable notifications';
+          btn.dataset.status = status;
+        } catch (_) { btn.hidden = true; }
+      }
+
+      document.addEventListener('click', async (ev) => {
+        const btn = ev.target && ev.target.closest && ev.target.closest('[data-action="notifications"]');
+        if (!btn || !window.CLGPush) return;
+        ev.preventDefault();
+        btn.disabled = true;
+        try {
+          if (btn.dataset.status === 'subscribed') {
+            await window.CLGPush.unsubscribe();
+          } else {
+            await window.CLGPush.subscribe();
+          }
+        } catch (err) {
+          alert('Notifications: ' + (err && err.message ? err.message : 'failed'));
+        } finally {
+          btn.disabled = false;
+          refreshNotifLabel();
+        }
+      });
+
+      // Lazy check once CLGPush has loaded.
+      let tries = 0;
+      (function poll() {
+        if (window.CLGPush) return refreshNotifLabel();
+        if (++tries > 40) return;
+        setTimeout(poll, 100);
+      })();
+    })();
+  </script>
 </body>
 </html>

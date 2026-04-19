@@ -30,6 +30,7 @@ const newsRouter = require('./routes/news');
 const authRouter = require('./routes/auth');
 const adminRouter = require('./routes/admin');
 const userRouter = require('./routes/user');
+const pushRouter = require('./routes/push');
 
 // --- Express app ---
 const app = express();
@@ -60,6 +61,7 @@ app.use(adminRouter);    // /admin/*, /debug/*, /healthz, /ready, /api/debug*
 // All routers use full paths
 app.use(userRouter);     // /api/me/*, /api/token-requests/*, /api/summary/*
 app.use(authRouter);     // /auth/google, /auth/exchange-token, /auth/logout
+app.use(pushRouter);     // /api/push/*, /admin/push/*
 
 // --- Database + alerts initialization ---
 // initDB creates tables if missing; initializeAlerts populates the in-memory
@@ -155,8 +157,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Wildcard SPA fallback for admin dashboard
+// Wildcard SPA fallback for admin dashboard.
+// API / auth / admin / debug prefixes must never fall through to HTML — JSON
+// clients expect a JSON 404 so they can surface the error cleanly.
+const API_PREFIX = /^\/(api|auth|admin|debug|healthz|ready)\b/;
 app.get('*', (req, res) => {
+  if (API_PREFIX.test(req.path)) {
+    return res.status(404).json({ error: 'not_found', path: req.path });
+  }
   const hostname = req.hostname || req.get('host') || '';
   if (isMainAppHost(hostname) && mainAppHasFiles) {
     const indexPath = path.join(mainAppDistDir, 'index.html');

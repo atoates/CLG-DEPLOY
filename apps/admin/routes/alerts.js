@@ -5,6 +5,7 @@ const path = require('path');
 const router = express.Router();
 
 const { pool, upsertAlert, deleteAlert, insertAudit, trackAPICall } = require('../lib/db');
+const push = require('../lib/push');
 
 /* ----- Shared state and helpers ----- */
 
@@ -333,6 +334,7 @@ router.post('/api/alerts', require('../lib/middleware').requireAdmin, async (req
     persistAlerts();
   }
 
+  push.notifyAlert(item);
   res.status(201).json(item);
 });
 
@@ -645,6 +647,9 @@ router.post('/api/alerts/bulk', require('../lib/middleware').requireAdmin, async
     await reloadAlertsFromDatabase();
   }
 
+  // Fan out push notifications for any critical alerts in this batch.
+  for (const a of createdAlerts) push.notifyAlert(a);
+
   const response = {
     imported: createdAlerts.length,
     errors: errors.length,
@@ -772,6 +777,8 @@ router.post('/admin/alerts', require('../lib/middleware').requireAdmin, async (r
     }
 
     console.log(`[Admin Alerts] Created alert: ${item.token} - ${item.title} (severity: ${item.severity})`);
+
+    push.notifyAlert(item);
 
     // Return the created alert
     res.status(201).json({

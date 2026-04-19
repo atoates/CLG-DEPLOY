@@ -4,11 +4,18 @@
 const { Pool } = require('pg');
 const log = require('./logger');
 
-// PostgreSQL connection setup
+// PostgreSQL connection setup.
+// connectionTimeoutMillis stops handlers from hanging when the DB is
+// unreachable (was letting /api/me hang for ~30s in local dev).
+// query_timeout caps any single query so a slow statement cannot stall a
+// request indefinitely.
 const DATABASE_URL = process.env.DATABASE_URL;
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: DATABASE_URL && DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
+  ssl: DATABASE_URL && DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false },
+  connectionTimeoutMillis: 3000,
+  query_timeout: 10000,
+  idleTimeoutMillis: 30000
 });
 
 /* -------- Database Initialization -------- */
@@ -62,6 +69,18 @@ async function initDB() {
         email TEXT,
         event TEXT,
         detail TEXT
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+        last_sent_at BIGINT
       );
     `);
 

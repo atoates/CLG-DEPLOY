@@ -1,0 +1,147 @@
+{
+  "alerts": [
+    {
+      "token": "rsETH",
+      "title": "Kelp DAO bridge drained for $292M — emergency pause",
+      "description": "An attacker exploited Kelp DAO's LayerZero-powered bridge on 18 April 2026 and drained 116,500 rsETH (~$292M, roughly 18% of circulating supply). Core contracts have been emergency-paused. Holders should not move rsETH across chains until the team confirms the bridge is safe, and should review wrapped-rsETH positions on other chains.",
+      "severity": "critical",
+      "deadline": "2026-04-24T23:59:00.000Z",
+      "tags": ["hack", "exploit", "whale"],
+      "further_info": "This is now the largest DeFi exploit of 2026 to date, overtaking the Drift incident from earlier in the month.",
+      "source_type": "mainstream-media",
+      "source_url": "https://www.coindesk.com/tech/2026/04/19/2026-s-biggest-crypto-exploit-kelp-dao-hit-for-usd292-million-with-wrapped-ether-stranded-across-20-chains"
+    },
+    {
+      "token": "SOL",
+      "title": "Drift Protocol drained for $285M in DPRK-linked exploit",
+      "description": "On 1 April 2026 an attacker used a compromised admin key and a fake token to manipulate Drift's oracles and drain approximately $285M in USDC, SOL, JLP and WBTC. Elliptic and TRM Labs have attributed the attack to DPRK operators. Users who deposited into Drift before the exploit should check the protocol's recovery page for rescue eligibility.",
+      "severity": "critical",
+      "deadline": "2026-05-01T23:59:00.000Z",
+      "tags": ["hack", "exploit"],
+      "further_info": "Drift has since received $148M in rescue funding from Tether partners and replaced USDC with USDT as the canonical perp collateral.",
+      "source_type": "trusted-source",
+      "source_url": "https://www.elliptic.co/blog/drift-protocol-exploited-for-286-million-in-suspected-dprk-linked-attack"
+    },
+    {
+      "token": "COW",
+      "title": "DeFi hack spree: 12 protocols hit after Drift exploit",
+      "description": "In the two weeks following the Drift exploit, at least 12 smaller protocols have been hit with similar oracle / admin-key attack patterns, including CoW Swap, Zerion, Rhea Finance and Silo Finance. Holders of governance tokens in affected protocols should review and revoke unnecessary smart-contract approvals.",
+      "severity": "critical",
+      "deadline": "2026-04-30T23:59:00.000Z",
+      "tags": ["hack", "exploit", "community"],
+      "further_info": "Pattern is consistent enough that analysts have flagged it as a coordinated campaign rather than independent incidents.",
+      "source_type": "mainstream-media",
+      "source_url": "https://blockchain.news/news/12-defi-protocols-hacked-drift-exploit-april-2026"
+    },
+    {
+      "token": "SUI",
+      "title": "Large SUI unlock on 1 May 2026 — ~$38M against ~$3.5B cap",
+      "description": "A scheduled SUI unlock on 1 May 2026 releases approximately $38M of new supply into circulation. Historically, cliff-style unlocks of this magnitude correlate with short-term sell pressure in the 24-72h window around the event.",
+      "severity": "warning",
+      "deadline": "2026-05-01T00:00:00.000Z",
+      "tags": ["token-unlocks", "price-change"],
+      "further_info": "Ongoing vesting schedule; subsequent monthly unlocks continue through 2026.",
+      "source_type": "trusted-source",
+      "source_url": "https://tokenomist.ai/sui"
+    },
+    {
+      "token": "ARB",
+      "title": "ARB monthly unlock — next cliff 16 May 2026",
+      "description": "Arbitrum's ongoing linear team and investor unlock schedule continues with the next cliff on 16 May 2026. Holders tracking circulating supply should expect the same pattern of modest short-term sell pressure seen in prior months.",
+      "severity": "warning",
+      "deadline": "2026-05-16T00:00:00.000Z",
+      "tags": ["token-unlocks"],
+      "further_info": "Recurring schedule; see Tokenomist.ai for the full vesting curve.",
+      "source_type": "trusted-source",
+      "source_url": "https://tokenomist.ai/arbitrum"
+    },
+    {
+      "token": "APT",
+      "title": "APT monthly unlock — next cliff 12 May 2026",
+      "description": "Aptos's monthly vesting unlock continues with the next cliff on 12 May 2026. Circulating supply will grow in line with the published schedule. No action required for holders, but traders should be aware of the recurring pattern.",
+      "severity": "warning",
+      "deadline": "2026-05-12T00:00:00.000Z",
+      "tags": ["token-unlocks"],
+      "further_info": "Recurring schedule through 2026.",
+      "source_type": "trusted-source",
+      "source_url": "https://tokenomist.ai/aptos"
+    },
+    {
+      "token": "AAVE",
+      "title": "AAVE passes AIP 469 — USDe→USDT hardwire, 100% revenue to DAO",
+      "description": "On 12 April 2026 Aave token holders passed AIP 469 with 74.89% approval. The proposal redirects 100% of revenue from Aave-branded products back to the DAO under the 'Aave Will Win' framework, and hardwires USDe's oracle value to USDT to prevent forced liquidations. The latter transfers significant residual risk onto stablecoin lenders in the protocol.",
+      "severity": "warning",
+      "deadline": "2026-05-15T23:59:00.000Z",
+      "tags": ["community-vote", "migration", "news"],
+      "further_info": "USDe lenders on Aave should review position sizing given the new oracle behaviour.",
+      "source_type": "trusted-source",
+      "source_url": "https://crypto-economy.com/community-opposition-leads-to-defeat-of-aave-governance-proposal/"
+    },
+    {
+      "token": "UNI",
+      "title": "Uniswap UNIfication RFC — fee switch, UNI burns, Labs funding",
+      "description": "Uniswap Governance is consulting on the UNIfication proposal: route protocol fees into UNI burns, disable Labs-level interface and wallet fees, and move Labs funding onto the DAO treasury. RFC is active; a binding vote is expected in May 2026. Materially changes UNI tokenomics if passed.",
+      "severity": "warning",
+      "deadline": "2026-05-31T23:59:00.000Z",
+      "tags": ["community-vote", "news"],
+      "further_info": "This is the clearest 'fee switch' proposal in Uniswap's history. Expect wider debate before the binding vote.",
+      "source_type": "trusted-source",
+      "source_url": "https://gov.uniswap.org/t/unification-proposal/25881"
+    },
+    {
+      "token": "LDO",
+      "title": "Lido proposes $20M LDO buyback funded by 10,000 stETH",
+      "description": "Lido DAO is voting on a $20M LDO buyback funded by 10,000 stETH from treasury. If approved, the buyback would reduce LDO circulating supply and set a precedent for ongoing treasury-funded buybacks. Material for LDO holders tracking supply dynamics.",
+      "severity": "warning",
+      "deadline": "2026-05-10T23:59:00.000Z",
+      "tags": ["community-vote", "news"],
+      "further_info": "Proposal under discussion; vote window expected early May.",
+      "source_type": "trusted-source",
+      "source_url": "https://cryptonews.net/news/defi/32656648/"
+    },
+    {
+      "token": "SOL",
+      "title": "SEC/CFTC classify SOL and 13 others as commodities — ETF pipeline unblocked",
+      "description": "On 17 March 2026 the SEC and CFTC issued a joint Interpretive Release following their 11 March MOU, classifying 16 cryptoassets as commodities. The list includes SOL, XRP, ADA, LINK, AVAX, DOT, HBAR, LTC, DOGE, SHIB, XTZ, BCH, APT and XLM. This removes the primary regulatory barrier for spot-ETF filings on all listed tokens, with the first wave of filings expected by 30 June 2026.",
+      "severity": "info",
+      "deadline": "2026-06-30T23:59:00.000Z",
+      "tags": ["news", "community"],
+      "further_info": "BTC and ETH were already classified. The ETF unlock is significant for long-tail majors that have sat on the sidelines since 2024.",
+      "source_type": "mainstream-media",
+      "source_url": "https://www.sec.gov/newsroom/press-releases/2026-30-sec-clarifies-application-federal-securities-laws-crypto-assets"
+    },
+    {
+      "token": "ETH",
+      "title": "Glamsterdam hard fork targeted for Q2/Q3 2026",
+      "description": "Glamsterdam is the next major Ethereum hard fork after Fusaka (which activated on 3 December 2025). It combines the Glam consensus-layer improvements with the Amsterdam execution-layer updates. Current client-team targeting is Q2/Q3 2026; exact fork epoch will be announced closer to the date. Node operators should plan a maintenance window; holders do not need to take action beyond keeping their wallets up to date.",
+      "severity": "info",
+      "deadline": "2026-09-30T23:59:00.000Z",
+      "tags": ["fork", "news"],
+      "further_info": "Expected scope covers validator-set changes, gas-limit tuning, and further PeerDAS refinements.",
+      "source_type": "mainstream-media",
+      "source_url": "https://www.theblock.co/post/383451/how-ethereums-protocol-changed-2025"
+    },
+    {
+      "token": "USDT",
+      "title": "Federal stablecoin rules finalisation deadline — 31 July 2026",
+      "description": "State and federal regulators have until 31 July 2026 to finalise implementation rules under the new US stablecoin framework: 1:1 reserve backing, monthly reserve-composition attestation, and OCC oversight for nonbank issuers. Watch for issuer restructuring, reserve-composition disclosures, and any required migration between stablecoin products.",
+      "severity": "info",
+      "deadline": "2026-07-31T23:59:00.000Z",
+      "tags": ["news", "migration"],
+      "further_info": "USDT and USDC are the largest affected issuers (approximately $140B and $60B in circulation respectively as of April 2026).",
+      "source_type": "mainstream-media",
+      "source_url": "https://www.brookings.edu/articles/what-are-stablecoins-and-how-are-they-regulated/"
+    },
+    {
+      "token": "DRIFT",
+      "title": "Drift receives $148M Tether-led rescue, swaps USDC for USDT",
+      "description": "Following the 1 April exploit, Drift Protocol has received $148M in rescue funding from Tether and partners and has replaced Circle's USDC with USDT as the canonical perp collateral. Users with USDC deposits from before the exploit should check the recovery-and-migration page for the conversion flow.",
+      "severity": "info",
+      "deadline": "2026-04-30T23:59:00.000Z",
+      "tags": ["news", "migration"],
+      "further_info": "The stablecoin swap is a significant vote of confidence from Tether and a notable loss of Circle's Solana DeFi footprint.",
+      "source_type": "mainstream-media",
+      "source_url": "https://www.coindesk.com/business/2026/04/16/drift-gets-usd148-million-funding-from-tether-and-partners-as-it-replaces-circle-stablecoin-with-usdt"
+    }
+  ]
+}
