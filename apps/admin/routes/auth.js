@@ -267,7 +267,6 @@ router.get('/auth/google/callback', async (req, res) => {
       diagLog('auth', '/auth/google/callback.success', {
         uid,
         email,
-        authTokenPrefix: authToken.slice(0, 8),
         sameOriginRedirect: true,
       });
     } catch (_) {}

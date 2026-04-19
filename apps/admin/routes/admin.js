@@ -176,19 +176,18 @@ router.get('/debug/env', requireAdmin, (req, res) => {
   const CMC_API_KEY = process.env.CMC_API_KEY || '';
   const MARKET_CURRENCY = process.env.MARKET_CURRENCY || 'GBP';
 
+  // Expose whether keys are set + their length, never a prefix. Prefixes
+  // end up in observability platforms and reduce brute-force search space.
+  const newsKey = process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY || '';
+  const coindeskKey = process.env.COINDESK || process.env.COINDESK_API_KEY || '';
   res.json({
     NODE_ENV: process.env.NODE_ENV || 'not_set',
     CMC_API_KEY_SET: !!CMC_API_KEY,
     CMC_API_KEY_LENGTH: CMC_API_KEY ? CMC_API_KEY.length : 0,
-    CMC_API_KEY_FIRST_8: CMC_API_KEY ? CMC_API_KEY.substring(0, 8) : 'not_set',
-    NEWS_API_KEY_SET: !!(process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY),
-    NEWS_API_KEY_PREFIX: (process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY)
-      ? (process.env.NEWSAPI_KEY || process.env.NEWS_API || process.env.CRYPTONEWS_API_KEY || process.env.CRYPTO_NEWS_API_KEY).slice(0, 8)
-      : 'not_set',
-    COINDESK_KEY_SET: !!(process.env.COINDESK || process.env.COINDESK_API_KEY),
-    COINDESK_KEY_PREFIX: (process.env.COINDESK || process.env.COINDESK_API_KEY)
-      ? (process.env.COINDESK || process.env.COINDESK_API_KEY).slice(0, 8)
-      : 'not_set',
+    NEWS_API_KEY_SET: !!newsKey,
+    NEWS_API_KEY_LENGTH: newsKey.length,
+    COINDESK_KEY_SET: !!coindeskKey,
+    COINDESK_KEY_LENGTH: coindeskKey.length,
     MARKET_CURRENCY_RESOLVED: MARKET_CURRENCY,
     MARKET_CURRENCY_RAW: process.env.MARKET_CURRENCY || 'not_set_defaulting_to_GBP',
     RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT || 'not_set',
@@ -295,7 +294,18 @@ router.get('/admin/info', requireAdmin, async (req, res) => {
 
 /* ================== ADMIN SQL/SCHEMA/MIGRATION/BACKUP ================== */
 
+// Arbitrary SQL execution. Disabled by default — an admin whose token
+// leaks should not give the attacker RCE-equivalent DB access. To turn
+// on for a debugging session set ALLOW_ADMIN_SQL=true and redeploy; turn
+// off again as soon as the session is done.
 router.post('/admin/sql', requireAdmin, async (req, res) => {
+  if (String(process.env.ALLOW_ADMIN_SQL || '').toLowerCase() !== 'true') {
+    return res.status(403).json({
+      error: 'disabled',
+      message: 'Arbitrary SQL is disabled. Set ALLOW_ADMIN_SQL=true to enable temporarily.'
+    });
+  }
+
   const { sql } = req.body || {};
   if (!sql) {
     return res.status(400).json({ error: 'sql parameter required' });

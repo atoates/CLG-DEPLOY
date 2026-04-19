@@ -9,6 +9,7 @@ const path = require('path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 
 // --- Shared modules ---
 const log = require('./lib/logger');
@@ -36,6 +37,10 @@ const pushRouter = require('./routes/push');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Railway (and most PaaS) sit behind a proxy. Without trust proxy, every
+// rate-limit key would be the proxy IP and all users would share one bucket.
+app.set('trust proxy', 1);
+
 // Body parsing & cookies
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
@@ -46,6 +51,43 @@ app.use('/auth', cors(corsOptions));
 app.use('/admin', cors(corsOptions));
 app.use('/debug', cors(corsOptions));
 app.options('*', cors(corsOptions));
+
+// --- Rate limiting (per-IP, memory-backed) ---
+// Applied before anon-user middleware so abusive clients don't even get
+// their upsertUser DB write. Limits are generous for legitimate use and
+// tight enough to frustrate brute-force or scraping. /healthz and /ready
+// are outside the /api prefix and are not limited.
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'rate_limited', message: 'Too many requests. Try again in a minute.' }
+});
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'rate_limited', message: 'Too many auth requests.' }
+});
+const adminLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'rate_limited', message: 'Too many admin requests.' }
+});
+
+// /api/debug-log is called very frequently from the frontend (every login
+// step) — skip it to avoid false positives during a normal login flow.
+app.use('/api', (req, res, next) => {
+  if (req.path === '/debug-log' || req.path.startsWith('/debug-log/')) return next();
+  return apiLimiter(req, res, next);
+});
+app.use('/auth', authLimiter);
+app.use('/admin', adminLimiter);
+app.use('/debug', adminLimiter);
 
 // Anonymous user middleware (assigns req.uid)
 app.use(createAnonUserMiddleware());

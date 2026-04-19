@@ -1,3 +1,5 @@
+import { safeHTML } from './sanitize.js';
+
 /* ============================================================================
  * Crypto Lifeguard — Alert detail page
  * ----------------------------------------------------------------------------
@@ -70,7 +72,7 @@ function renderMarkdown(text) {
     }
   }
   if (inList) out.push('</ul>');
-  return out.join('');
+  return safeHTML(out.join(''));
 }
 
 // ---- Formatting helpers ---------------------------------------------------

@@ -1,3 +1,5 @@
+import { safeHTML } from './sanitize.js';
+
 /* ============================================================================
  * Sentinel AI — floating chat widget
  * ----------------------------------------------------------------------------
@@ -196,7 +198,7 @@ function renderMarkdown(text) {
     out.push(`<p>${applyInline(line)}</p>`);
   }
   if (listType) out.push(`</${listType}>`);
-  return out.join('');
+  return safeHTML(out.join(''));
 }
 
 // ---- DOM helpers ----------------------------------------------------------

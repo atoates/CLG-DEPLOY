@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "serve": "node serve-spa.js"
   },
-  "dependencies": {},
+  "dependencies": {
+    "dompurify": "^3.4.0"
+  },
   "devDependencies": {
     "vite": "^5.4.20"
   },

@@ -1,3 +1,5 @@
+import { safeHTML } from './sanitize.js';
+
 // --- Config ------------------------------------------------------------------
 // API Base URL resolver — prefers injected BACKEND_URL, with safe production fallback
 function getApiBaseUrl() {
@@ -1921,7 +1923,7 @@ function sentinelMarkdown(text) {
     out.push(`<p>${line}</p>`);
   }
   if (listType) out.push(`</${listType}>`);
-  return out.join('');
+  return safeHTML(out.join(''));
 }
 
 function renderSentinelStats(stats) {
