@@ -89,7 +89,8 @@ const ALERT_TAGS = {
   'exploit': { icon: '⚡', label: 'Exploit', color: '#f43f5e' },
   'privacy': { icon: '🛡️', label: 'Privacy', color: '#22c55e' },
   'community-vote': { icon: '🗳️', label: 'Community Vote', color: '#8b5cf6' },
-  'token-unlocks': { icon: '🔒', label: 'Token Unlocks', color: '#f59e0b' }
+  'token-unlocks': { icon: '🔒', label: 'Token Unlocks', color: '#f59e0b' },
+  'market-event': { icon: '📅', label: 'Market event', color: '#64748b' }
 };
 
 const ALERT_SOURCE_TYPES = {
@@ -102,6 +103,16 @@ const ALERT_SOURCE_TYPES = {
 
 // --- Additional state -------------------------------------------------------
 let tagFilter = [];
+// Market-wide events (FOMC, CPI, ETF decision windows, upgrades) are stored
+// as alerts tagged 'market-event'. Users can toggle them off if they only
+// want token-specific items in the timeline.
+let showMarketEvents = (() => {
+  try { return localStorage.getItem('clg_show_market_events') !== 'false'; }
+  catch { return true; }
+})();
+function isMarketEvent(alert) {
+  return getAlertTagsArray(alert).includes('market-event');
+}
 
 // Market state
 let marketItems = [];
@@ -630,6 +641,17 @@ document.addEventListener('DOMContentLoaded', () => {
       showAllTokens = !!showAllTokensToggle.checked;
       try { localStorage.setItem('showAllTokens', showAllTokens ? '1' : '0'); } catch(_e) {}
       renderAll();
+    });
+  }
+
+  // Wire 'Events' toggle (market-wide events on the timeline).
+  const marketEventsToggle = document.getElementById('toggle-show-market-events');
+  if (marketEventsToggle) {
+    marketEventsToggle.checked = showMarketEvents;
+    marketEventsToggle.addEventListener('change', () => {
+      showMarketEvents = !!marketEventsToggle.checked;
+      try { localStorage.setItem('clg_show_market_events', showMarketEvents ? 'true' : 'false'); } catch(_e) {}
+      renderAlerts();
     });
   }
 })();
@@ -1192,10 +1214,19 @@ function applyTagFilter(list) {
 
 function getRelevantAlerts(){
   const all = [...serverAlerts, ...autoAlerts];
-  const base = showAllTokens ? all : all.filter(a => selectedTokens.includes((a.token || '').toUpperCase()))
+  // Market events are global (not tied to a watchlist token) and shown
+  // alongside token-specific alerts unless the toggle is off.
+  const base = showAllTokens
+    ? all
+    : all.filter(a => {
+        if (showMarketEvents && isMarketEvent(a)) return true;
+        return selectedTokens.includes((a.token || '').toUpperCase());
+      });
 
   let list = applySeverityFilter(base);
   list = applyTagFilter(list);
+
+  if (!showMarketEvents) list = list.filter(a => !isMarketEvent(a));
 
   // Hide dismissed unless Show all is ON
   if (!showAll) list = list.filter(a => !isHidden(a));
@@ -1308,59 +1339,76 @@ function renderAlertsPagination(total, pageSize) {
   nav.appendChild(next);
 }
 
-function renderAlerts(){
-  const fullList = sortAlertsByDeadline(getRelevantAlerts());
-  const total = fullList.length;
-  const pageSize = ALERTS_PAGE_SIZE;
-  const maxPageIdx = Math.max(0, Math.ceil(total / pageSize) - 1);
-  if (alertsPageIndex > maxPageIdx) alertsPageIndex = maxPageIdx;
-  const list = fullList.slice(alertsPageIndex * pageSize, alertsPageIndex * pageSize + pageSize);
+// Timeline buckets, ordered. Each bucket has a label and a predicate that
+// returns true if the alert belongs in it. First match wins.
+const TIMELINE_BUCKETS = [
+  { key: 'overdue',   label: 'Overdue',     test: (ms) => ms < 0 },
+  { key: 'today',     label: 'Today',       test: (ms) => ms < 24 * 3600e3 },
+  { key: 'week',      label: 'This week',   test: (ms) => ms < 7 * 24 * 3600e3 },
+  { key: 'month',     label: 'This month',  test: (ms) => ms < 30 * 24 * 3600e3 },
+  { key: 'later',     label: 'Later',       test: () => true }
+];
+const NO_DEADLINE_BUCKET = { key: 'no-deadline', label: 'No deadline' };
 
-  renderAlertsPagination(total, pageSize);
+function bucketForAlert(a) {
+  const d = new Date(a.deadline).getTime();
+  if (!d || isNaN(d)) return NO_DEADLINE_BUCKET;
+  const ms = d - Date.now();
+  return TIMELINE_BUCKETS.find(b => b.test(ms)) || TIMELINE_BUCKETS[TIMELINE_BUCKETS.length - 1];
+}
 
-  alertsListEl.innerHTML = '';
-  if (fullList.length === 0){
-    noAlertsEl.hidden = false;
-    const nav = document.getElementById('alerts-pagination');
-    if (nav) { nav.hidden = true; nav.innerHTML = ''; }
-    return;
-  }
-  noAlertsEl.hidden = true;
+// Urgency class for the deadline chip. Red <24h, amber <1wk, neutral else.
+function urgencyClass(a) {
+  const d = new Date(a.deadline).getTime();
+  if (!d || isNaN(d)) return 'is-neutral';
+  const ms = d - Date.now();
+  if (ms < 0) return 'is-overdue';
+  if (ms < 24 * 3600e3) return 'is-urgent';
+  if (ms < 7 * 24 * 3600e3) return 'is-soon';
+  return 'is-neutral';
+}
 
+function buildAlertCard(a) {
   const v = '20251021c';
+  const wrap = document.createElement('div');
+  const isEvent = isMarketEvent(a);
+  wrap.className = 'alert-item alert-item--feed severity-' + (a.severity || 'info');
+  if (isEvent) wrap.classList.add('alert-item--event');
 
-  list.forEach(a => {
-    const wrap = document.createElement('div');
-    wrap.className = 'alert-item alert-item--feed severity-' + (a.severity || 'info');
+  const hidden = isHidden(a);
+  if (showAll && hidden) wrap.classList.add('is-hidden');
 
-    const hidden = isHidden(a);
-    if (showAll && hidden) wrap.classList.add('is-hidden');
+  const tagsArrForAccent = getAlertTagsArray(a);
 
-    const tagsArrForAccent = getAlertTagsArray(a);
+  const accentSide = document.createElement('div');
+  accentSide.className = 'alert-accent-side';
+  if (tagsArrForAccent.includes('migration')) accentSide.classList.add('accent-migration');
+  if (isEvent) accentSide.classList.add('accent-event');
 
-    const accentSide = document.createElement('div');
-    accentSide.className = 'alert-accent-side';
-    if (tagsArrForAccent.includes('migration')) accentSide.classList.add('accent-migration');
+  const row = document.createElement('div');
+  row.className = 'alert-item-row';
 
-    const row = document.createElement('div');
-    row.className = 'alert-item-row';
+  const dismissBtn = document.createElement('button');
+  dismissBtn.type = 'button';
+  dismissBtn.className = 'alert-dismiss-btn';
+  dismissBtn.setAttribute('aria-label', hidden ? 'Unhide alert' : 'Dismiss alert');
+  dismissBtn.title = hidden ? 'Unhide alert' : 'Dismiss alert';
+  dismissBtn.textContent = '×';
+  dismissBtn.addEventListener('click', () => {
+    if (isHidden(a)) unhideAlert(a);
+    else dismissAlert(a);
+  });
 
-    const dismissBtn = document.createElement('button');
-    dismissBtn.type = 'button';
-    dismissBtn.className = 'alert-dismiss-btn';
-    dismissBtn.setAttribute('aria-label', hidden ? 'Unhide alert' : 'Dismiss alert');
-    dismissBtn.title = hidden ? 'Unhide alert' : 'Dismiss alert';
-    dismissBtn.textContent = '×';
-    dismissBtn.addEventListener('click', () => {
-      if (isHidden(a)) unhideAlert(a);
-      else dismissAlert(a);
-    });
-
-    const coinSection = document.createElement('div');
-    coinSection.className = 'coin-section';
-    const coinLogo = document.createElement('div');
-    coinLogo.className = 'coin-logo';
-    const token = (a.token || '').toUpperCase();
+  const coinSection = document.createElement('div');
+  coinSection.className = 'coin-section';
+  const coinLogo = document.createElement('div');
+  coinLogo.className = 'coin-logo';
+  const token = (a.token || '').toUpperCase();
+  if (isEvent) {
+    // Generic calendar glyph for market-wide events instead of a token logo.
+    coinLogo.classList.add('coin-logo--event');
+    coinLogo.textContent = '📅';
+  } else {
     const logoUrl = apiUrl(`/api/logo/${token}`);
     const img = document.createElement('img');
     img.className = 'coin-img';
@@ -1371,31 +1419,37 @@ function renderAlerts(){
       this.src = apiUrl(`/api/logo/${token}`);
     };
     coinLogo.appendChild(img);
-    coinSection.appendChild(coinLogo);
+  }
+  coinSection.appendChild(coinLogo);
 
-    const stack = document.createElement('div');
-    stack.className = 'alert-content-stack';
+  const stack = document.createElement('div');
+  stack.className = 'alert-content-stack';
 
-    // -- Top meta row: token pill + source badge (inline) ---------------------
-    const tokenRow = document.createElement('div');
-    tokenRow.className = 'alert-token-row';
+  // -- Top meta row: token pill + source badge (inline) ---------------------
+  const tokenRow = document.createElement('div');
+  tokenRow.className = 'alert-token-row';
 
-    const tokenName = document.createElement('span');
-    tokenName.className = 'alert-token-name';
+  const tokenName = document.createElement('span');
+  tokenName.className = 'alert-token-name';
+  if (isEvent) {
+    tokenName.classList.add('alert-token-name--event');
+    tokenName.textContent = 'Market';
+  } else {
     tokenName.textContent = token || 'Token';
-    tokenRow.appendChild(tokenName);
+  }
+  tokenRow.appendChild(tokenName);
 
-    // Source-type badge (e.g. "Trusted source", "Dev. Team") -- subtle inline
-    if (a.source_type) {
-      const st = ALERT_SOURCE_TYPES[a.source_type] || null;
-      if (st) {
-        const srcBadge = document.createElement('span');
-        srcBadge.className = 'alert-source-badge';
-        srcBadge.textContent = `${st.icon}\u00A0${st.label}`;
-        srcBadge.title = st.label;
-        tokenRow.appendChild(srcBadge);
-      }
+  // Source-type badge (e.g. "Trusted source", "Dev. Team") -- subtle inline
+  if (a.source_type) {
+    const st = ALERT_SOURCE_TYPES[a.source_type] || null;
+    if (st) {
+      const srcBadge = document.createElement('span');
+      srcBadge.className = 'alert-source-badge';
+      srcBadge.textContent = `${st.icon}\u00A0${st.label}`;
+      srcBadge.title = st.label;
+      tokenRow.appendChild(srcBadge);
     }
+  }
 
     const title = document.createElement('div');
     title.className = 'alert-title';
@@ -1455,63 +1509,127 @@ function renderAlerts(){
       footer.appendChild(chip);
     });
 
-    const aside = document.createElement('aside');
-    aside.className = 'alert-aside';
-    const metaChip = document.createElement('span');
-    metaChip.className = 'deadline-chip deadline-chip--aside';
-    const msLeft = new Date(a.deadline).getTime() - Date.now();
-    metaChip.textContent = fmtTimeLeft(msLeft);
-    aside.appendChild(metaChip);
-    aside.appendChild(dismissBtn);
+  const aside = document.createElement('aside');
+  aside.className = 'alert-aside';
+  const metaChip = document.createElement('span');
+  metaChip.className = 'deadline-chip deadline-chip--aside ' + urgencyClass(a);
+  const msLeft = new Date(a.deadline).getTime() - Date.now();
+  metaChip.textContent = fmtTimeLeft(msLeft);
+  aside.appendChild(metaChip);
+  aside.appendChild(dismissBtn);
 
-    stack.appendChild(tokenRow);
-    stack.appendChild(title);
-    stack.appendChild(desc);
-    if (metaWrap.childNodes.length) stack.appendChild(metaWrap);
-    stack.appendChild(footer);
+  stack.appendChild(tokenRow);
+  stack.appendChild(title);
+  stack.appendChild(desc);
+  if (metaWrap.childNodes.length) stack.appendChild(metaWrap);
+  stack.appendChild(footer);
 
-    row.appendChild(coinSection);
-    row.appendChild(stack);
-    row.appendChild(aside);
+  row.appendChild(coinSection);
+  row.appendChild(stack);
+  row.appendChild(aside);
 
-    wrap.appendChild(accentSide);
-    wrap.appendChild(row);
+  wrap.appendChild(accentSide);
+  wrap.appendChild(row);
 
-    // Make the whole card a clickable surface that opens the detail page,
-    // without hijacking clicks on buttons/links inside it (external link,
-    // Dismiss button, etc.).
-    wrap.classList.add('alert-item--clickable');
-    wrap.setAttribute('role', 'link');
-    wrap.setAttribute('tabindex', '0');
-    wrap.setAttribute('aria-label', `Open details for ${a.title}`);
-    const goToDetail = (e) => {
-      // Ignore clicks that hit an interactive element inside the card
-      const t = e.target;
-      if (t && t.closest && t.closest('button, a, input, textarea')) return;
+  // Make the whole card a clickable surface that opens the detail page,
+  // without hijacking clicks on buttons/links inside it (external link,
+  // Dismiss button, etc.).
+  wrap.classList.add('alert-item--clickable');
+  wrap.setAttribute('role', 'link');
+  wrap.setAttribute('tabindex', '0');
+  wrap.setAttribute('aria-label', `Open details for ${a.title}`);
+  const goToDetail = (e) => {
+    // Ignore clicks that hit an interactive element inside the card
+    const t = e.target;
+    if (t && t.closest && t.closest('button, a, input, textarea')) return;
+    window.location.href = `/alert.html?id=${encodeURIComponent(a.id)}`;
+  };
+  wrap.addEventListener('click', goToDetail);
+  wrap.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
       window.location.href = `/alert.html?id=${encodeURIComponent(a.id)}`;
-    };
-    wrap.addEventListener('click', goToDetail);
-    wrap.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        window.location.href = `/alert.html?id=${encodeURIComponent(a.id)}`;
-      }
-    });
-
-    wrap._tick = () => {
-      metaChip.textContent = fmtTimeLeft(new Date(a.deadline).getTime() - Date.now());
-    };
-
-    alertsListEl.appendChild(wrap);
+    }
   });
+
+  wrap._tick = () => {
+    metaChip.textContent = fmtTimeLeft(new Date(a.deadline).getTime() - Date.now());
+    metaChip.className = 'deadline-chip deadline-chip--aside ' + urgencyClass(a);
+  };
+
+  return wrap;
 }
 
-// live ticking
+function renderAlerts(){
+  const fullList = sortAlertsByDeadline(getRelevantAlerts());
+
+  // Hide pagination — the timeline replaces it. Kept in DOM so existing
+  // layout CSS doesn't shift, but emptied and hidden.
+  const nav = document.getElementById('alerts-pagination');
+  if (nav) { nav.hidden = true; nav.innerHTML = ''; }
+
+  alertsListEl.innerHTML = '';
+  if (fullList.length === 0){
+    noAlertsEl.hidden = false;
+    return;
+  }
+  noAlertsEl.hidden = true;
+
+  // Bucket alerts by deadline proximity. First matching bucket wins;
+  // alerts without a valid deadline end up in NO_DEADLINE_BUCKET.
+  const bucketed = new Map();
+  for (const a of fullList) {
+    const b = bucketForAlert(a);
+    if (!bucketed.has(b.key)) bucketed.set(b.key, { meta: b, items: [] });
+    bucketed.get(b.key).items.push(a);
+  }
+
+  // Render buckets in fixed order so "Overdue" is always on top.
+  const order = [...TIMELINE_BUCKETS.map(b => b.key), NO_DEADLINE_BUCKET.key];
+  const timeline = document.createElement('div');
+  timeline.className = 'alerts-timeline';
+
+  for (const key of order) {
+    const entry = bucketed.get(key);
+    if (!entry || !entry.items.length) continue;
+
+    const section = document.createElement('section');
+    section.className = `timeline-section timeline-section--${key}`;
+
+    const header = document.createElement('div');
+    header.className = 'timeline-section-header';
+    const marker = document.createElement('span');
+    marker.className = 'timeline-marker';
+    const label = document.createElement('h3');
+    label.className = 'timeline-section-label';
+    label.textContent = entry.meta.label;
+    const count = document.createElement('span');
+    count.className = 'timeline-section-count';
+    count.textContent = `${entry.items.length}`;
+    header.appendChild(marker);
+    header.appendChild(label);
+    header.appendChild(count);
+
+    const items = document.createElement('div');
+    items.className = 'timeline-section-items';
+    for (const a of entry.items) items.appendChild(buildAlertCard(a));
+
+    section.appendChild(header);
+    section.appendChild(items);
+    timeline.appendChild(section);
+  }
+
+  alertsListEl.appendChild(timeline);
+}
+
+// live ticking — cards now live inside .timeline-section-items, not as
+// direct children of alertsListEl, so walk the whole subtree.
 let tickTimer = null;
 function startTicking(){
   if (tickTimer) clearInterval(tickTimer);
   tickTimer = setInterval(() => {
-    [...alertsListEl.children].forEach(el => {
+    const cards = alertsListEl.querySelectorAll('.alert-item');
+    cards.forEach(el => {
       if (typeof el._tick === 'function') el._tick();
     });
   }, 1000);

@@ -1,0 +1,136 @@
+{
+  "alerts": [
+    {
+      "token": "MARKET",
+      "title": "FOMC rate decision — April meeting",
+      "description": "Federal Reserve Open Market Committee concludes its April meeting with a rate announcement and Chair press conference. Crypto prices typically track the immediate USD/rates reaction. Statement released at 14:00 ET; press conference 14:30 ET.",
+      "severity": "info",
+      "deadline": "2026-04-29T18:00:00.000Z",
+      "tags": ["market-event", "news"],
+      "further_info": "Watch the statement for any change in language on the balance-sheet runoff pace, and the dot plot for 2026 rate-cut expectations.",
+      "source_type": "trusted-source",
+      "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    {
+      "token": "MARKET",
+      "title": "FOMC rate decision — June meeting",
+      "description": "Federal Reserve Open Market Committee concludes its June meeting. Includes updated Summary of Economic Projections (dot plot).",
+      "severity": "info",
+      "deadline": "2026-06-17T18:00:00.000Z",
+      "tags": ["market-event", "news"],
+      "further_info": "SEP releases at meetings in March, June, September and December.",
+      "source_type": "trusted-source",
+      "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    {
+      "token": "MARKET",
+      "title": "FOMC rate decision — July meeting",
+      "description": "Federal Reserve Open Market Committee concludes its July meeting. No SEP release at this meeting.",
+      "severity": "info",
+      "deadline": "2026-07-29T18:00:00.000Z",
+      "tags": ["market-event", "news"],
+      "further_info": "",
+      "source_type": "trusted-source",
+      "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    {
+      "token": "MARKET",
+      "title": "FOMC rate decision — September meeting",
+      "description": "Federal Reserve Open Market Committee concludes its September meeting. SEP released.",
+      "severity": "info",
+      "deadline": "2026-09-16T18:00:00.000Z",
+      "tags": ["market-event", "news"],
+      "further_info": "",
+      "source_type": "trusted-source",
+      "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    {
+      "token": "MARKET",
+      "title": "US CPI release — April print",
+      "description": "US Bureau of Labor Statistics releases April CPI at 08:30 ET. One of the highest-impact macro data points for crypto; surprise above or below consensus typically moves BTC and ETH within minutes.",
+      "severity": "info",
+      "deadline": "2026-05-12T12:30:00.000Z",
+      "tags": ["market-event", "news"],
+      "further_info": "Consensus tracked at BLS.gov and on financial data terminals; surprise vs consensus is the key signal.",
+      "source_type": "trusted-source",
+      "source_url": "https://www.bls.gov/schedule/news_release/cpi.htm"
+    },
+    {
+      "token": "MARKET",
+      "title": "US CPI release — May print",
+      "description": "US Bureau of Labor Statistics releases May CPI at 08:30 ET. Watch for trend in core vs headline inflation.",
+      "severity": "info",
+      "deadline": "2026-06-11T12:30:00.000Z",
+      "tags": ["market-event", "news"],
+      "further_info": "",
+      "source_type": "trusted-source",
+      "source_url": "https://www.bls.gov/schedule/news_release/cpi.htm"
+    },
+    {
+      "token": "MARKET",
+      "title": "US CPI release — June print",
+      "description": "US Bureau of Labor Statistics releases June CPI at 08:30 ET.",
+      "severity": "info",
+      "deadline": "2026-07-14T12:30:00.000Z",
+      "tags": ["market-event", "news"],
+      "further_info": "",
+      "source_type": "trusted-source",
+      "source_url": "https://www.bls.gov/schedule/news_release/cpi.htm"
+    },
+    {
+      "token": "MARKET",
+      "title": "Q2 crypto options expiry (Deribit, CME)",
+      "description": "Last-Friday-of-quarter options expiry for BTC and ETH on Deribit and CME. Quarterly expiries routinely see ~$10B+ in notional rolling off; gamma unwind around the fix at 08:00 UTC often amplifies short-term volatility.",
+      "severity": "info",
+      "deadline": "2026-06-26T08:00:00.000Z",
+      "tags": ["market-event", "news"],
+      "further_info": "Max-pain strikes are published by Deribit in the days before expiry.",
+      "source_type": "trusted-source",
+      "source_url": "https://www.deribit.com/statistics/BTC/futures-and-options-open-interest"
+    },
+    {
+      "token": "MARKET",
+      "title": "Q3 crypto options expiry (Deribit, CME)",
+      "description": "Last-Friday-of-quarter options expiry for BTC and ETH. Typically the largest expiry of the year depending on open interest trends.",
+      "severity": "info",
+      "deadline": "2026-09-25T08:00:00.000Z",
+      "tags": ["market-event", "news"],
+      "further_info": "",
+      "source_type": "trusted-source",
+      "source_url": "https://www.deribit.com/statistics/BTC/futures-and-options-open-interest"
+    },
+    {
+      "token": "MARKET",
+      "title": "SEC spot-ETF decision window opens for 14 newly-classified commodities",
+      "description": "Following the March 2026 SEC/CFTC joint Interpretive Release that classified SOL, XRP, ADA, LINK, AVAX, DOT, HBAR, LTC, DOGE, SHIB, XTZ, BCH, APT and XLM as commodities, the first 19b-4 rule-change filings on spot ETFs enter the statutory decision window. Expect a cluster of approvals or extensions through late June.",
+      "severity": "info",
+      "deadline": "2026-06-30T23:59:00.000Z",
+      "tags": ["market-event", "news"],
+      "further_info": "Approvals unlock broad institutional access to a long-tail of majors that have sat on the sidelines since 2024.",
+      "source_type": "mainstream-media",
+      "source_url": "https://www.sec.gov/newsroom/press-releases/2026-30-sec-clarifies-application-federal-securities-laws-crypto-assets"
+    },
+    {
+      "token": "MARKET",
+      "title": "US federal stablecoin rules — finalisation deadline",
+      "description": "State and federal regulators have until 31 July 2026 to finalise implementation rules under the new US stablecoin framework (1:1 reserves, monthly attestation, OCC oversight for nonbank issuers). Watch for reserve-composition disclosures and issuer restructuring from USDT and USDC.",
+      "severity": "info",
+      "deadline": "2026-07-31T23:59:00.000Z",
+      "tags": ["market-event", "news"],
+      "further_info": "",
+      "source_type": "mainstream-media",
+      "source_url": "https://www.brookings.edu/articles/what-are-stablecoins-and-how-are-they-regulated/"
+    },
+    {
+      "token": "MARKET",
+      "title": "Ethereum Glamsterdam hard fork — Q2/Q3 2026 target window",
+      "description": "Glamsterdam (Glam consensus + Amsterdam execution) is the next major Ethereum hard fork after Fusaka. Client teams are targeting Q2/Q3 2026 with the exact epoch announced closer to activation. Node operators should plan a maintenance window.",
+      "severity": "info",
+      "deadline": "2026-09-30T23:59:00.000Z",
+      "tags": ["market-event", "fork", "news"],
+      "further_info": "Scope covers validator-set changes, gas-limit tuning, and further PeerDAS refinements.",
+      "source_type": "mainstream-media",
+      "source_url": "https://www.theblock.co/post/383451/how-ethereums-protocol-changed-2025"
+    }
+  ]
+}

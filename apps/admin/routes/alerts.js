@@ -274,7 +274,7 @@ router.post('/api/alerts', require('../lib/middleware').requireAdmin, async (req
   const validTags = [
     'price-change', 'migration', 'hack', 'fork', 'scam',
     'airdrop', 'whale', 'news', 'community', 'exploit', 'privacy',
-    'community-vote', 'token-unlocks'
+    'community-vote', 'token-unlocks', 'market-event'
   ];
   const sanitizedTags = Array.isArray(tags)
     ? tags.filter(t => typeof t === 'string' && validTags.includes(t))
@@ -462,7 +462,7 @@ router.put('/api/alerts/:id', require('../lib/middleware').requireAdmin, async (
     const validTags = [
       'price-change', 'migration', 'hack', 'fork', 'scam',
       'airdrop', 'whale', 'news', 'community', 'exploit', 'privacy',
-      'community-vote', 'token-unlocks'
+      'community-vote', 'token-unlocks', 'market-event'
     ];
     const cleaned = Array.isArray(payload.tags)
       ? payload.tags.filter(t => typeof t === 'string' && validTags.includes(t))
@@ -557,7 +557,7 @@ router.post('/api/alerts/bulk', require('../lib/middleware').requireAdmin, async
   const validTags = [
     'price-change', 'migration', 'hack', 'fork', 'scam',
     'airdrop', 'whale', 'news', 'community', 'exploit', 'privacy',
-    'community-vote', 'token-unlocks'
+    'community-vote', 'token-unlocks', 'market-event'
   ];
 
   const createdAlerts = [];
@@ -684,7 +684,7 @@ router.post('/admin/alerts', require('../lib/middleware').requireAdmin, async (r
     const validTags = [
       'price-change', 'migration', 'hack', 'fork', 'scam',
       'airdrop', 'whale', 'news', 'community', 'exploit', 'privacy',
-      'community-vote', 'token-unlocks'
+      'community-vote', 'token-unlocks', 'market-event'
     ];
     const sanitizedTags = Array.isArray(tags)
       ? tags.filter(t => typeof t === 'string' && validTags.includes(t))
